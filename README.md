@@ -66,6 +66,8 @@ Claude terminal (Phase 3+; run from the repo root so `claude` picks up the proje
 ttyd -W -p 7681 claude
 ```
 
+What ttyd is, how it works, its flags and how to keep it local-only: `docs/terminal-ttyd.md`.
+
 ## Test, lint, build
 
 ```bash
@@ -86,7 +88,7 @@ cd ../backend && uv run pytest            # backend tests (none yet; arrive in P
 ```
 frontend/   React + TypeScript app (canvas, block registry, panels)
 backend/    FastAPI app (Phase 3: websocket mirror + MCP server)
-docs/       SPEC.md (full spec), frontend-guide.md, mockups/
+docs/       SPEC.md (full spec), frontend-guide.md, terminal-ttyd.md, mockups/
 lessons/    lesson JSON (Phase 4)
 ```
 
