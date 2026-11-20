@@ -1,0 +1,55 @@
+/* Look and feel from docs/mockups/Main.dc.html. */
+:root {
+  --ink: #1E1E1E;
+  --muted: #5C584E;
+  --paper: #F4F1EA;
+  --panel: #FFFFFF;
+  --accent: #2F6FDE;
+  --error: #C92A2A;
+  --rule: #CFC9BB;
+  font-family: Inter, system-ui, sans-serif;
+  color: var(--ink);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); }
+
+/* Hand-drawn wobbly border trick: uneven elliptical corner radii. */
+.sk { border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; }
+.caps { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); font-size: 12px; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+.app { height: 100vh; display: flex; flex-direction: column; }
+.header { display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 2px solid var(--ink); }
+.logo { font-family: Kalam, cursive; font-size: 26px; font-weight: 700; }
+.logo span { color: var(--accent); }
+.header__actions { margin-left: auto; display: flex; gap: 8px; }
+.btn { font: 600 14px Inter, sans-serif; padding: 8px 16px; border: 2px solid var(--ink); background: var(--panel); cursor: pointer; }
+.btn:hover { background: #ECE8DE; }
+
+.body { flex: 1; display: flex; min-height: 0; }
+.palette { width: 230px; padding: 16px; border-right: 2px solid var(--ink); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.palette__group { display: flex; flex-direction: column; gap: 6px; }
+.palette__items { display: flex; flex-wrap: wrap; gap: 6px; }
+.tile { font-size: 12px; padding: 5px 9px; background: var(--panel); border: 1.5px solid var(--ink); cursor: grab; user-select: none; }
+
+.canvas { flex: 1; min-width: 0; }
+
+.inspector { width: 300px; padding: 18px; border-left: 2px solid var(--ink); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.inspector__title { font-family: Kalam, cursive; font-size: 24px; font-weight: 700; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.field__row { display: flex; justify-content: space-between; }
+.field input, .field select { font: 14px Inter, sans-serif; padding: 6px 8px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--panel); }
+.field input[aria-invalid='true'] { border-color: var(--error); background: #FFE3E3; }
+.field__error { color: var(--error); font-size: 12px; }
+
+/* Canvas nodes: the SVG draws the rough shape, the text sits on top. */
+.block-node, .container-node { position: relative; }
+.block-node__bg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.block-node__label { position: relative; padding: 12px 12px 0; text-align: center; font-family: Kalam, cursive; font-size: 16px; font-weight: 700; line-height: 1.1; }
+.block-node__sub { position: relative; text-align: center; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.container-node__label { position: absolute; left: 14px; top: 8px; font-family: Kalam, cursive; font-size: 15px; color: var(--muted); }
+
+/* React Flow draws its own box around custom nodes by default; we draw ours with rough.js. */
+.react-flow__node-block, .react-flow__node-container { background: none; border: none; padding: 0; }
+.react-flow__handle { width: 9px; height: 9px; background: var(--panel); border: 2px solid var(--ink); }

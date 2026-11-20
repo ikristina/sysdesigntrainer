@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Compare designs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;color:#1E1E1E}
+a{color:#2F6FDE}a:hover{color:#1C4FA8}
+.sk{border-radius:255px 15px 225px 15px/15px 225px 15px 255px}
+.grid{background-color:#FBFAF6;background-image:radial-gradient(#D9D4C7 1px,transparent 1px);background-size:22px 22px}
+.flow{stroke-dasharray:5 11;animation:dash .9s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-32}}
+</style>
+</helmet>
+<div style="min-height: 960px; background: #F4F1EA; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 2px solid #1E1E1E">
+    <div style="font-family: Kalam, cursive; font-size: 26px; font-weight: 700">sysdesign<span style="color: #2F6FDE">/</span>trainer</div>
+    <div style="font-size: 15px; font-weight: 600">URL Shortener · compare variants</div>
+    <div style="flex: 1 1 200px"></div>
+    <button class="sk" style="font: 600 14px Inter, sans-serif; padding: 9px 16px; border: 2px solid #1E1E1E; background: #FFFFFF; color: #1E1E1E; cursor: pointer">⇄ Swap loads</button>
+    <button class="sk" style="font: 600 14px Inter, sans-serif; padding: 9px 16px; border: 2px solid #1E1E1E; background: #2F6FDE; color: #FFFFFF; cursor: pointer">▶ Run both</button>
+  </header>
+
+  <div style="padding: 24px; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; flex-wrap: wrap; gap: 24px">
+
+      <section aria-label="Read-heavy variant" style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+          <h2 style="margin: 0; font-family: Kalam, cursive; font-size: 30px">Read-heavy</h2>
+          <span style="font-size: 13px; color: #5C584E">optimize the read path</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid #2F6FDE; color: #1C4FA8; background: #EDF2FF">100:1 reads</span>
+          <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid #2F6FDE; color: #1C4FA8; background: #EDF2FF">10k rps</span>
+          <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid #2F6FDE; color: #1C4FA8; background: #EDF2FF">p99 &lt; 100 ms</span>
+          <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid #2F6FDE; color: #1C4FA8; background: #EDF2FF">stale OK for 60 s</span>
+        </div>
+        <div class="grid sk" style="position: relative; height: 300px; border: 2px solid #1E1E1E; overflow: hidden">
+          <svg viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%">
+            <g fill="none" stroke-linecap="round">
+              <path d="M70 150 L230 150 L390 150 L550 150 L720 90 L900 90" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+              <path d="M70 150 L230 150 L390 150 L550 150 L720 90 L900 90" stroke="#2F6FDE" stroke-width="3" class="flow" vector-effect="non-scaling-stroke"></path>
+              <path d="M550 150 L900 225" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+              <path d="M550 150 L900 225" stroke="#2B8A3E" stroke-width="1.5" class="flow" vector-effect="non-scaling-stroke"></path>
+              <path d="M900 225 L900 90" stroke="#8A8578" stroke-width="2" stroke-dasharray="3 6" vector-effect="non-scaling-stroke"></path>
+            </g>
+          </svg>
+          <sc-for list="{{readNodes}}" as="n" hint-placeholder-count="7">
+            <div class="sk" style="{{n.style}}">
+              <div style="font-family: Kalam, cursive; font-size: 16px; font-weight: 700; line-height: 1.1">{{n.label}}</div>
+              <div style="font-size: 10px; color: #5C584E">{{n.sub}}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+          <div class="sk" style="border: 2px solid #2B8A3E; background: #EBFBEE; padding: 10px 14px">
+            <div style="font-size: 11px; font-weight: 700; color: #23702F; text-transform: uppercase; letter-spacing: .06em">Its own load</div>
+            <div style="font-size: 15px; font-weight: 700; margin-top: 4px">✓ p99 74 ms · $31/hr</div>
+          </div>
+          <div class="sk" style="border: 2px solid #C92A2A; background: #FFE3E3; padding: 10px 14px">
+            <div style="font-size: 11px; font-weight: 700; color: #A61E1E; text-transform: uppercase; letter-spacing: .06em">Write-heavy load</div>
+            <div style="font-size: 15px; font-weight: 700; margin-top: 4px">✕ p99 4.2 s · 11% errors</div>
+          </div>
+        </div>
+      </section>
+
+      <div style="flex: 0 0 2px; background: repeating-linear-gradient(#8A8578 0 6px, transparent 6px 12px); align-self: stretch"></div>
+
+      <section aria-label="Write-heavy variant" style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+          <h2 style="margin: 0; font-family: Kalam, cursive; font-size: 30px">Write-heavy</h2>
+          <span style="font-size: 13px; color: #5C584E">absorb and spread the writes</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid #E8590C; color: #B84A0A; background: #FFF4E6">40% writes</span>
+          <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid #E8590C; color: #B84A0A; background: #FFF4E6">60k rps</span>
+          <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid #E8590C; color: #B84A0A; background: #FFF4E6">p99 &lt; 100 ms</span>
+          <span style="font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid #E8590C; color: #B84A0A; background: #FFF4E6">click counts can lag</span>
+        </div>
+        <div class="grid sk" style="position: relative; height: 300px; border: 2px solid #1E1E1E; overflow: hidden">
+          <svg viewBox="0 0 1000 300" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%">
+            <g fill="none" stroke-linecap="round">
+              <path d="M70 150 L230 150 L400 150" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+              <path d="M70 150 L230 150 L400 150" stroke="#2F6FDE" stroke-width="3" class="flow" vector-effect="non-scaling-stroke"></path>
+              <path d="M400 150 L580 75 L880 75" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+              <path d="M400 150 L580 75 L880 75" stroke="#2B8A3E" stroke-width="2.5" class="flow" vector-effect="non-scaling-stroke"></path>
+              <path d="M400 150 L580 230 L740 230 L880 75" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+              <path d="M400 150 L580 230 L740 230 L880 75" stroke="#E8590C" stroke-width="2.5" class="flow" vector-effect="non-scaling-stroke"></path>
+            </g>
+          </svg>
+          <sc-for list="{{writeNodes}}" as="n" hint-placeholder-count="6">
+            <div class="sk" style="{{n.style}}">
+              <div style="font-family: Kalam, cursive; font-size: 16px; font-weight: 700; line-height: 1.1">{{n.label}}</div>
+              <div style="font-size: 10px; color: #5C584E">{{n.sub}}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+          <div class="sk" style="border: 2px solid #2B8A3E; background: #EBFBEE; padding: 10px 14px">
+            <div style="font-size: 11px; font-weight: 700; color: #23702F; text-transform: uppercase; letter-spacing: .06em">Its own load</div>
+            <div style="font-size: 15px; font-weight: 700; margin-top: 4px">✓ p99 61 ms · $46/hr</div>
+          </div>
+          <div class="sk" style="border: 2px solid #E8590C; background: #FFF4E6; padding: 10px 14px">
+            <div style="font-size: 11px; font-weight: 700; color: #B84A0A; text-transform: uppercase; letter-spacing: .06em">Read-heavy load</div>
+            <div style="font-size: 15px; font-weight: 700; margin-top: 4px">~ passes, but overpaying</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="sk" style="background: #FFF9DB; border: 1.5px solid #E0B800; padding: 12px 18px; font-family: Kalam, cursive; font-size: 18px; transform: rotate(-.4deg)">Takeaway: caching and replicas scale reads. Writes need a queue, batching, and sharding.</div>
+
+    <section aria-label="Lesson library" style="display: flex; flex-direction: column; gap: 12px">
+      <div style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5C584E">More lessons</div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px">
+        <sc-for list="{{lessons}}" as="l" hint-placeholder-count="5">
+          <a href="#" class="sk" style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border: 2px solid #1E1E1E; background: #FFFFFF; color: #1E1E1E; text-decoration: none; box-shadow: 3px 3px 0 #1E1E1E">
+            <span style="font-family: Kalam, cursive; font-size: 20px; font-weight: 700">{{l.t}}</span>
+            <span style="font-size: 12px; color: #5C584E">{{l.d}}</span>
+            <span style="{{l.tagStyle}}">{{l.tag}}</span>
+          </a>
+        </sc-for>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    function node(label, sub, x, y, rot) {
+      return { label: label, sub: sub, style: 'position:absolute;left:' + x + '%;top:' + y + '%;transform:translate(-50%,-50%) rotate(' + rot + 'deg);padding:6px 10px;text-align:center;min-width:72px;background:#FFFFFF;border:2px solid #1E1E1E;' };
+    }
+    var readNodes = [
+      node('Client', '10k rps', 7, 50, -1),
+      node('CDN', 'hit 60%', 23, 50, 1),
+      node('LB', '', 39, 50, -1),
+      node('API ×3', '', 55, 50, 1),
+      node('Cache', 'hit 92%', 72, 30, -1),
+      node('Replicas ×2', 'reads', 90, 30, 1),
+      node('Primary', 'writes', 90, 75, -1)
+    ];
+    var writeNodes = [
+      node('Client', '60k rps', 7, 50, -1),
+      node('LB', '', 23, 50, 1),
+      node('API ×6', '', 40, 50, -1),
+      node('KV ×4', 'sharded by key', 88, 25, 1),
+      node('Queue', 'click events', 58, 77, -1),
+      node('Workers', 'batch writes', 74, 77, 1)
+    ];
+    function tag(t, c, bg) { return 'align-self:flex-start;font-size:11px;padding:3px 9px;border-radius:999px;border:1.5px solid ' + c + ';color:' + c + ';background:' + bg; }
+    var lessons = [
+      { t: 'News feed', d: 'Fan-out on write vs read. Celebrities break one of them.', tag: 'full design', tagStyle: tag('full design', '#1C4FA8', '#EDF2FF') },
+      { t: 'Chat', d: 'Strong vs eventual ordering. Presence at scale.', tag: 'full design', tagStyle: tag('', '#1C4FA8', '#EDF2FF') },
+      { t: 'Rate limiter', d: 'Token bucket vs sliding window across nodes.', tag: 'targeted', tagStyle: tag('', '#B84A0A', '#FFF4E6') },
+      { t: 'p99 is 4s, fix it', d: 'Starter design with a sync LLM call in the hot path.', tag: 'targeted', tagStyle: tag('', '#B84A0A', '#FFF4E6') },
+      { t: 'Global reads', d: 'Users on 3 continents, writes in one region.', tag: 'full design', tagStyle: tag('', '#1C4FA8', '#EDF2FF') }
+    ];
+    return { readNodes: readNodes, writeNodes: writeNodes, lessons: lessons };
+  }
+}
+</script>
+</body>
+</html>

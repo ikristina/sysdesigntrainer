@@ -1,0 +1,37 @@
+import { describe, expect, it } from 'vitest'
+import { fromDesign, toDesign, type Design } from './design'
+
+const design: Design = {
+  version: 1,
+  nodes: [
+    { id: 'r1', type: 'region', position: { x: 0, y: 0 }, size: { w: 500, h: 300 }, params: { name: 'eu-west-1' } },
+    { id: 'api', type: 'service', position: { x: 40, y: 60 }, parentId: 'r1', params: { replicas: 4 } },
+    { id: 'db', type: 'sql_db', position: { x: 300, y: 60 }, parentId: 'r1', params: {} },
+  ],
+  edges: [{ id: 'e1', source: 'api', target: 'db' }],
+}
+
+const trip = (d: unknown) => { const { nodes, edges } = fromDesign(d); return toDesign(nodes, edges) }
+
+describe('save/load', () => {
+  it('round-trips a design (missing params are filled with defaults)', () => {
+    const back = trip(design)
+    expect(back.edges).toEqual(design.edges)
+    expect(back.nodes[0]).toEqual(design.nodes[0])
+    expect(back.nodes[1].params).toMatchObject({ replicas: 4, capacity_rps: 1000 })
+    expect(back.nodes[2]).toMatchObject({ id: 'db', parentId: 'r1', params: { read_replicas: 0 } })
+    // and a second trip is stable
+    expect(trip(back)).toEqual(back)
+  })
+
+  it('survives JSON serialization (what export/import and localStorage do)', () => {
+    const json = JSON.parse(JSON.stringify(trip(design)))
+    expect(trip(json)).toEqual(json)
+  })
+
+  it('rejects bad input with a readable message', () => {
+    expect(() => fromDesign({})).toThrow(/Not a design/)
+    expect(() => fromDesign({ ...design, nodes: [{ ...design.nodes[0], type: 'mainframe' }] })).toThrow(/Unknown block type/)
+    expect(() => fromDesign({ ...design, edges: [{ id: 'x', source: 'api', target: 'nope' }] })).toThrow(/missing node/)
+  })
+})

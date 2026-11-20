@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Design under load</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:Inter,system-ui,sans-serif;color:#1E1E1E}
+a{color:#2F6FDE}a:hover{color:#1C4FA8}
+.sk{border-radius:255px 15px 225px 15px/15px 225px 15px 255px}
+.grid{background-color:#FBFAF6;background-image:radial-gradient(#D9D4C7 1px,transparent 1px);background-size:22px 22px}
+.flow{stroke-dasharray:5 11;animation:dash .5s linear infinite}
+.flowslow{stroke-dasharray:5 11;animation:dash 3s linear infinite}
+.jam{stroke-dasharray:3 4;animation:dash 4s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-32}}
+.hot{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(201,42,42,.45)}50%{box-shadow:0 0 0 10px rgba(201,42,42,0)}}
+</style>
+</helmet>
+<div style="min-height: 960px; background: #F4F1EA; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 2px solid #1E1E1E">
+    <div style="font-family: Kalam, cursive; font-size: 26px; font-weight: 700">sysdesign<span style="color: #2F6FDE">/</span>trainer</div>
+    <div class="sk" style="border: 2px solid #C92A2A; padding: 4px 14px; font-size: 13px; font-weight: 600; background: #FFE3E3; color: #A61E1E">Twist applied · writes now 40%</div>
+    <div style="flex: 1 1 300px"></div>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 18px; font-size: 13px">
+      <label style="display: flex; align-items: center; gap: 8px">Traffic
+        <input type="range" min="1" max="100" value="60" aria-label="Traffic in thousands of rps" style="width: 140px; accent-color: #C92A2A">
+        <span style="font-weight: 700; color: #A61E1E">60k rps</span>
+      </label>
+      <label style="display: flex; align-items: center; gap: 8px">Read / write
+        <input type="range" min="0" max="100" value="60" aria-label="Read percentage" style="width: 100px; accent-color: #1E1E1E">
+        <span style="font-weight: 700">60 / 40</span>
+      </label>
+      <button class="sk" style="font: 600 14px Inter, sans-serif; padding: 9px 16px; border: 2px solid #1E1E1E; background: #FFD8A8; color: #1E1E1E; cursor: pointer">⚡ Spike ×3</button>
+      <button class="sk" style="font: 600 14px Inter, sans-serif; padding: 9px 16px; border: 2px solid #1E1E1E; background: #FFFFFF; color: #1E1E1E; cursor: pointer">✕ Kill node</button>
+      <button class="sk" style="font: 600 14px Inter, sans-serif; padding: 9px 16px; border: 2px solid #1E1E1E; background: #1E1E1E; color: #FFFFFF; cursor: pointer">❚❚ Pause</button>
+    </div>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; flex: 1 1 auto; min-height: 0">
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+      <div class="grid" style="position: relative; height: 620px; overflow: hidden">
+        <div class="sk" style="position: absolute; left: 21%; top: 6%; width: 76%; height: 88%; border: 2px dashed #8A8578"></div>
+        <div style="position: absolute; left: 22.5%; top: 7.5%; font-family: Kalam, cursive; font-size: 15px; color: #5C584E">region · us-east-1</div>
+        <svg viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0; width: 100%; height: 100%">
+          <g fill="none" stroke-linecap="round">
+            <path d="M60 300 L280 300" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            <path d="M60 300 L280 300" stroke="#C92A2A" stroke-width="5" class="flow" vector-effect="non-scaling-stroke"></path>
+            <path d="M280 300 Q380 160 460 150" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            <path d="M280 300 Q380 160 460 150" stroke="#E8590C" stroke-width="4" class="flow" vector-effect="non-scaling-stroke"></path>
+            <path d="M280 300 L460 300" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            <path d="M280 300 L460 300" stroke="#E8590C" stroke-width="4" class="flow" vector-effect="non-scaling-stroke"></path>
+            <path d="M280 300 Q380 440 460 450" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            <path d="M280 300 Q380 440 460 450" stroke="#E8590C" stroke-width="4" class="flow" vector-effect="non-scaling-stroke"></path>
+            <path d="M460 150 L660 150" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            <path d="M460 150 L660 150" stroke="#2F6FDE" stroke-width="3" class="flow" vector-effect="non-scaling-stroke"></path>
+            <path d="M460 150 Q700 300 860 360" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            <path d="M460 150 Q700 300 860 360" stroke="#C92A2A" stroke-width="5" class="jam" vector-effect="non-scaling-stroke"></path>
+            <path d="M460 300 Q700 340 860 360" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            <path d="M460 300 Q700 340 860 360" stroke="#C92A2A" stroke-width="6" class="jam" vector-effect="non-scaling-stroke"></path>
+            <path d="M460 450 Q700 420 860 360" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            <path d="M460 450 Q700 420 860 360" stroke="#C92A2A" stroke-width="5" class="jam" vector-effect="non-scaling-stroke"></path>
+            <path d="M660 150 L860 150" stroke="#1E1E1E" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+            <path d="M660 150 L860 150" stroke="#2F6FDE" stroke-width="2" class="flowslow" vector-effect="non-scaling-stroke"></path>
+            <path d="M860 360 L860 150" stroke="#E8590C" stroke-width="2.5" stroke-dasharray="3 6" vector-effect="non-scaling-stroke"></path>
+          </g>
+        </svg>
+        <sc-for list="{{nodes}}" as="n" hint-placeholder-count="7">
+          <div class="{{n.cls}}" style="{{n.style}}">
+            <div style="font-family: Kalam, cursive; font-size: 17px; font-weight: 700; line-height: 1.1">{{n.label}}</div>
+            <div style="font-size: 11px; margin-top: 2px">{{n.sub}}</div>
+          </div>
+        </sc-for>
+        <div class="sk" style="position: absolute; left: 64%; top: 72%; width: 210px; padding: 10px 12px; background: #FFF9DB; border: 1.5px solid #E0B800; font-family: Kalam, cursive; font-size: 15px; line-height: 1.3; transform: rotate(-2deg)">primary queue: 12.4k waiting<br>wait 3.8 s &gt; timeout 2 s<br>→ retries are adding 18% load</div>
+        <div style="position: absolute; left: 89%; top: 42%; font-family: Kalam, cursive; font-size: 14px; color: #B84A0A">lag 8.2 s</div>
+      </div>
+
+      <section aria-label="Claude terminal" style="background: #1B1B1F; color: #E6E3DA; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; padding: 14px 20px; border-top: 2px solid #1E1E1E; min-height: 170px">
+        <div style="display: flex; justify-content: space-between; color: #9C988D; font-size: 11px; margin-bottom: 8px"><span>claude · sysdesign MCP · set_requirements(write-heavy) · set_traffic(60k)</span><span>ttyd :7681</span></div>
+        <div><span style="color: #D97757">claude ›</span> New requirement: users can now edit links and we log every click synchronously. Writes went from 1% to 40%.</div>
+        <div><span style="color: #D97757">claude ›</span> p99 went from 74 ms to 4.2 s. Don't fix it yet. What's actually saturated, and why didn't the cache help?</div>
+        <div><span style="color: #7FB0FF">you ›</span> primary. all writes go to one node, cache only absorbs reads. and stale reads from the replica lag<span style="display: inline-block; width: 8px; height: 15px; background: #E6E3DA; vertical-align: -2px; margin-left: 4px"></span></div>
+      </section>
+    </main>
+
+    <aside aria-label="Metrics" style="flex: 1 1 280px; max-width: 340px; border-left: 2px solid #1E1E1E; padding: 18px; display: flex; flex-direction: column; gap: 16px; background: #FFFFFF">
+      <div style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5C584E">p99 latency · last 60 s</div>
+      <div class="sk" style="border: 2px solid #1E1E1E; padding: 10px; position: relative">
+        <svg viewBox="0 0 300 120" role="img" aria-label="p99 latency rising from about 70 milliseconds to 4.2 seconds after the twist" style="width: 100%; height: 120px; display: block">
+          <line x1="0" y1="96" x2="300" y2="96" stroke="#2B8A3E" stroke-width="1" stroke-dasharray="4 4"></line>
+          <text x="4" y="92" font-size="10" fill="#23702F" font-family="Inter">SLO 100 ms</text>
+          <line x1="150" y1="0" x2="150" y2="120" stroke="#8A8578" stroke-width="1" stroke-dasharray="2 4"></line>
+          <text x="154" y="12" font-size="10" fill="#5C584E" font-family="Inter">twist</text>
+          <polyline points="0,104 20,103 40,105 60,102 80,104 100,103 120,104 140,103 150,100 165,88 180,70 195,58 210,44 225,38 240,30 255,26 270,20 285,18 300,14" fill="none" stroke="#C92A2A" stroke-width="2.5" stroke-linejoin="round"></polyline>
+        </svg>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+        <sc-for list="{{metrics}}" as="m" hint-placeholder-count="6">
+          <div class="sk" style="border: 2px solid #1E1E1E; padding: 8px 10px">
+            <div style="font-size: 11px; color: #5C584E">{{m.k}}</div>
+            <div style="{{m.style}}">{{m.v}}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="border-top: 2px dashed #CFC9BB; padding-top: 12px">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5C584E; margin-bottom: 10px">Saturation (ρ)</div>
+        <div style="display: flex; flex-direction: column; gap: 9px">
+          <sc-for list="{{sat}}" as="s" hint-placeholder-count="5">
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 13px">
+              <span style="width: 92px">{{s.name}}</span>
+              <div style="flex: 1 1 auto; height: 10px; background: #ECE8DE; border-radius: 5px; position: relative; overflow: hidden"><div style="{{s.bar}}"></div></div>
+              <span style="{{s.vstyle}}">{{s.v}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border-top: 2px dashed #CFC9BB; padding-top: 12px; font-size: 13px; display: flex; flex-direction: column; gap: 6px">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5C584E; margin-bottom: 4px">Success criteria</div>
+        <div><span style="color: #C92A2A; font-weight: 700">✕</span> p99 under 100 ms</div>
+        <div><span style="color: #C92A2A; font-weight: 700">✕</span> errors under 0.1%</div>
+        <div><span style="color: #2B8A3E; font-weight: 700">✓</span> cost under $50/hr</div>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var C = {
+      ok: 'background:#FFFFFF;border:2px solid #1E1E1E;color:#1E1E1E;',
+      warn: 'background:#FFF4E6;border:2px solid #E8590C;color:#7A3306;',
+      bad: 'background:#FFE3E3;border:3px solid #C92A2A;color:#7D1414;'
+    };
+    function node(label, sub, x, y, st, rot) {
+      return { label: label, sub: sub, cls: st === 'bad' ? 'sk hot' : 'sk', style: 'position:absolute;left:' + x + '%;top:' + y + '%;transform:translate(-50%,-50%) rotate(' + rot + 'deg);padding:8px 14px;text-align:center;min-width:96px;' + C[st] };
+    }
+    var nodes = [
+      node('Client', '60k rps · retries on', 6, 50, 'warn', -1.5),
+      node('Load balancer', 'ρ 0.71', 28, 50, 'ok', -1),
+      node('api-1', 'ρ 0.94', 46, 25, 'warn', 1.2),
+      node('api-2', 'ρ 0.97 · pool full', 46, 50, 'warn', -0.8),
+      node('api-3', 'ρ 0.95', 46, 75, 'warn', 0.6),
+      node('Cache', 'hit 92% · ρ 0.41', 66, 25, 'ok', -1),
+      node('Read replica', 'ρ 0.52 · stale', 86, 25, 'warn', 1),
+      node('Primary', 'ρ 1.43 · 11% errors', 86, 60, 'bad', -1.2)
+    ];
+    function met(k, v, col) { return { k: k, v: v, style: 'font-size:20px;font-weight:700;color:' + col }; }
+    var metrics = [met('p50', '1.1 s', '#A61E1E'), met('p99', '4.2 s', '#A61E1E'), met('errors', '11.3%', '#A61E1E'), met('throughput', '41k/s', '#1E1E1E'), met('repl. lag', '8.2 s', '#B84A0A'), met('cost', '$38/hr', '#1E1E1E')];
+    function s(n, r) {
+      var col = r >= 1 ? '#C92A2A' : (r >= 0.85 ? '#E8590C' : '#2B8A3E');
+      var vcol = r >= 1 ? '#A61E1E' : (r >= 0.85 ? '#B84A0A' : '#23702F');
+      return { name: n, v: r.toFixed(2), bar: 'position:absolute;left:0;top:0;bottom:0;width:' + Math.min(100, r * 70) + '%;background:' + col, vstyle: 'width:40px;text-align:right;font-weight:700;color:' + vcol };
+    }
+    var sat = [s('Primary', 1.43), s('api-2', 0.97), s('api-1', 0.94), s('LB', 0.71), s('Cache', 0.41)];
+    return { nodes: nodes, metrics: metrics, sat: sat };
+  }
+}
+</script>
+</body>
+</html>
