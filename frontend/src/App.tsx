@@ -1,11 +1,13 @@
-// Page layout: header (save/load), palette | canvas | param panel.
+// Page layout: header (traffic controls, save/load), palette | canvas | params + metrics.
 // Rendered inside <ReactFlowProvider> (see main.tsx) so it can use React Flow hooks like fitView.
 import { useReactFlow } from '@xyflow/react'
 import { useRef, useState } from 'react'
 import { Canvas } from './canvas/Canvas'
 import { toDesign } from './design'
+import { MetricsPanel } from './panels/MetricsPanel'
 import { Palette } from './panels/Palette'
 import { ParamPanel } from './panels/ParamPanel'
+import { TrafficBar } from './panels/TrafficBar'
 import { useDesign } from './store'
 
 export default function App() {
@@ -44,6 +46,7 @@ export default function App() {
         <div className="logo">sysdesign<span>/</span>trainer</div>
         <span className="muted">sandbox · autosaved</span>
         {error && <span className="field__error" role="alert">{error}</span>}
+        <TrafficBar />
         <div className="header__actions">
           <button className="btn sk" onClick={exportFile}>Export JSON</button>
           <button className="btn sk" onClick={() => fileInput.current?.click()}>Import JSON</button>
@@ -54,7 +57,10 @@ export default function App() {
       <div className="body">
         <Palette />
         <main className="canvas"><Canvas /></main>
-        <ParamPanel />
+        <aside className="inspector">
+          <MetricsPanel />
+          <ParamPanel />
+        </aside>
       </div>
     </div>
   )

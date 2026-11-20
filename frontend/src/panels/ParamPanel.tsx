@@ -1,4 +1,4 @@
-// Right panel: edit the params of the selected node.
+// Right panel, top: edit the params of the selected node.
 // Each input keeps its own text while you type; the value is saved to the store only
 // when it passes validation (min/max/whole number), otherwise the error shows under it.
 import { useState } from 'react'
@@ -12,11 +12,11 @@ export function ParamPanel() {
   const setParam = useDesign((s) => s.setParam)
 
   if (!node) {
-    return <aside className="inspector"><div className="caps">Selected</div><p className="muted">Click a block to edit it.</p></aside>
+    return <section className="stack"><div className="caps">Selected</div><p className="muted">Click a block to edit it.</p></section>
   }
   const def = registry[node.data.blockType]
   return (
-    <aside className="inspector" aria-label="Inspector">
+    <section className="stack" aria-label="Selected block">
       <div>
         <div className="caps">Selected</div>
         <div className="inspector__title">{def.label}</div>
@@ -27,7 +27,7 @@ export function ParamPanel() {
         <ParamField key={`${node.id}.${p.key}`} def={p} value={node.data.params[p.key]}
           onCommit={(v) => setParam(node.id, p.key, v)} />
       ))}
-    </aside>
+    </section>
   )
 }
 

@@ -20,12 +20,22 @@ body { margin: 0; background: var(--paper); }
 .mono { font-family: 'JetBrains Mono', monospace; }
 
 .app { height: 100vh; display: flex; flex-direction: column; }
-.header { display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 2px solid var(--ink); }
+.header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px 24px; border-bottom: 2px solid var(--ink); }
 .logo { font-family: Kalam, cursive; font-size: 26px; font-weight: 700; }
 .logo span { color: var(--accent); }
-.header__actions { margin-left: auto; display: flex; gap: 8px; }
+.header__actions { display: flex; gap: 8px; }
 .btn { font: 600 14px Inter, sans-serif; padding: 8px 16px; border: 2px solid var(--ink); background: var(--panel); cursor: pointer; }
-.btn:hover { background: #ECE8DE; }
+.btn:hover:not(:disabled) { background: #ECE8DE; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn--dark { background: var(--ink); color: #FFFFFF; }
+.btn--dark:hover:not(:disabled) { background: #3A3A3A; }
+.btn--spike { background: #FFD8A8; }
+
+/* Traffic controls (header). */
+.traffic { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; font-size: 13px; margin-left: auto; }
+.traffic__ctl { display: flex; align-items: center; gap: 8px; }
+.traffic__ctl input { width: 110px; accent-color: var(--ink); }
+.traffic__val { min-width: 64px; }
 
 .body { flex: 1; display: flex; min-height: 0; }
 .palette { width: 230px; padding: 16px; border-right: 2px solid var(--ink); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
@@ -35,7 +45,8 @@ body { margin: 0; background: var(--paper); }
 
 .canvas { flex: 1; min-width: 0; }
 
-.inspector { width: 300px; padding: 18px; border-left: 2px solid var(--ink); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.inspector { width: 300px; padding: 18px; border-left: 2px solid var(--ink); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; gap: 18px; }
+.stack { display: flex; flex-direction: column; gap: 14px; }
 .inspector__title { font-family: Kalam, cursive; font-size: 24px; font-weight: 700; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .field__row { display: flex; justify-content: space-between; }
@@ -53,3 +64,38 @@ body { margin: 0; background: var(--paper); }
 /* React Flow draws its own box around custom nodes by default; we draw ours with rough.js. */
 .react-flow__node-block, .react-flow__node-container { background: none; border: none; padding: 0; }
 .react-flow__handle { width: 9px; height: 9px; background: var(--panel); border: 2px solid var(--ink); }
+
+/* Live sim state on blocks. */
+.block-node__stats { position: relative; text-align: center; font-size: 11px; font-weight: 600; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; }
+.util { position: absolute; left: 14px; right: 14px; bottom: 7px; height: 4px; background: #ECE8DE; border-radius: 2px; overflow: hidden; }
+.util > div { height: 100%; }
+.qstack { position: absolute; right: 8px; bottom: calc(100% + 2px); display: flex; flex-direction: column-reverse; gap: 2px; }
+.qstack span { width: 14px; height: 7px; border: 1.5px solid #E8590C; background: #FFF4E6; border-radius: 2px; }
+.block-node--dead .block-node__label, .block-node--dead .block-node__sub { color: #868E96; }
+.block-node--bad { animation: shake .5s ease-in-out infinite, pulse 1.2s ease-in-out infinite; }
+@keyframes shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-1deg); } 75% { transform: rotate(1deg); } }
+@keyframes pulse { 0%, 100% { filter: drop-shadow(0 0 0 rgba(201, 42, 42, 0)); } 50% { filter: drop-shadow(0 0 7px rgba(201, 42, 42, .7)); } }
+
+/* Live sim state on edges: moving dashes, and red dots falling off when requests fail. */
+.edge-flow { fill: none; stroke-dasharray: 5 11; stroke-linecap: round; pointer-events: none; }
+.edge-flow--run { animation: dash 1s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -32; } }
+.edge-drop { fill: #C92A2A; animation: fall 1.2s ease-in infinite; }
+@keyframes fall { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(6px, 34px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .edge-flow--run, .edge-drop, .block-node--bad { animation: none; }
+}
+
+/* Metrics panel. */
+.metrics { display: flex; flex-direction: column; gap: 12px; }
+.metrics + .stack { border-top: 2px dashed var(--rule); padding-top: 16px; }
+.chart { border: 2px solid var(--ink); padding: 8px; }
+.chart svg { width: 100%; height: 110px; display: block; }
+.metrics__tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tile-metric { border: 2px solid var(--ink); padding: 6px 10px; }
+.tile-metric__v { font-size: 18px; font-weight: 700; }
+.sat { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.sat__name { width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sat__track { flex: 1; height: 10px; background: #ECE8DE; border-radius: 5px; overflow: hidden; }
+.sat__track > div { height: 100%; }
+.sat b { width: 36px; text-align: right; }

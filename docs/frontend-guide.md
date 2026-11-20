@@ -1,6 +1,6 @@
 # Frontend guide
 
-A walkthrough of the System Design Trainer frontend for a backend engineer: what each tool is, which file does what, and how data moves when you click or drag something. Covers Phase 1 (the canvas).
+A walkthrough of the System Design Trainer frontend for a backend engineer: what each tool is, which file does what, and how data moves when you click or drag something. Covers Phase 1 (the canvas) and Phase 2 (the simulator).
 
 ## 1. Run it
 
@@ -25,7 +25,7 @@ curl localhost:8000/health   # {"status":"ok"}
 
 ## 2. The big picture
 
-The frontend is a **single-page app**. The browser downloads one HTML page once. From then on, JavaScript draws and redraws the screen in place, with no page reloads and no server calls. Everything in Phase 1 runs in the browser tab.
+The frontend is a **single-page app**. The browser downloads one HTML page once. From then on, JavaScript draws and redraws the screen in place, with no page reloads and no server calls. Everything so far, the simulator included, runs in the browser tab.
 
 ```
 index.html ── loads ──> src/main.tsx ── renders ──> <App/>
@@ -34,13 +34,20 @@ index.html ── loads ──> src/main.tsx ── renders ──> <App/>
                                                      │    ├─ <BlockNode/>      one per block
                                                      │    ├─ <ContainerNode/>  region / AZ
                                                      │    └─ <RoughEdge/>      one per connection
-                                                     └─ <ParamPanel/>  right: edit selected block
+                                                     ├─ <TrafficBar/>  header: traffic, spike, kill, run
+                                                     └─ right column: <MetricsPanel/> + <ParamPanel/>
 
            all of them read and write ──>  store.ts (Zustand)  ── autosave ──> localStorage
                                                 ▲
                        blocks/ (registry: what block types exist, their params)
                        design.ts (saved JSON format <-> React Flow objects)
+
+  simStore.ts (Zustand) ── every 100 ms ──> sim/engine.ts step(design, state) ──> new metrics
+       ▲ traffic, killed nodes                                         │
+       └──── BlockNode / RoughEdge / MetricsPanel read the metrics ◄────┘
 ```
+
+There are two stores. `store.ts` holds the design (what you drew, saved). `simStore.ts` holds the run (traffic settings, killed nodes, latest metrics, not saved). The simulator itself (`sim/`) is plain TypeScript with no React, so it can be unit-tested like any pure function.
 
 A backend analogy:
 
@@ -65,6 +72,8 @@ A backend analogy:
 | **Vitest** | Test runner, like pytest. `describe`/`it` group tests and `expect(x).toBe(y)` asserts. Test files end in `.test.ts` and sit next to the code they test. | `*.test.ts` |
 | **oxlint** | Linter, similar to ruff. Ships with the Vite template. | `npm run lint` |
 | **Browser APIs** | `localStorage`: per-site key/value storage in the browser, kept across reloads (autosave). HTML drag-and-drop (`draggable`, `onDragStart`, `onDrop`): moving palette tiles. `Blob` + a temporary `<a download>`: the Export button. `<input type="file">`: the Import button. | `store.ts`, `Palette.tsx`, `App.tsx` |
+| **`setInterval`** | Browser timer: runs a function every N ms. The sim's tick loop is one `setInterval(tick, 100)`, started by ▶ Run and cleared by Pause. | `simStore.ts` |
+| **CSS animations** | `@keyframes` define a motion; `animation: name 1s infinite` plays it. The moving dashes on edges animate `stroke-dashoffset`, saturated blocks shake, and failing edges drop red dots. All CSS, no JS per frame. `prefers-reduced-motion` turns them off for people who ask their OS for less motion. | `index.css` |
 | **Google Fonts** | Kalam (hand-written headings), Inter (UI text), JetBrains Mono (code), loaded in `index.html`. | `index.html` |
 
 ## 4. Files
@@ -78,6 +87,8 @@ frontend/
     App.tsx               layout + header (Export / Import buttons, import error message)
     index.css             all styles
     store.ts              Zustand store: nodes, edges, actions, autosave
+    simStore.ts           Zustand store for the run: traffic, killed nodes, tick loop, latest SimState
+    display.ts            number formatting + green/amber/red health scale
     design.ts             saved-design JSON format: toDesign / fromDesign / localStorage helpers
     design.test.ts        save/load round-trip + bad-input tests
     blocks/
@@ -92,9 +103,19 @@ frontend/
       RoughEdge.tsx       how a connection looks (rough curve + arrowhead)
       rough.ts            rough.js helpers (rect/path/line, seed from node id)
       RoughPaths.tsx      renders rough.js output as SVG <path>s
+    sim/
+      types.ts            Flow, SimNode, NodeMetrics, Handler types
+      engine.ts           step(): one tick of the whole graph; cost per hour
+      engine.test.ts      simulator tests (saturation, retries, cache, LB, SQL, queue, stream, regions)
+      handlers/
+        common.ts         queueStep() (the queue model), latency formula, helpers
+        index.ts          simBehavior name -> handler
+        client.ts service.ts balancer.ts cache.ts sql.ts queue.ts stream.ts
     panels/
       Palette.tsx         left panel: draggable tiles grouped by category
-      ParamPanel.tsx      right panel: param inputs with min/max validation
+      ParamPanel.tsx      right column, bottom: param inputs with min/max validation
+      MetricsPanel.tsx    right column, top: p99 chart, headline numbers, most saturated blocks
+      TrafficBar.tsx      header: traffic and read/write sliders, Spike, Kill/Restore, Run/Pause, Reset
 backend/
   pyproject.toml          uv project (FastAPI, uvicorn)
   app/main.py             GET /health
@@ -126,6 +147,15 @@ Select it and press Backspace (React Flow's default). Deleting a region also del
 **...reload the page**
 `store.ts` calls `loadLocal()` at startup, which reads `localStorage['sysdesign.design']` and runs it through `fromDesign`. A corrupt save is ignored and you get an empty canvas.
 
+**...press ▶ Run**
+1. `simStore.play()` starts a timer that calls `tick()` every 100 ms.
+2. `tick()` turns the current design into the saved format (`toDesign`) and calls `step(design, previousState, { traffic, killed })` from `sim/engine.ts`.
+3. `step` returns a new `SimState`: per-node metrics (λ, μ, ρ, queue, latency, errors), rps per edge, and global numbers (p50, p99, error %, throughput, cost).
+4. The store saves it, so every component that reads metrics re-renders: blocks recolor, edges change width and speed, and the metrics panel updates.
+
+**...move the Traffic slider / press Spike / Kill**
+They only change `simStore` (rps, read ratio, spike end time, killed list). The next tick picks them up. Kill applies to the selected block; killing a region or AZ kills everything inside it. Reset clears queues, lag and the chart, not your design or settings.
+
 **...Export / Import**
 Export calls `toDesign(nodes, edges)`, then `JSON.stringify`, and downloads the result as `design.json`. Import reads the file, `fromDesign` validates it (version, known block types, edges point at existing nodes), and the canvas is replaced. A bad file shows a red message in the header and leaves the canvas unchanged.
 
@@ -151,7 +181,45 @@ This is our own format, not React Flow's internal one. Lessons, explainers and t
 - `size` appears only on regions and AZs.
 - On load, params missing from the file are filled from the registry defaults, so old saves keep working when a block gains a param.
 
-## 7. The block registry
+## 7. The simulator
+
+It's a queueing model, not real traffic: numbers per second flow through the graph. Every 100 ms of sim time (`dt = 0.1 s`) `step()` in `sim/engine.ts` does three passes:
+
+1. **Forward**: visit blocks in graph order (clients first). Each block's **handler** (picked by its `simBehavior`) gets its inbound flow `{ read, write }` in rps and decides what it serves, what it drops, and what it sends to each child.
+2. **Backward**: from the leaves up, work out each block's end-to-end latency and failure share (what a request entering that block experiences, including everything downstream).
+3. **Sampling**: draw 100 random request paths per tick and keep the last 2 s of samples to get p50 and p99.
+
+The core formulas (in `handlers/common.ts`):
+
+- Service rate `μ = replicas × capacity_rps`. Arrival rate `λ` = sum of inbound flows. Utilization `ρ = λ / μ`.
+- Latency = `base_latency / (1 - ρ)` (ρ capped at 0.99), plus time spent waiting in the queue.
+- When `λ > μ`, the queue grows by `(λ - μ) × dt`. Once waiting would exceed the block's timeout, the overflow fails (errors).
+- A block with `timeout_ms` also gives up on downstream calls slower than that timeout. Those count as failures for it, even though the downstream keeps working.
+- Clients retry: if a share `f` failed last tick, a client with `r` retries sends `1 + f + … + f^r` times its traffic. That's how an overload becomes a retry storm, and why it can stay broken after the spike ends.
+
+What each behavior does:
+
+| `simBehavior` | Blocks | Behavior |
+|---|---|---|
+| `client` | Client | Sends its share of the global rps (split evenly between clients), plus retries. |
+| `service` / `kv` / `passthrough` | Service, Worker, Function, LLM, Embeddings, NoSQL-style stores, Blob, DNS | One queue in front of `μ`; each request calls **every** child. |
+| `balancer` | Load balancer | Like a service, then splits evenly across the children that are alive. |
+| `gateway` | API gateway | Drops traffic above `rate_limit_rps`, then balances. |
+| `cache` | Cache, CDN | Serves `hit_ratio` of reads; misses and writes go downstream. With `invalidate`, writes lower the effective hit ratio. |
+| `sql` | SQL DB | Writes go to the primary only; reads spread over primary + read replicas. The connection pool caps throughput at `pool_size / base latency`. Replication lag grows while the primary is above ρ 0.8. |
+| `queue` | Queue | Accepts up to its capacity; children are competing consumers. The producer only waits for the enqueue, so its latency stays low while the backlog grows. |
+| `stream` | Stream | Each child is a consumer group that reads **every** message. A group can use at most `partitions` of its replicas. |
+
+- **Regions and AZs:** an edge between two regions adds 70 ms, and between two AZs adds 1 ms (estimates).
+- **Killed block:** `μ = 0`, so everything sent to it fails. Load balancers skip killed children, like a health check would.
+- **Cost/hr:** the block's `cost × replicas` (SQL: primary + read replicas), summed.
+- **Deterministic:** randomness comes from a seeded generator stored in the state, so the same inputs give the same run. That's what makes it testable.
+
+On screen, health is green below ρ 0.85, amber up to 1, and red when saturated or failing more than 1% (`display.ts`). Edges take the color of the block they point at.
+
+To add a behavior: write `sim/handlers/<name>.ts` (a function from `HandlerInput` to `HandlerOutput`) and register it in `sim/handlers/index.ts`. `engine.ts` doesn't change.
+
+## 8. The block registry
 
 Each block is data, not code. See `blocks/service.ts`:
 
@@ -163,13 +231,13 @@ export const service: BlockDef = {
 ```
 
 - `params` drive the param panel and validation.
-- `simBehavior` names the simulator handler that will run the block in Phase 2. It's only a label for now.
+- `simBehavior` names the simulator handler that runs the block (see the table above).
 - `cost` is USD per replica-hour.
 - The comment at the top of each file says where its numbers come from. Most are order-of-magnitude estimates.
 
 To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `blocks/index.ts`. The `sysdesign-add-block` skill walks through it.
 
-## 8. Debugging in the browser
+## 9. Debugging in the browser
 
 - **DevTools:** press Cmd+Option+I in Chrome.
   - **Console** tab: errors and `console.log(...)` output.
@@ -179,7 +247,7 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - **Type errors** show in the editor and in `npx tsc -b`. The dev server does *not* stop on type errors, so run the check.
 - **Dev-only double renders:** `<StrictMode>` in `main.tsx` runs some code twice in development to surface bugs. This is expected.
 
-## 9. Glossary
+## 10. Glossary
 
 - **Component:** a function returning JSX. Name starts with a capital letter.
 - **Props:** a component's inputs, like function arguments.
@@ -191,12 +259,18 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - **Parent / child node:** a child (`parentId`) moves with its parent and is positioned relative to it.
 - **Flow coordinates vs screen coordinates:** canvas space (which pans and zooms) vs pixels on your monitor.
 - **Bundle / build:** Vite's output, a few static `.js`/`.css` files plus `index.html`.
+- **Tick:** one step of the simulator (100 ms of sim time).
+- **λ / μ / ρ:** arrival rate, service rate, utilization (λ/μ). ρ ≥ 1 means a growing queue.
+- **p50 / p99:** the latency half of requests beat / 99% of requests beat.
 
-## 10. Phase 1 limits
+## 11. Known limits
 
 - Every block is a rough box. Per-category shapes (cylinder, cloud, diamond...) are Phase 5.
-- No simulator yet. `simBehavior` is a label and there's no traffic or metrics.
-- Region/AZ have no effect beyond grouping. Cross-region latency is Phase 2.
+- Ignored by the simulator for now: cache `ttl_s` and `eviction`, function `cold_start_ms`, LLM `tokens_per_s`. Traffic has no payload size or hot-key skew yet (they matter for Phase 5 presets).
+- p50/p99 are global, not per block. Samples include requests that fail, so a dead path can still show a low p99 next to a high error %.
+- Edges that form a cycle are ignored by the simulator.
+- Clients each get an equal share of the global rps.
+- Partitioning a region (cutting edges across it) is Phase 3, with the MCP tool.
 - No "clear canvas" button. Select everything (drag a box with Shift held) and press Backspace, or delete the localStorage key.
 - Autosave writes on every drag frame. That's fine for designs this size; add a debounce if large designs feel slow.
 - Backend has only `/health` and no tests, so `uv run pytest` reports "no tests ran" until Phase 3.

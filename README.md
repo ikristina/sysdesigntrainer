@@ -2,7 +2,7 @@
 
 A local web app for learning system design hands-on. You drag components (services, databases, caches, queues...) onto a canvas, connect them, run simulated load, and watch the design break. Then you fix it. Later phases add Claude as a coach in an embedded terminal, talking to the app over MCP.
 
-**Status:** Phase 1 (canvas) is done. See `docs/SPEC.md` for the plan.
+**Status:** Phase 1 (canvas) and Phase 2 (simulator) are done. See `docs/SPEC.md` for the plan.
 
 ## What you need
 
@@ -52,6 +52,8 @@ Open http://localhost:5173.
 - **Delete:** press Backspace to delete what's selected.
 - **Group:** drop blocks inside a Region or AZ to group them. Drag a block out to ungroup it.
 - **Save:** your design autosaves in the browser. Use **Export JSON** and **Import JSON** to save it to or load it from a file.
+- **Simulate:** add a **Client**, connect it to your design, and press **▶ Run**. Set load with the **Traffic** and **Read / write** sliders in the header. **⚡ Spike** triples traffic for 10 s. **✕ Kill** takes down the selected block (or a whole region). **Reset** clears queues and the chart.
+- **Read the results:** blocks turn amber near capacity and red (shaking) when saturated. Edges show flow, and red dots fall off where requests fail. The right panel shows p50/p99, errors, throughput, cost and the most saturated blocks. How the model works: `docs/frontend-guide.md`, section 7.
 
 Backend (optional for now; it only has a health check):
 
