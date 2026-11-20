@@ -40,7 +40,7 @@ The terminal is only for you to talk to Claude. Claude acts on the app through t
 - **One `claude` per connection.** Two tabs open means two separate Claude sessions.
 - **Reloading the page restarts Claude.** The old session is killed and a fresh one starts. If that becomes annoying, run Claude inside tmux, which keeps the session alive across reloads (needs `brew install tmux`):
   ```bash
-  ttyd -W -p 7681 tmux new -A -s sysdesign claude
+  ttyd -W -i lo0 -p 7681 tmux new -A -s sysdesign claude
   ```
   `new -A -s sysdesign` attaches to the tmux session named `sysdesign`, or creates it if it doesn't exist.
 - **The app can't script the terminal.** Port 5173 and port 7681 are different origins, so the browser blocks our page from reading or typing into the iframe. That's fine, because app↔Claude communication goes over MCP.
@@ -49,7 +49,7 @@ The terminal is only for you to talk to Claude. Claude acts on the app through t
 ## The command we use
 
 ```bash
-ttyd -W -p 7681 claude        # from the repo root
+ttyd -W -i lo0 -p 7681 claude        # from the repo root
 ```
 
 | Flag | Meaning |
@@ -76,17 +76,22 @@ Other flags you might want:
 
 `-W` with no `-c` means anyone who can reach port 7681 can type into a Claude Code session that runs as you, in this repo, with your tools. Keep it local:
 
-- The 1.7.4 release notes say "do not expose port to public by default", but I couldn't confirm the default bind address from the docs or code. Pass `-i lo0` to be sure:
+- **By default ttyd listens on every network interface.** That means other machines on your Wi-Fi can reach it. Always pass `-i lo0`, which every command in this repo does:
   ```bash
   ttyd -W -i lo0 -p 7681 claude
   ```
-- Check what it's listening on:
+- Check what it's listening on (`2>/dev/null` hides harmless macOS lsof warnings):
   ```bash
-  lsof -nP -iTCP:7681 -sTCP:LISTEN
+  lsof -nP -iTCP:7681 -sTCP:LISTEN 2>/dev/null
   ```
-  `127.0.0.1:7681` means local only. `*:7681` means every network interface, so other machines on your Wi-Fi can reach it.
+  `127.0.0.1:7681` means local only. `*:7681` means every network interface.
 
-Not verified yet: ttyd isn't installed on this machine, so the `-i lo0` command and the `lsof` output above haven't been run here. Check both when setting up Phase 3.
+Verified 2026-11-20 with ttyd 1.7.7 (Homebrew) on macOS:
+- Without `-i`, lsof showed `TCP *:7682 (LISTEN)`, so it was reachable from the network.
+- With `-i lo0`, lsof showed `TCP 127.0.0.1:7683 (LISTEN)`, so it was local only.
+- `GET /` returned 200 with no `X-Frame-Options` or CSP header, so the iframe embedding works.
+
+The `-W` typing check is still to do: open the page in a browser and type, during Phase 3 setup.
 
 ## Install and check
 

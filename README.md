@@ -63,7 +63,7 @@ curl localhost:8000/health        # {"status":"ok"}
 Claude terminal (Phase 3+; run from the repo root so `claude` picks up the project's MCP config):
 
 ```bash
-ttyd -W -p 7681 claude
+ttyd -W -i lo0 -p 7681 claude
 ```
 
 What ttyd is, how it works, its flags and how to keep it local-only: `docs/terminal-ttyd.md`.
