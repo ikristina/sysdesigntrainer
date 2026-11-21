@@ -63,7 +63,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div className="logo">sysdesign<span>/</span>trainer</div>
+        <a className="logo" href="#/" title="Back to sandbox">sysdesign<span>/</span>trainer</a>
         <select className="mode-select sk" aria-label="Mode" value={hashOf(mode)} onChange={(e) => go(parseHash(e.target.value))}>
           <option value="#/">Sandbox (autosaved)</option>
           <optgroup label="Lessons">{lessons.map((l) => <option key={l.id} value={`#/lesson/${l.id}`}>{l.title}</option>)}</optgroup>
