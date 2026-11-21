@@ -143,7 +143,7 @@ frontend/
       Mark.tsx            the block's logo (simple-icons SVG), text badge, or emoji
       nodeTypes.ts        nodeTypes / edgeTypes maps, shared by the main and compare canvases
       ContainerNode.tsx   how a region/AZ looks (dashed rough frame, resize handles)
-      RoughEdge.tsx       how a connection looks (rough curve + arrowhead, plus a tag like "writes × followers")
+      RoughEdge.tsx       how a connection looks (rough curve + arrowhead, flow dots, coral when failing, a tag like "writes × followers")
       rough.ts            rough.js helpers (rect/path/line, seed from node id)
       RoughPaths.tsx      renders rough.js output as SVG <path>s
     sim/
@@ -331,7 +331,7 @@ What each behavior does:
 - **Cost/hr:** the block's `cost × replicas` (SQL: primary + read replicas; × 2 with `replication: replica`; per partition for Kinesis-style billing), summed, plus per-request pricing (`requestCost`, USD per million reads/writes, for SQS, DynamoDB, S3, CloudFront) at the current request rate, plus `transferCost` × GB sent (read rps × payload KB).
 - **Deterministic:** randomness comes from a seeded generator stored in the state, so the same inputs give the same run. That's what makes it testable.
 
-On screen, health is green below ρ 0.85, amber up to 1, and red when saturated or failing more than 1% (`display.ts`). Each block has a gauge at its top-right showing live ρ (full at 1.5, "10+" past 10): green, amber from 0.85, coral from 1. A warn block stays its normal color; only the gauge turns amber. A saturated or failing block turns pink with a coral outline and coral diagonal hatching (two rough.js passes: a solid fill, then a `hachure` fill on top). A killed block goes faint grey with a crack. Edges take the color of the block they point at.
+On screen, health is green below ρ 0.85, amber up to 1, and red when saturated or failing more than 1% (`display.ts`). Each block has a gauge at its top-right showing live ρ (full at 1.5, "10+" past 10): green, amber from 0.85, coral from 1. A warn block stays its normal color; only the gauge turns amber. A saturated or failing block turns pink with a coral outline and coral diagonal hatching (two rough.js passes: a solid fill, then a `hachure` fill on top). A killed block goes faint grey with a crack. While the sim runs, dots flow along each edge in the flow color of the block it points at (`var(--flow-<tone>)`; `RoughEdge` reads the target's block type with React Flow's `useNodesData`). More requests per second = denser, faster dots. An edge whose target drops more than 1% of requests, is down, or is cut by a partition turns coral, line and dots, with coral dots falling off its end. With the OS "reduce motion" setting on, the dots stop moving but keep their colors (`@media (prefers-reduced-motion)` in index.css).
 
 To add a behavior: write `sim/handlers/<name>.ts` (a function from `HandlerInput` to `HandlerOutput`) and register it in `sim/handlers/index.ts`. `engine.ts` doesn't change.
 

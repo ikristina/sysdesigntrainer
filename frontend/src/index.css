@@ -94,9 +94,9 @@ body { margin: 0; background: var(--paper); }
 @keyframes pulse { 0%, 100% { filter: drop-shadow(0 0 0 transparent); } 50% { filter: drop-shadow(0 0 7px var(--hachure)); } }
 
 /* Live sim state on edges: moving dashes, and red dots falling off when requests fail. */
-.edge-flow { fill: none; stroke-dasharray: 5 11; stroke-linecap: round; pointer-events: none; }
+.edge-flow { fill: none; stroke-width: 3; stroke-linecap: round; pointer-events: none; }
 .edge-flow--run { animation: dash 1s linear infinite; }
-@keyframes dash { to { stroke-dashoffset: -32; } }
+@keyframes dash { to { stroke-dashoffset: -48; } }
 .edge-cut { fill: var(--coral); font: 700 18px var(--font); text-anchor: middle; dominant-baseline: central; }
 .edge-tag { font: 600 11px var(--font); fill: var(--ink-muted); paint-order: stroke; stroke: var(--paper); stroke-width: 4px; }
 .block-node--lit { outline: 3px solid var(--violet); outline-offset: 5px; border-radius: 6px; animation: lit 1.4s ease-in-out infinite; }
