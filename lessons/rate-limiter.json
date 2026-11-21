@@ -1,0 +1,41 @@
+{
+  "id": "rate-limiter",
+  "title": "Rate limiting: shed or scale?",
+  "mode": "targeted",
+  "brief": "The API below is built for about 5k rps and costs $1.73/hr. Traffic just jumped to 15k rps and everything is timing out, real users included. Decide whether to turn traffic away or add capacity, then do it.",
+  "variants": [
+    {
+      "id": "scraper",
+      "requirements": [
+        "15k rps, 90% reads: 5k from real users, 10k from a scraper",
+        "Rejecting the scraper is fine, but keep at least 5k rps served: errors at most 70%",
+        "p99 < 250 ms for the requests you accept",
+        "cost < $2/hr (the scraper doesn't pay)"
+      ],
+      "traffic": { "rps": 15000, "read_ratio": 0.9 },
+      "success": { "p99_ms": 250, "error_pct": 70, "max_cost_hr": 2 },
+      "twist": "The scraper doubles: 25k rps total, still 5k real. Apply with set_requirements(rps=25000, error_pct=82). Does your limit still protect p99 without any new servers?"
+    },
+    {
+      "id": "real-growth",
+      "requirements": [
+        "12k rps, 90% reads, all real users after a launch",
+        "errors < 0.1%: every request matters",
+        "p99 < 250 ms",
+        "cost < $3.20/hr"
+      ],
+      "traffic": { "rps": 12000, "read_ratio": 0.9 },
+      "success": { "p99_ms": 250, "error_pct": 0.1, "max_cost_hr": 3.2 },
+      "twist": "Launch spike: traffic doubles for 20 s. Apply with spike(multiplier=2, seconds=20). After it ends, does p99 come back on its own?"
+    }
+  ],
+  "starter_graph": "graphs/scraped-api.json",
+  "hints": [
+    "How much of the traffic do you actually need to serve? What happens to everyone when the API tries to serve all of it?",
+    "An API gateway drops requests above its rate limit before they reach your servers. Where would it go, and what limit keeps 8 replicas comfortable?",
+    "Scraper: put an API gateway between the client and the load balancer with rate_limit_rps around 5000 (8 replicas at about 60% busy). Real growth: a limiter would reject real users; add service replicas until utilization is about 0.6 instead."
+  ],
+  "steps": ["requirements", "design", "load_test", "twist", "postmortem"],
+  "explainers": ["load-balancing"],
+  "_notes": "Starter: client -> LB ($0.03) -> 8 x 1k service ($0.80) -> KV 3 x 10k ($0.90) = $1.73/hr. At 15k the service is at rho ~1.9, queues to its 1 s timeout and client retries pile on (sim: p99 ~13 s, 74% errors). Scraper: gateway ($0.05) with rate_limit_rps 5000 -> sim p99 182 ms, errors 66.7% (10k of 15k rejected), $1.78. A 4000 limit rejects too much (73% > 70%); 6000 leaves the service at rho 0.75 (p99 305 ms). Scaling instead needs ~25 replicas ($3.43) and breaks $2. The sim can't tell scraper requests from user ones: a global limit and a per-client limit score the same here; a real system would limit per API key or IP, so ask which one they'd build. Real growth: 12k needs ~20 replicas (sim p99 161 ms, $2.93); 18 gives 205 ms; a 5k gateway gives 58% errors; 28 replicas ($3.73) breaks the budget. Twist (scraper): at 25k the 5k limit still holds p99 at 182 ms (errors 80%). Checked in frontend/src/lessons/content.test.ts."
+}

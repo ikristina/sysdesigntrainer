@@ -17,17 +17,19 @@ const run = (d: Design, rps: number, readRatio: number, killed: string[] = [], s
 }
 const passes = (d: Design, v: Variant) => {
   const s = run(d, v.traffic.rps, v.traffic.read_ratio)
-  return checks(s.global, v.success).every((c) => c.ok)
+  return checks(s, v.success).every((c) => c.ok)
 }
 const n = (id: string, type: string, params: Record<string, number | string> = {}): SavedNode =>
   ({ id, type, position: { x: 0, y: 0 }, params })
+const graphOf = (nodes: SavedNode[], edges: [string, string][]): Design =>
+  ({ version: 1, nodes, edges: edges.map(([source, target]) => ({ id: `${source}-${target}`, source, target })) })
 const chain = (...nodes: SavedNode[]): Design => ({
   version: 1, nodes, edges: nodes.slice(1).map((b, i) => ({ id: `${nodes[i].id}-${b.id}`, source: nodes[i].id, target: b.id })),
 })
 
 describe('content files', () => {
   it('found the files', () => {
-    expect(lessons.map((l) => l.id)).toEqual(['p99-fix', 'url-shortener'])
+    expect(lessons.map((l) => l.id)).toEqual(['p99-fix', 'rate-limiter', 'url-shortener', 'welcome-emails'])
     expect(explainers.map((e) => e.id)).toEqual(['caching-basics', 'load-balancing', 'replication-lag'])
   })
 
@@ -126,5 +128,41 @@ describe('lessons match the simulator', () => {
     expect(passes(withPool(start, { db: { pool_size: 40 } }), growth)).toBe(false)
     expect(passes(chain(n('c', 'client'), n('lb', 'load_balancer'), n('api', 'service', { replicas: 19 }),
       n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'sql_db', { pool_size: 40 })), growth)).toBe(true)
+  })
+
+  it('rate-limiter scraper: the starter collapses; a 5k limit passes; too tight, too loose and scaling fail', () => {
+    const v = variant('rate-limiter', 'scraper')
+    const start = graph(lesson('rate-limiter').starter_graph!)
+    expect(run(start, v.traffic.rps, v.traffic.read_ratio).global.p99Ms).toBeGreaterThan(1000)
+    const limited = (limit: number) => graphOf(
+      [...start.nodes, n('gw', 'api_gateway', { rate_limit_rps: limit })],
+      [['client', 'gw'], ['gw', 'lb'], ['lb', 'api'], ['api', 'store']])
+    expect(passes(limited(5000), v)).toBe(true)
+    expect(passes(limited(4000), v)).toBe(false) // rejects more than 70%
+    expect(passes(limited(6000), v)).toBe(false) // p99 too high
+    const scaled = { ...start, nodes: start.nodes.map((x) => (x.id === 'api' ? { ...x, params: { ...x.params, replicas: 25 } } : x)) }
+    expect(passes(scaled, v)).toBe(false) // over budget
+
+    const growth = variant('rate-limiter', 'real-growth')
+    expect(passes(limited(5000), growth)).toBe(false)
+    expect(passes(chain(n('c', 'client'), n('lb', 'load_balancer'), n('api', 'service', { replicas: 20 }), n('store', 'kv')), growth)).toBe(true)
+    expect(passes(chain(n('c', 'client'), n('lb', 'load_balancer'), n('api', 'service', { replicas: 28 }), n('store', 'kv')), growth)).toBe(false)
+  })
+
+  it('welcome-emails: sync fails p99, too few workers fail the backlog, a queue (steady) or wide stream (launch) passes', () => {
+    const emails = (api: number, mid: SavedNode | null, workers: number) => graphOf(
+      [n('c', 'client'), n('api', 'service', { replicas: api }), n('db', 'sql_db'), ...(mid ? [mid] : []), n('mail', 'worker', { replicas: workers })],
+      [['c', 'api'], ['api', 'db'], ...(mid ? [['api', mid.id], [mid.id, 'mail']] as [string, string][] : [['api', 'mail']] as [string, string][])])
+    const steady = variant('welcome-emails', 'steady')
+    expect(passes(emails(2, null, 10), steady)).toBe(false)
+    expect(passes(emails(2, n('q', 'queue'), 2), steady)).toBe(false)
+    expect(passes(emails(2, n('q', 'queue'), 6), steady)).toBe(true)
+    expect(passes(emails(2, n('q', 'queue'), 30), steady)).toBe(false)
+
+    const launch = variant('welcome-emails', 'launch')
+    expect(passes(emails(7, n('q', 'queue'), 22), launch)).toBe(false)
+    expect(passes(emails(7, n('q', 'stream', { partitions: 6 }), 22), launch)).toBe(false)
+    expect(passes(emails(7, n('q', 'stream', { partitions: 22 }), 22), launch)).toBe(true)
+    expect(passes(emails(12, n('q', 'stream', { partitions: 40 }), 40), launch)).toBe(false)
   })
 })

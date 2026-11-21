@@ -150,7 +150,7 @@ frontend/
       ops.ts              applyStep(): one explainer step's ops (graph, add, remove, set_params, traffic, kill, highlight)
       player.ts           which explainer and step is showing; pushes each step into the stores
       ExplainerPanel.tsx  left column: caption, Back / Next, step list, "Open in sandbox", related lessons
-lessons/                  (repo root) lesson JSON: url-shortener, p99-fix
+lessons/                  (repo root) lesson JSON: url-shortener, welcome-emails, p99-fix, rate-limiter
 explainers/               (repo root) explainer JSON: load-balancing, caching-basics, replication-lag
   graphs/                 starting designs (saved-design format) used by explainers and lesson starters
 backend/
@@ -314,13 +314,13 @@ Both are JSON files in the repo root. The formats are in `docs/SPEC.md` ("Lesson
 
 **Explainer** (`explainers/<id>.json`): a short guided tour, 4 to 7 steps. Each step has a `caption` and **ops** that change the live scene: `graph` (load a starting design from `explainers/graphs/`), `add` (a block, optionally `between: [a, b]` to splice it into that edge), `remove`, `set_params`, `traffic`, `kill`, `highlight` (this step only), `spike`. The canvas is read-only; you watch. On the last step, **Open in sandbox** copies the design into your sandbox (asking first if the sandbox isn't empty), and links point to related lessons.
 
-**Lesson** (`lessons/<id>.json`): a problem with requirement **variants** (traffic plus success criteria: p99, error %, cost per hour), a `twist` per variant, a three-level **hint ladder** (a question, a direction, a near-answer), and its `steps`. `mode: "full"` starts from an empty canvas and walks all 7 steps (requirements, estimation, API and data model, design, load test, twist, postmortem). `mode: "targeted"` starts from a broken `starter_graph` and skips the early steps. `_notes` holds the math behind the numbers: Claude reads it through `get_lesson`, the UI never shows it.
+**Lesson** (`lessons/<id>.json`): a problem with requirement **variants** (traffic plus success criteria: p99, error %, cost per hour, and optionally `max_backlog`: the most requests or messages allowed to wait in any one block, so a queue with too few workers fails), a `twist` per variant, a three-level **hint ladder** (a question, a direction, a near-answer), and its `steps`. `mode: "full"` starts from an empty canvas and walks all 7 steps (requirements, estimation, API and data model, design, load test, twist, postmortem). `mode: "targeted"` starts from a broken `starter_graph` and skips the early steps. `_notes` holds the math behind the numbers: Claude reads it through `get_lesson`, the UI never shows it.
 
 **Passing** means all checks green for 10 s at the variant's traffic (section 5). Each step has a notes box; notes are saved and Claude reads them, which is how the estimation scratchpad works.
 
 **The numbers are tested, not guessed.** `content.test.ts` runs the simulator on each lesson: the starter (or a naive design) must fail, the intended design must pass, and an over-provisioned one must break the cost limit. For each explainer it checks the outcome every caption claims (for example "one server saturates at 1.5k rps"). If you change a block's defaults or the sim model, these tests tell you which lesson needs retuning.
 
-**Add one:** drop a JSON file in `lessons/` or `explainers/`. The mode menu picks it up after a reload. The `sysdesign-add-lesson` skill walks through writing a lesson.
+**Add one:** drop a JSON file in `lessons/` or `explainers/`. Restart `npm run dev` (Vite doesn't watch folders outside `frontend/`, so a new file isn't noticed until then); edits to existing files also need a reload. The `sysdesign-add-lesson` skill walks through writing a lesson.
 
 ## 10. The block registry
 
@@ -380,7 +380,8 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - Clients each get an equal share of the global rps.
 - No "clear canvas" button. Select everything (drag a box with Shift held) and press Backspace, or delete the localStorage key.
 - Autosave writes on every drag frame. That's fine for designs this size; add a debounce if large designs feel slow.
-- Two lessons (URL shortener, p99 fix) and three explainers ship. The spec's other three lessons (chat, rate limiter, ticketing) aren't written yet.
+- Four lessons (URL shortener, welcome emails, p99 fix, rate limiter) and three explainers ship. The spec's news feed and chat lessons aren't written: the sim sends every request to every downstream block (no separate read and write paths), has no fan-out multiplier, and checks nothing about consistency, so it can't tell their right and wrong designs apart.
+- The sim can't tell one client's requests from another's in the error check, so in the rate-limiter lesson a global limit and a per-client limit score the same.
 - Without Claude, a lesson's twist is text only: it tells you what changed, but the requirements stay the same until you or Claude change them (`set_requirements`). The estimation, API and postmortem steps are notes boxes with nothing checking them; Claude reviews them.
 - Explainer and lesson designs aren't validated against the registry at load time beyond what `content.test.ts` checks.
 - The backend mirror refreshes once a second, so an MCP call in the first second after switching modes can see the old mode.

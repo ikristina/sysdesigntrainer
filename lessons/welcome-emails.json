@@ -1,0 +1,42 @@
+{
+  "id": "welcome-emails",
+  "title": "Welcome emails: keep slow work off the request path",
+  "mode": "full",
+  "brief": "Design a signup endpoint. Each signup saves a user and sends a welcome email. The email provider is slow: about 100 ms per email, and a worker handles about 200 emails/s. Signups must stay fast, and emails must not pile up.",
+  "variants": [
+    {
+      "id": "steady",
+      "requirements": [
+        "1k signups/s (all writes)",
+        "signup p99 < 200 ms",
+        "errors < 0.1%",
+        "emails keep up: backlog under 1,000",
+        "cost < $1.60/hr"
+      ],
+      "traffic": { "rps": 1000, "read_ratio": 0 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 1.6, "max_backlog": 1000 },
+      "twist": "The email provider has an outage. Kill the email worker block for 30 s (kill_node, then restore_node). Signups must keep working; watch the backlog build and then drain."
+    },
+    {
+      "id": "launch",
+      "requirements": [
+        "4k signups/s (all writes) on launch day",
+        "signup p99 < 200 ms",
+        "errors < 0.1%",
+        "emails keep up: backlog under 2,000",
+        "cost < $4.50/hr"
+      ],
+      "traffic": { "rps": 4000, "read_ratio": 0 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 4.5, "max_backlog": 2000 },
+      "twist": "Signups grow to 5k/s. Apply with set_traffic(rps=5000). Can you add workers, or did your partition count already decide how far you can scale?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Does the user need to wait for the email to be sent before their signup succeeds?",
+    "Put something between the API and the email workers that accepts the work now and lets workers catch up. Then check that the workers drain as fast as signups arrive.",
+    "Client -> service -> SQL DB, and service -> queue -> worker. Steady: 5-6 workers (200/s each) for 1k/s. Launch: one queue accepts about 3k/s, so use a stream with 22+ partitions and as many workers (a stream's partitions cap how many workers can read), and about 7 service replicas."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Worker: 200/s per replica, 100 ms base, $0.10. Service default 2 x 1k. Sync (service calls the worker directly): 10 workers gives sim p99 650 ms, 20 workers 317 ms ($2.70): sync never meets 200 ms. Async: service -> SQL + queue ($0.05, 3k/s) -> workers: sim p99 125 ms. 2 workers drain 400/s and the backlog grows ~600/s (fails backlog); 5-6 workers pass ($1.25-1.35); 30 workers ($3.75) break the budget. Launch 4k/s: a single queue rejects above 3k/s (sim 91% errors with retries). Stream 22 partitions + 22 workers + 7 service replicas: p99 189 ms, $3.60. 6 partitions with 22 workers: only 6 can read, backlog grows (56k after 20 s). 12 replicas + 40 partitions + 40 workers: $5.90, over budget. Backlog = the most waiting in any one block. Checked in frontend/src/lessons/content.test.ts."
+}

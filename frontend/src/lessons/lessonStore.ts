@@ -87,7 +87,7 @@ useSim.subscribe((sim, prev) => {
   if (!st.lesson || sim.sim === prev.sim) return
   const req = active(st)
   const atTraffic = sim.rps === req.traffic.rps && sim.readRatio === req.traffic.read_ratio && sim.sim.t >= sim.spikeUntil
-  const ok = atTraffic && sim.sim.global.offered > 0 && checks(sim.sim.global, req.success).every((c) => c.ok)
+  const ok = atTraffic && sim.sim.global.offered > 0 && checks(sim.sim, req.success).every((c) => c.ok)
   const heldS = ok ? st.heldS + TICK_S : 0
   const key = passKey(st.progress)
   if (heldS >= HOLD_S && !st.progress.passed.includes(key)) {

@@ -57,7 +57,7 @@ function explainerState() {
 }
 
 // The open lesson, as get_lesson returns it. _hints (all hint texts) is for give_hint; get_lesson drops it.
-function lessonState(g: ReturnType<typeof sim>['sim']['global']) {
+function lessonState(simState: ReturnType<typeof sim>['sim']) {
   const st = useLesson.getState()
   const { lesson: l, progress: p } = st
   if (!l) return null
@@ -67,7 +67,7 @@ function lessonState(g: ReturnType<typeof sim>['sim']['global']) {
     steps: l.steps, step: p.step, step_name: l.steps[p.step],
     variants: l.variants, variant_id: p.variantId, custom: p.custom, active: req,
     notes: p.notes, hints_shown: l.hints.slice(0, p.hints), hint_count: l.hints.length, _hints: l.hints,
-    checks: checks(g, req.success), held_s: Math.round(st.heldS * 10) / 10, hold_s: HOLD_S, passed: p.passed,
+    checks: checks(simState, req.success), held_s: Math.round(st.heldS * 10) / 10, hold_s: HOLD_S, passed: p.passed,
     tutor_notes: l._notes ?? null,
   }
 }
@@ -81,7 +81,7 @@ function snapshot() {
     [id, { ...m, mu: Number.isFinite(m.mu) ? m.mu : 'unlimited', health: healthOf(m, isDown(s.killed, id)) }]))
   return {
     design: toDesign(nodes, edges), // design and lesson unrounded: their numbers are exact settings
-    mode: useMode.getState().mode, explainer: explainerState(), lesson: lessonState(s.sim.global),
+    mode: useMode.getState().mode, explainer: explainerState(), lesson: lessonState(s.sim),
     ...JSON.parse(JSON.stringify({
       running: s.running, t: s.sim.t,
       traffic: { rps: s.rps, readRatio: s.readRatio, spike: s.sim.t < s.spikeUntil ? s.spikeMultiplier : null },

@@ -2,9 +2,10 @@
 // Vite bundles them at build time (import.meta.glob), so the static build needs no server.
 // Formats: docs/SPEC.md "Lessons" and "Explainers". content.test.ts checks every file.
 import type { Design } from '../design'
+import type { SimState } from '../sim/engine'
 
 export type Traffic = { rps?: number; read_ratio?: number }
-export type Success = { p99_ms: number; error_pct: number; max_cost_hr: number }
+export type Success = { p99_ms: number; error_pct: number; max_cost_hr: number; max_backlog?: number }
 export type Requirements = { requirements: string[]; traffic: Required<Traffic>; success: Success }
 export type Variant = Requirements & { id: string; twist?: string }
 export type StepName = 'requirements' | 'estimation' | 'api_and_data_model' | 'design' | 'load_test' | 'twist' | 'postmortem'
@@ -51,13 +52,19 @@ export function graph(path: string): Design {
 }
 
 export type Check = { label: string; ok: boolean }
-/** The variant's success criteria against the sim's global metrics. */
-export function checks(g: { p99Ms: number; errorPct: number; costHr: number }, s: Success): Check[] {
-  return [
+/** The variant's success criteria against the sim's output. */
+export function checks({ global: g, metrics }: Pick<SimState, 'global' | 'metrics'>, s: Success): Check[] {
+  const list = [
     { label: `p99 under ${s.p99_ms} ms`, ok: g.p99Ms <= s.p99_ms },
     { label: `errors under ${s.error_pct}%`, ok: g.errorPct <= s.error_pct },
     { label: `cost under $${s.max_cost_hr}/hr`, ok: g.costHr <= s.max_cost_hr },
   ]
+  // Backlog = the most requests or messages waiting in any one block (a queue's or stream's backlog).
+  if (s.max_backlog != null) {
+    const backlog = Math.max(0, ...Object.values(metrics).map((m) => m.queue))
+    list.push({ label: `backlog under ${s.max_backlog.toLocaleString('en-US')}`, ok: backlog <= s.max_backlog })
+  }
+  return list
 }
 
 export const STEP_GUIDE: Record<StepName, { title: string; prompt: string }> = {

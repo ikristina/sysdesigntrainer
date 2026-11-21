@@ -77,11 +77,12 @@ export function StepNav() {
 
 export function SuccessPanel() {
   const st = useLesson()
-  const g = useSim((s) => s.sim.global)
+  const sim = useSim((s) => s.sim)
+  const g = sim.global
   const running = useSim((s) => s.running)
   if (!st.lesson) return null
   const { success } = active(st)
-  const list = checks(g, success)
+  const list = checks(sim, success)
   const passed = isPassed(st)
   const costShare = Math.min(1, g.costHr / success.max_cost_hr)
 
