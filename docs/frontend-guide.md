@@ -112,7 +112,7 @@ frontend/
   vite.config.ts          Vite config (React plugin; fs.allow for ../lessons, ../explainers). Vitest reads it too.
   src/
     main.tsx              entry point: opens the mode in the URL hash, starts the backend link, mounts <App/>
-    App.tsx               layout + header (mode menu, Claude / Export / Import), columns per mode, highlight note
+    App.tsx               layout + header (mode menu, Claude / Export / Import), columns per mode, alert strip; passes a lesson's p99 limit to MetricsPanel
     mode.ts               sandbox / lesson / explainer / compare, kept in the URL hash; entering a mode resets the run
     link.ts               tutor layer: WebSocket to the backend, state snapshots out, MCP commands in
     tokens.css            every color and font (docs/STYLE.md), as CSS variables
@@ -140,6 +140,9 @@ frontend/
       BlockNode.tsx       how a block looks (rough outline in its tone's pastel, mark, label, "×3 · hit 72%" line, gauge, handles)
       shapes.ts           one hand-drawn outline per block shape (box, cylinder, cloud, pipe, diamond...)
       Gauge.tsx           the small ρ dial at a block's top-right corner
+      alerts.ts           alert-light rules over live sim state (Primary saturated, Replica lag, Retry storm, Cache cold, Region down)
+      AlertLights.tsx     the row of alert pills along the canvas bottom
+      HighlightNote.tsx   Claude's highlight message: violet note + rough arrow pinned above the first highlighted block
       Mark.tsx            the block's logo (simple-icons SVG), text badge, or emoji
       nodeTypes.ts        nodeTypes / edgeTypes maps, shared by the main and compare canvases
       ContainerNode.tsx   how a region/AZ looks (dashed rough frame, resize handles)
@@ -158,7 +161,7 @@ frontend/
       Palette.tsx         left panel: draggable tiles grouped by category (generic tiles, then products)
       ParamPanel.tsx      right column, bottom: param inputs with min/max validation; price, facts, sources.
                           With a connection selected: its Carries and Fan-out selects (EdgePanel)
-      MetricsPanel.tsx    right column, top: p99 chart, headline numbers, most saturated blocks
+      MetricsPanel.tsx    right column, top: readout cards (p99, errors, traffic), p99 chart, other numbers, most saturated blocks
       TrafficBar.tsx      header: traffic and read/write sliders, More ▾ (hot key, payload KB, followers, following),
                           Spike, Kill/Restore, Partition/Heal, Run/Pause, Reset
       TerminalPanel.tsx   under the canvas: ttyd iframe, or how to start it; link status line
@@ -332,6 +335,18 @@ What each behavior does:
 - **Deterministic:** randomness comes from a seeded generator stored in the state, so the same inputs give the same run. That's what makes it testable.
 
 On screen, health is green below ρ 0.85, amber up to 1, and red when saturated or failing more than 1% (`display.ts`). Each block has a gauge at its top-right showing live ρ (full at 1.5, "10+" past 10): green, amber from 0.85, coral from 1. A warn block stays its normal color; only the gauge turns amber. A saturated or failing block turns pink with a coral outline and coral diagonal hatching (two rough.js passes: a solid fill, then a `hachure` fill on top). A killed block goes faint grey with a crack. While the sim runs, dots flow along each edge in the flow color of the block it points at (`var(--flow-<tone>)`; `RoughEdge` reads the target's block type with React Flow's `useNodesData`). More requests per second = denser, faster dots. An edge whose target drops more than 1% of requests, is down, or is cut by a partition turns coral, line and dots, with coral dots falling off its end. With the OS "reduce motion" setting on, the dots stop moving but keep their colors (`@media (prefers-reduced-motion)` in index.css).
+
+**Alert lights** (`canvas/alerts.ts`) sit along the canvas bottom. Each is a rule over the live sim state; red means broken, amber means heading there, otherwise the pill is greyed out:
+
+| Light | Amber | Red |
+|---|---|---|
+| Primary saturated | a SQL database at ρ ≥ 0.85 | ρ ≥ 1 |
+| Replica lag | replication lag > 1 s | > 5 s |
+| Retry storm | clients send ≥ 1.2× what users ask for (retries) | ≥ 2× |
+| Cache cold | a cache or CDN hits under half its hit-ratio setting | |
+| Region down | | a region or AZ killed, or partitioned |
+
+**Claude's note:** when Claude calls `highlight(node_ids, message)`, the message shows as violet handwriting with an arrow onto the first highlighted block (`canvas/HighlightNote.tsx`). It's rendered inside React Flow's `ViewportPortal`, which uses canvas coordinates, so it moves and zooms with the block. With no block id, it sits at the top center. ✕ dismisses it.
 
 To add a behavior: write `sim/handlers/<name>.ts` (a function from `HandlerInput` to `HandlerOutput`) and register it in `sim/handlers/index.ts`. `engine.ts` doesn't change.
 

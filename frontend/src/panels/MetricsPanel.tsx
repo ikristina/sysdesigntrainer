@@ -1,10 +1,11 @@
-// Live metrics: p99 chart, headline numbers, and the most saturated blocks.
+// Live metrics: readout cards (p99, errors, traffic), the p99 chart, other numbers, and the most
+// saturated blocks. p99Target: the lesson's p99 limit, past which the p99 card turns coral (default 1 s).
 import { registry } from '../blocks'
 import { fmtMs, fmtPct, fmtRps, healthColor, healthOf } from '../display'
 import { useSim } from '../simStore'
 import { useDesign } from '../store'
 
-export function MetricsPanel() {
+export function MetricsPanel({ p99Target = 1000 }: { p99Target?: number }) {
   const g = useSim((s) => s.sim.global)
   const metrics = useSim((s) => s.sim.metrics)
   const history = useSim((s) => s.history)
@@ -13,11 +14,13 @@ export function MetricsPanel() {
   const hasClient = nodes.some((n) => n.data.blockType === 'client')
 
   const lags = Object.values(metrics).flatMap((m) => (m.lagS !== undefined ? [m.lagS] : []))
+  const cards = [
+    { k: 'p99', v: fmtMs(g.p99Ms), bg: 'var(--card-p99)', color: g.p99Ms > p99Target ? 'var(--coral-text)' : undefined },
+    { k: 'errors', v: fmtPct(g.errorPct), bg: 'var(--card-errors)' },
+    { k: 'traffic', v: fmtRps(g.throughput), bg: 'var(--card-traffic)' },
+  ]
   const tiles: [string, string, string?][] = [
     ['p50', fmtMs(g.p50Ms), latencyColor(g.p50Ms)],
-    ['p99', fmtMs(g.p99Ms), latencyColor(g.p99Ms)],
-    ['errors', fmtPct(g.errorPct), g.errorPct > 1 ? healthColor.bad : g.errorPct > 0.1 ? healthColor.warn : undefined],
-    ['throughput', fmtRps(g.throughput)],
     ...(lags.length ? [['repl. lag', `${Math.max(...lags).toFixed(1)} s`, Math.max(...lags) > 1 ? healthColor.warn : undefined] as [string, string, string?]] : []),
     ...(g.stalePct > 0 ? [['stale reads', fmtPct(g.stalePct)] as [string, string]] : []),
     ['cost', `$${g.costHr.toFixed(2)}/hr`],
@@ -29,8 +32,16 @@ export function MetricsPanel() {
 
   return (
     <section className="metrics" aria-label="Metrics">
-      <div className="caps">p99 latency · last 60 s</div>
       {!hasClient && <p className="muted">Add a Client block, connect it, and press ▶ Run.</p>}
+      <div className="cards">
+        {cards.map((c) => (
+          <div key={c.k} className="card sk" style={{ background: c.bg }}>
+            <div className="card__k">{c.k}</div>
+            <div className="card__v" style={{ color: c.color }}>{c.v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="caps">p99 latency · last 60 s</div>
       <P99Chart history={history} />
       <div className="metrics__tiles">
         {tiles.map(([k, v, color]) => (

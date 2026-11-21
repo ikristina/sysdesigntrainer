@@ -8,6 +8,7 @@ import { useCallback, useState, type DragEvent } from 'react'
 import { isContainer, type FlowNode } from '../design'
 import { useDesign } from '../store'
 import { BLOCK_H, BLOCK_W } from './BlockNode'
+import { HighlightNote } from './HighlightNote'
 import { edgeTypes, nodeTypes } from './nodeTypes'
 
 
@@ -88,6 +89,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
     >
       <Background variant={BackgroundVariant.Dots} gap={22} color="var(--line-faint)" bgColor="var(--paper)" />
       <Controls />
+      <HighlightNote />
     </ReactFlow>
   )
 }

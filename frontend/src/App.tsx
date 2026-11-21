@@ -3,6 +3,7 @@
 // Rendered inside <ReactFlowProvider> (see main.tsx) so it can use React Flow hooks like fitView.
 import { useReactFlow } from '@xyflow/react'
 import { useEffect, useRef, useState } from 'react'
+import { AlertLights } from './canvas/AlertLights'
 import { Canvas } from './canvas/Canvas'
 import { CompareBar, ComparePanel, CompareTable, CompareView } from './compare/CompareView'
 import { toDesign } from './design'
@@ -10,6 +11,7 @@ import { ExplainerPanel } from './explainers/ExplainerPanel'
 import { usePlayer } from './explainers/player'
 import { compareLessons, explainers, lessons } from './lessons/content'
 import { LessonPanel, StepNav, SuccessPanel } from './lessons/LessonPanel'
+import { active, useLesson } from './lessons/lessonStore'
 import { go, hashOf, parseHash, useMode } from './mode'
 import { MetricsPanel } from './panels/MetricsPanel'
 import { Palette } from './panels/Palette'
@@ -17,7 +19,6 @@ import { ParamPanel } from './panels/ParamPanel'
 import { TerminalPanel } from './panels/TerminalPanel'
 import { TrafficBar } from './panels/TrafficBar'
 import { ttydUp } from './link'
-import { useSim } from './simStore'
 import { useDesign } from './store'
 
 export default function App() {
@@ -27,8 +28,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [terminal, setTerminal] = useState(false)
   useEffect(() => { ttydUp().then((up) => up && setTerminal(true)) }, []) // open it if ttyd is running
-  const highlight = useSim((s) => s.highlight)
-  const setHighlight = useSim((s) => s.setHighlight)
+  const lessonState = useLesson()
   const mode = useMode((s) => s.mode)
   const explainer = mode.kind === 'explainer'
   const compare = mode.kind === 'compare'
@@ -92,17 +92,12 @@ export default function App() {
         <div className="center">
           {compare ? <CompareView /> : <main className="canvas">
             <Canvas readOnly={explainer} />
-            {highlight.message && (
-              <div className="canvas__note" role="status">
-                {highlight.message}
-                <button className="terminal__close" onClick={() => setHighlight([])} aria-label="Dismiss">✕</button>
-              </div>
-            )}
+            <AlertLights />
           </main>}
           {terminal && <TerminalPanel onClose={() => setTerminal(false)} />}
         </div>
         <aside className="inspector">
-          {compare ? <CompareTable /> : <MetricsPanel />}
+          {compare ? <CompareTable /> : <MetricsPanel p99Target={mode.kind === 'lesson' && lessonState.lesson ? active(lessonState).success.p99_ms : undefined} />}
           {mode.kind === 'lesson' && <SuccessPanel />}
           {!explainer && !compare && <ParamPanel />}
         </aside>
