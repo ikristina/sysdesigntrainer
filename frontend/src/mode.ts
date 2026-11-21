@@ -1,21 +1,23 @@
-// Which mode the app is in: sandbox, an explainer, or a lesson. The URL hash holds it
-// (#/explainer/<id>, #/lesson/<id>), so reload keeps your place and the browser Back button works.
+// Which mode the app is in: sandbox, an explainer, a lesson, or compare. The URL hash holds it
+// (#/explainer/<id>, #/lesson/<id>, #/compare/<lesson id>, #/compare/ for two saved designs), so reload keeps your place and the browser Back button works.
 // Entering a mode clears the run (traffic, kills, highlight) and swaps in that mode's design.
 import { create } from 'zustand'
 import { SANDBOX_KEY } from './design'
+import { startCompare, stopCompare } from './compare/compareStore'
 import { startExplainer, stopExplainer } from './explainers/player'
-import { explainers, lessons } from './lessons/content'
+import { compareLessons, explainers, lessons } from './lessons/content'
 import { startLesson, stopLesson } from './lessons/lessonStore'
 import { useSim } from './simStore'
 import { useDesign } from './store'
 
-export type Mode = { kind: 'sandbox' } | { kind: 'explainer' | 'lesson'; id: string }
+export type Mode = { kind: 'sandbox' } | { kind: 'explainer' | 'lesson' | 'compare'; id: string } // compare id '' = two saved designs
 
 export const hashOf = (m: Mode) => (m.kind === 'sandbox' ? '#/' : `#/${m.kind}/${m.id}`)
 export function parseHash(hash: string): Mode {
-  const [, kind, id] = hash.match(/^#\/(explainer|lesson)\/(.+)$/) ?? []
+  const [, kind, id] = hash.match(/^#\/(explainer|lesson|compare)\/(.*)$/) ?? []
   if (kind === 'explainer' && explainers.some((e) => e.id === id)) return { kind, id }
   if (kind === 'lesson' && lessons.some((l) => l.id === id)) return { kind, id }
+  if (kind === 'compare' && (id === '' || compareLessons.some((l) => l.id === id))) return { kind, id }
   return { kind: 'sandbox' }
 }
 
@@ -29,8 +31,10 @@ function enter(mode: Mode) {
   useSim.setState({ killed: [], partitioned: [], highlight: { ids: [], message: '' } })
   stopExplainer()
   stopLesson()
+  stopCompare()
   if (mode.kind === 'explainer') startExplainer(mode.id)
   else if (mode.kind === 'lesson') startLesson(mode.id)
+  else if (mode.kind === 'compare') startCompare(mode.id)
   else useDesign.getState().open(SANDBOX_KEY)
   useMode.setState({ mode })
 }

@@ -3,6 +3,8 @@
 // applies the commands the backend sends back (set_traffic, kill_node, ...) to the sandbox stores.
 // No backend running = the socket fails and retries quietly; the sandbox works the same.
 import { create } from 'zustand'
+import { play, scenarioOf, selectScenario, showHint as showCompareHint, sides, useCompare } from './compare/compareStore'
+import { summarize } from './compare/run'
 import { toDesign } from './design'
 import { healthOf } from './display'
 import { usePlayer } from './explainers/player'
@@ -49,7 +51,28 @@ const commands: Record<string, (a: Args) => void> = {
     if (requirements || Object.keys(traffic).length || Object.keys(success).length) setCustom({ requirements: requirements ?? undefined, traffic, success })
   },
   advance_step: () => goStep(useLesson.getState().progress.step + 1),
-  give_hint: (a) => showHint(a.level as number),
+  give_hint: (a) => (useMode.getState().mode.kind === 'compare' ? showCompareHint : showHint)(a.level as number),
+  // Compare tools.
+  run_scenario: (a) => { selectScenario(a.id as string); play() },
+}
+
+// The compare view, as get_compare returns it. Rows say which side is better per metric.
+function compareState() {
+  if (useMode.getState().mode.kind !== 'compare') return null
+  const st = useCompare.getState(), l = st.lesson, sc = scenarioOf(st)
+  const [a, b] = sides.map((s) => s.getState())
+  const rows = a.run.history.length > 10 ? summarize([a.run, b.run], sc) : []
+  return {
+    id: l?.id ?? null, title: l?.title ?? 'Two saved designs', brief: l?.brief ?? null, swap: l?.swap ?? null,
+    sides: [a.label, b.label], designs: [a.run.design, b.run.design],
+    scenarios: st.scenarios.map(({ id, label, about, seconds, traffic, events }) => ({ id, label, about, seconds, traffic, events })),
+    scenario: sc.id, t: a.run.sim.t, running: st.running, done: a.run.sim.t >= sc.seconds - 1e-9,
+    now: [a.sim.global, b.sim.global],
+    table: rows.map((r) => ({ metric: r.label, a: r.values[0], b: r.values[1], better: r.winner === null ? null : 'AB'[r.winner], about: r.about })),
+    questions: l?.questions ?? [], verdict: st.verdict,
+    hints_shown: l?.hints.slice(0, st.hints) ?? [], hint_count: l?.hints.length ?? 0, _hints: l?.hints ?? [],
+    tutor_notes: l?._notes ?? null,
+  }
 }
 
 function explainerState() {
@@ -87,7 +110,7 @@ function snapshot() {
       running: s.running, t: s.sim.t,
       traffic: { rps: s.rps, readRatio: s.readRatio, hotKey: s.hotKey, spike: s.sim.t < s.spikeUntil ? s.spikeMultiplier : null },
       killed: s.killed, partitioned: s.partitioned, cutEdges: s.sim.cut,
-      global: s.sim.global, nodes: metrics,
+      global: s.sim.global, nodes: metrics, compare: compareState(),
     }, round)),
   }
 }

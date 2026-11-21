@@ -1,0 +1,25 @@
+{
+  "id": "kafka-vs-sqs",
+  "title": "Event pipeline: Kafka vs SQS",
+  "mode": "compare",
+  "brief": "An API publishes 2k events/s; 30 workers (200 events/s each) process them. Side A sends them through Kafka with 12 partitions; side B through a standard SQS queue. Same workers on both. Decide which you'd run, and what you'd change on each.",
+  "starter_graph": "graphs/event-pipeline.json",
+  "swap": { "node": "events", "options": ["kafka", "sqs"] },
+  "scenarios": [
+    { "id": "steady", "label": "Steady 2k events/s", "about": "Both keep up. Compare the cost row: Kafka is billed per broker-hour, SQS per request.", "seconds": 30, "traffic": { "rps": 2000, "read_ratio": 0 }, "events": [] },
+    { "id": "growth", "label": "Traffic doubles", "about": "At 10 s events double to 4k/s. There are 30 workers on both sides. How many can actually work on each?", "seconds": 40, "traffic": { "rps": 2000, "read_ratio": 0 }, "events": [{ "at": 10, "traffic": { "rps": 4000 } }] },
+    { "id": "outage", "label": "Workers down 10 s", "about": "The workers crash at 10 s and come back at 20 s. Events keep arriving. How fast does each side drain the backlog?", "seconds": 60, "traffic": { "rps": 2000, "read_ratio": 0 }, "events": [{ "at": 10, "kill": ["worker"] }, { "at": 20, "restore": ["worker"] }] }
+  ],
+  "questions": [
+    "Why do 30 workers drain faster from SQS than from 12 Kafka partitions? What would you change in Kafka?",
+    "At what event rate does Kafka's flat price beat SQS's per-request price?",
+    "Which side lets a new consumer replay last week's events? Which keeps events in order?",
+    "SQS delivers at least once. What must the workers do about duplicates?"
+  ],
+  "hints": [
+    "In the growth scenario, how many workers are busy on each side?",
+    "A Kafka partition is read by one consumer per group. With 12 partitions, workers 13 to 30 sit idle. SQS lets every worker take messages.",
+    "Kafka needs more partitions (20+) to use 30 workers, and is far cheaper at a steady 2k/s. SQS scales consumers freely but costs per message (batching would cut that up to 10x). Kafka keeps events for replay and orders them per partition; standard SQS does neither."
+  ],
+  "_notes": "Graph: client -> api (10 x 1k) -> events -> worker (30 x 200/s, $0.10 each). Kafka: 12 partitions, drain = min(30, 12) x 200 = 2.4k/s; $0.63/hr (3 MSK brokers). SQS: drain 30 x 200 = 6k/s; $1.20 per million messages (send + receive + delete, unbatched). Sim cost at 2k/s: Kafka $4.63 vs SQS $12.64/hr (workers $3 + api $1 on both). Growth to 4k/s: Kafka backlog grows 1.6k/s (48k at 40 s), SQS keeps up ($19.29/hr). Outage 10-20 s: both build 20k; SQS drains at 4k/s (done in ~5 s), Kafka at 400/s (4k left at 60 s). Client latency is the same on both: the queue decouples it. Checked in frontend/src/lessons/content.test.ts."
+}

@@ -7,13 +7,9 @@ import {
 import { useCallback, useState, type DragEvent } from 'react'
 import { isContainer, type FlowNode } from '../design'
 import { useDesign } from '../store'
-import { BLOCK_H, BLOCK_W, BlockNode } from './BlockNode'
-import { ContainerNode } from './ContainerNode'
-import { RoughEdge } from './RoughEdge'
+import { BLOCK_H, BLOCK_W } from './BlockNode'
+import { edgeTypes, nodeTypes } from './nodeTypes'
 
-// Defined outside the component so React Flow doesn't see "new" types on every render.
-const nodeTypes = { block: BlockNode, container: ContainerNode }
-const edgeTypes = { rough: RoughEdge }
 
 export const DRAG_MIME = 'application/x-sysdesign-block'
 

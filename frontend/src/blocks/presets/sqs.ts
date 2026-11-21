@@ -19,7 +19,7 @@ export const sqs = presetBlock({
     requestCost: `${awsPrices('AWSQueueService')}: $0.40 per million standard requests, × 3 requests per message`,
   },
   estimates: ['capacity_rps'],
-  notes: 'capacity_rps 1M stands in for "nearly unlimited". Free tier (1M requests/month) and 64 KB billing chunks are ignored.',
+  notes: 'capacity_rps 1M stands in for "nearly unlimited". Assumes one message per request: batching up to 10 per request cuts the request cost up to 10×. Free tier (1M requests/month) and 64 KB billing chunks are ignored.',
 })
 
 export const sqs_fifo = presetBlock({
@@ -36,5 +36,5 @@ export const sqs_fifo = presetBlock({
     requestCost: `${awsPrices('AWSQueueService')}: $0.50 per million FIFO requests, × 3 requests per message`,
   },
   estimates: [],
-  notes: 'Without batching the cap is 300 msg/s; with high-throughput mode in us-east-1 it is up to 70k TPS (700k msg/s batched). The sim uses the default batched limit.',
+  notes: 'Request cost assumes one message per request (the cap assumes batches of 10, so batched sends would cost less). Without batching the cap is 300 msg/s; with high-throughput mode in us-east-1 it is up to 70k TPS (700k msg/s batched). The sim uses the default batched limit.',
 })

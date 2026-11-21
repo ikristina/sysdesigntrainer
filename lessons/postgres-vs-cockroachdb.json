@@ -1,0 +1,24 @@
+{
+  "id": "postgres-vs-cockroachdb",
+  "title": "Multi-region: Postgres vs CockroachDB",
+  "mode": "compare",
+  "brief": "An app runs in two regions, 4k requests/s, 90% reads. Side A keeps one Postgres primary (plus a replica) in us-east-1, so us-west-2 crosses the country for every query. Side B runs CockroachDB across 3 regions with 5 replicas. Decide which you'd run, for which requirements.",
+  "starter_graph": ["graphs/multi-region-postgres.json", "graphs/multi-region-cockroach.json"],
+  "swap": { "node": "db", "options": ["postgres", "cockroachdb"] },
+  "scenarios": [
+    { "id": "steady", "label": "Steady 4k rps", "about": "Nothing fails. Postgres pays cross-region latency for every west request; CockroachDB pays a quorum round trip on writes.", "seconds": 30, "traffic": { "rps": 4000, "read_ratio": 0.9 }, "events": [] },
+    { "id": "region-down", "label": "us-east-1 goes down", "about": "At 10 s the whole us-east-1 region fails, for 20 s. Postgres's primary lives there.", "seconds": 50, "traffic": { "rps": 4000, "read_ratio": 0.9 }, "events": [{ "at": 10, "kill": ["east"] }, { "at": 30, "restore": ["east"] }] }
+  ],
+  "questions": [
+    "What does surviving a region loss cost, in $/hr and in write latency?",
+    "If the business accepts 20 minutes of downtime a year, which would you run?",
+    "How would you cut Postgres's cross-region read latency without changing databases?",
+    "Which side is simpler to operate, and does that matter here?"
+  ],
+  "hints": [
+    "Which requests cross a region border on each side, and how often?",
+    "Postgres: every us-west-2 request goes to us-east-1 (+70 ms). CockroachDB: reads stay local, writes wait for a majority of replicas in other regions.",
+    "CockroachDB survives the region loss and has lower p99 here, for ~25% more. Postgres is cheaper and simpler; a read replica in us-west-2 would fix its reads, but a region loss still takes writes down until you fail over."
+  ],
+  "_notes": "Two graphs: client -> lb -> api-east / api-west (8 x 1k each, in their regions) -> db. Postgres (primary + 1 replica, 3k/node estimate) is inside us-east-1: west requests add 70 ms (cross-region estimate). CockroachDB sits outside the region boxes (it spans 3 regions): 5 nodes x 3k, replication factor 5, reads local, writes + 70 ms quorum averaged over the write share (the sim adds the mean, so p99 understates write latency). Sim steady: p99 156 vs 73 ms, $2.08 vs $2.55/hr. Region down 10-30 s: Postgres dies with us-east-1 (errors 40.8% over the run, recovers 22 s after the failure = when the region is back); CockroachDB keeps serving through us-west-2 (8 replicas take 4k at rho 0.5). Not modeled: failover to a Postgres replica, consistency anomalies. Checked in frontend/src/lessons/content.test.ts."
+}

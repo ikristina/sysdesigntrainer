@@ -8,7 +8,7 @@ import { useMemo } from 'react'
 import { registry } from '../blocks'
 import type { FlowNode } from '../design'
 import { fmtPct, healthColor, healthOf, type Health } from '../display'
-import { isDown, useSim } from '../simStore'
+import { isDown, useSimView } from '../simStore'
 import { roughPath, seedOf } from './rough'
 import { Mark } from './Mark'
 import { drawShape } from './shapes'
@@ -21,10 +21,10 @@ const FILL: Record<Health, string> = { idle: '#FFFFFF', ok: '#FFFFFF', warn: '#F
 
 export function BlockNode({ id, data, selected }: NodeProps<FlowNode>) {
   const def = registry[data.blockType]
-  const m = useSim((s) => s.sim.metrics[id])
-  const down = useSim((s) => isDown(s.killed, id))
+  const m = useSimView((s) => s.sim.metrics[id])
+  const down = useSimView((s) => isDown(s.killed, id, s.nodes))
   const health = healthOf(m, down)
-  const lit = useSim((s) => s.highlight.ids.includes(id))
+  const lit = useSimView((s) => s.highlight.ids.includes(id))
 
   // Redraw only when selection or health changes, so the wobble doesn't jitter.
   const shapes = useMemo(() => {

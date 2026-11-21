@@ -1,0 +1,117 @@
+{
+ "version": 1,
+ "nodes": [
+  {
+   "id": "client",
+   "type": "client",
+   "position": {
+    "x": 0,
+    "y": 170
+   },
+   "params": {}
+  },
+  {
+   "id": "lb",
+   "type": "load_balancer",
+   "position": {
+    "x": 220,
+    "y": 170
+   },
+   "params": {}
+  },
+  {
+   "id": "east",
+   "type": "region",
+   "position": {
+    "x": 440,
+    "y": 0
+   },
+   "size": {
+    "w": 420,
+    "h": 160
+   },
+   "params": {
+    "name": "us-east-1"
+   }
+  },
+  {
+   "id": "west",
+   "type": "region",
+   "position": {
+    "x": 440,
+    "y": 220
+   },
+   "size": {
+    "w": 420,
+    "h": 160
+   },
+   "params": {
+    "name": "us-west-2"
+   }
+  },
+  {
+   "id": "api-east",
+   "type": "service",
+   "position": {
+    "x": 30,
+    "y": 55
+   },
+   "parentId": "east",
+   "params": {
+    "replicas": 8
+   }
+  },
+  {
+   "id": "api-west",
+   "type": "service",
+   "position": {
+    "x": 30,
+    "y": 55
+   },
+   "parentId": "west",
+   "params": {
+    "replicas": 8
+   }
+  },
+  {
+   "id": "db",
+   "type": "cockroachdb",
+   "position": {
+    "x": 920,
+    "y": 170
+   },
+   "params": {
+    "replicas": 5,
+    "replication_factor": 5,
+    "regions": 3
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "client-lb",
+   "source": "client",
+   "target": "lb"
+  },
+  {
+   "id": "lb-api-east",
+   "source": "lb",
+   "target": "api-east"
+  },
+  {
+   "id": "lb-api-west",
+   "source": "lb",
+   "target": "api-west"
+  },
+  {
+   "id": "api-east-db",
+   "source": "api-east",
+   "target": "db"
+  },
+  {
+   "id": "api-west-db",
+   "source": "api-west",
+   "target": "db"
+  }
+ ]
+}

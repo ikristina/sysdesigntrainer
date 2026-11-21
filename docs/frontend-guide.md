@@ -1,6 +1,6 @@
 # Frontend guide
 
-A walkthrough of the System Design Trainer frontend for a backend engineer: what each tool is, which file does what, and how data moves when you click or drag something. Covers Phase 1 (the canvas), Phase 2 (the simulator) and Phase 3 (the Claude link).
+A walkthrough of the System Design Trainer frontend for a backend engineer: what each tool is, which file does what, and how data moves when you click or drag something. Covers Phase 1 (the canvas), Phase 2 (the simulator), Phase 3 (the Claude link), Phase 4 (lessons and explainers) and Phase 5 (product presets and the compare view).
 
 ## 1. Run it
 
@@ -52,16 +52,20 @@ index.html ── loads ──> src/main.tsx ── renders ──> <App/>
      └─ ◄─ commands (set_traffic, kill_node, highlight...) applied to simStore
   <TerminalPanel/> under the canvas = <iframe> of ttyd :7681 ──────────────┘
 
-  mode.ts: URL hash #/  |  #/lesson/<id>  |  #/explainer/<id>
+  mode.ts: URL hash #/  |  #/lesson/<id>  |  #/explainer/<id>  |  #/compare/<id>
      ├─ sandbox:   store.open('sysdesign.design')            (your autosaved design)
      ├─ lesson:    lessons/lessonStore.ts ── store.open('sysdesign.lesson.<id>', starter graph)
      │               left: <LessonPanel/> + <Palette/>, header: <StepNav/>, right: + <SuccessPanel/>
      └─ explainer: explainers/player.ts ── store.open(null, step's graph)   (never saved)
                      left: <ExplainerPanel/>, canvas read-only, no traffic bar
+     └─ compare:   compare/compareStore.ts ── two Runs (design + its own SimState), ticked together
+                     left: <ComparePanel/>, center: <CompareView/> (2 read-only canvases + charts),
+                     right: <CompareTable/>, header: <CompareBar/> (scenario, speed, Run both)
+                     each mini canvas reads its side's run through SimContext (see section 5)
   lesson + explainer JSON: repo-root lessons/ and explainers/, bundled in by Vite (import.meta.glob)
 ```
 
-The app has three **modes**, picked from the menu at the top left. Sandbox is the free canvas. A lesson and an explainer reuse the same canvas, stores and simulator; they only decide which design is loaded, what the left column shows, and what traffic is set. Section 9 explains them.
+The app has four **modes**, picked from the menu at the top left. Sandbox is the free canvas. A lesson and an explainer reuse the same canvas, stores and simulator; they only decide which design is loaded, what the left column shows, and what traffic is set. Compare shows two designs side by side under the same scripted scenario. Section 9 explains them.
 
 There are two stores. `store.ts` holds the design (what you drew, saved). `simStore.ts` holds the run (traffic settings, killed nodes, latest metrics, not saved). The simulator itself (`sim/`) is plain TypeScript with no React, so it can be unit-tested like any pure function.
 
@@ -96,6 +100,8 @@ A backend analogy:
 | **`import.meta.glob`** | A Vite feature: `import.meta.glob('../../../lessons/*.json', { eager: true })` imports every matching file at build time, as if you had written one `import` per file. Lessons and explainers are plain JSON files in the repo, and adding one needs no code change. They end up inside the built JavaScript, so the static build still needs no server. `server.fs.allow` in `vite.config.ts` lets the dev server read those folders, which sit outside `frontend/`. | `lessons/content.ts`, `vite.config.ts` |
 | **URL hash routing** | The part of the URL after `#` (`location.hash`) never goes to a server, and changing it doesn't reload the page. The browser fires a `hashchange` event instead. `mode.ts` keeps the mode there (`#/lesson/url-shortener`), so a reload keeps your place, Back/Forward switch modes, and you can bookmark a lesson. No router library. | `mode.ts` |
 | **`<select>` / `<optgroup>`, `<textarea>`** | Native form controls: the mode menu (grouped into Lessons and Explainers) and the per-step notes box. A **controlled** input gets `value` from the store and calls a store function in `onChange`, so the store stays the single source of truth. | `App.tsx`, `LessonPanel.tsx` |
+| **Zustand vanilla stores + React context** | `createStore(...)` (no `create`) makes a store that isn't tied to one hook, so we can make two of them: one per compare side. `<SimContext.Provider value={sideStore}>` hands a store to everything inside it; `useSimView(sel)` reads the context's store if there is one, else the main `useSim`. That's how `BlockNode` draws the main canvas and both compare canvases with the same code. | `simStore.ts`, `compare/compareStore.ts` |
+| **simple-icons** | npm package of brand SVG icons. `import { siRedis } from 'simple-icons'` gives `{ title, path, hex }`; only the icons imported end up in the bundle. `Mark.tsx` draws `path` in a 24×24 SVG. No AWS, Memcached or Valkey icons exist, so those blocks show a text badge. License note in the README. | `blocks/presets/*.ts`, `canvas/Mark.tsx` |
 | **Google Fonts** | Kalam (hand-written headings), Inter (UI text), JetBrains Mono (code), loaded in `index.html`. | `index.html` |
 
 ## 4. Files
@@ -106,12 +112,13 @@ frontend/
   vite.config.ts          Vite config (React plugin; fs.allow for ../lessons, ../explainers). Vitest reads it too.
   src/
     main.tsx              entry point: opens the mode in the URL hash, starts the backend link, mounts <App/>
-    App.tsx               layout + header (mode menu, Claude / Export / Import), left column per mode, highlight note
-    mode.ts               sandbox / lesson / explainer, kept in the URL hash; entering a mode resets the run
+    App.tsx               layout + header (mode menu, Claude / Export / Import), columns per mode, highlight note
+    mode.ts               sandbox / lesson / explainer / compare, kept in the URL hash; entering a mode resets the run
     link.ts               tutor layer: WebSocket to the backend, state snapshots out, MCP commands in
     index.css             all styles
     store.ts              Zustand store: nodes, edges, actions; open(key) swaps designs, autosave to that key
-    simStore.ts           Zustand store for the run: traffic, killed/partitioned, highlight, tick loop, latest SimState
+    simStore.ts           Zustand store for the run: traffic (incl. hot key), killed/partitioned, highlight, tick loop,
+                          latest SimState; SimContext + useSimView so canvas parts can read a compare side instead
     display.ts            number formatting + green/amber/red health scale
     design.ts             saved-design JSON format: toDesign / fromDesign / localStorage helpers
     design.test.ts        save/load round-trip + bad-input tests
@@ -120,9 +127,19 @@ frontend/
       index.ts            the registry: list of all blocks, categories + colors, defaultParams()
       <type>.ts           one file per block type (22), with comments on where defaults come from
       registry.test.ts    registry + validation tests
+      presets/
+        preset.ts         Preset type + presetBlock(): a generic block with product defaults, logo, facts, sources
+        <product>.ts      one per product (17): redis, memcached, valkey, kafka, rabbitmq, sqs (+ FIFO), kinesis,
+                          postgres, mysql, cockroachdb, dynamodb, cassandra, mongodb, opensearch, s3, cloudfront, cloudflare
+        urls.ts           AWS price-list URL helper (with the date it was read)
+        index.ts          the presets list (appended to the registry)
+        presets.test.ts   every changed default and price has a source or is named as an estimate
     canvas/
       Canvas.tsx          <ReactFlow>, palette drops, moving nodes into/out of regions and AZs
-      BlockNode.tsx       how a block looks (rough box, icon, label, replica count, handles)
+      BlockNode.tsx       how a block looks (rough outline, mark, label, replica count, handles)
+      shapes.ts           one hand-drawn outline per block shape (cylinder, cloud, pipe, diamond...)
+      Mark.tsx            the block's logo (simple-icons SVG), text badge, or emoji
+      nodeTypes.ts        nodeTypes / edgeTypes maps, shared by the main and compare canvases
       ContainerNode.tsx   how a region/AZ looks (dashed rough frame, resize handles)
       RoughEdge.tsx       how a connection looks (rough curve + arrowhead)
       rough.ts            rough.js helpers (rect/path/line, seed from node id)
@@ -134,15 +151,16 @@ frontend/
       handlers/
         common.ts         queueStep() (the queue model), latency formula, helpers
         index.ts          simBehavior name -> handler
-        client.ts service.ts balancer.ts cache.ts sql.ts queue.ts stream.ts
+        client.ts service.ts balancer.ts cache.ts sql.ts queue.ts stream.ts partitioned.ts consensus.ts
     panels/
-      Palette.tsx         left panel: draggable tiles grouped by category
-      ParamPanel.tsx      right column, bottom: param inputs with min/max validation
+      Palette.tsx         left panel: draggable tiles grouped by category (generic tiles, then products)
+      ParamPanel.tsx      right column, bottom: param inputs with min/max validation; price, facts, sources
       MetricsPanel.tsx    right column, top: p99 chart, headline numbers, most saturated blocks
-      TrafficBar.tsx      header: traffic and read/write sliders, Spike, Kill/Restore, Partition/Heal, Run/Pause, Reset
+      TrafficBar.tsx      header: traffic, read/write and hot-key sliders, Spike, Kill/Restore, Partition/Heal, Run/Pause, Reset
       TerminalPanel.tsx   under the canvas: ttyd iframe, or how to start it; link status line
     lessons/
-      content.ts          loads lessons/*.json, explainers/*.json and graphs; types; checks(); step titles + prompts
+      content.ts          loads lessons/*.json (split into lessons and compareLessons), explainers/*.json and graphs;
+                          types; checks(); step titles + prompts
       content.test.ts     every file is valid, and the sim agrees with each explainer and lesson (see section 9)
       lessonStore.ts      open lesson: variant, step, notes, hints shown, pass timer; saved per lesson
       LessonPanel.tsx     <LessonPanel/> (left), <StepNav/> (header pills), <SuccessPanel/> (right)
@@ -150,7 +168,14 @@ frontend/
       ops.ts              applyStep(): one explainer step's ops (graph, add, remove, set_params, traffic, kill, highlight)
       player.ts           which explainer and step is showing; pushes each step into the stores
       ExplainerPanel.tsx  left column: caption, Back / Next, step list, "Open in sandbox", related lessons
-lessons/                  (repo root) lesson JSON: url-shortener, welcome-emails, p99-fix, rate-limiter
+    compare/
+      run.ts              pure: one Run per side, scenario timeline, runScenario(), summarize() -> table rows
+      run.test.ts         swapping blocks, scenario events, recovery time
+      compareStore.ts     the open compare: two side stores, scenario, speed, play/pause, hints, verdict
+      CompareView.tsx     <CompareBar/> (header), <ComparePanel/> (left), <CompareView/> (canvases + charts),
+                          <CompareTable/> (right)
+lessons/                  (repo root) lesson JSON: url-shortener, welcome-emails, p99-fix, rate-limiter, and the
+                          compare lessons redis-vs-memcached, kafka-vs-sqs, postgres-vs-dynamodb, postgres-vs-cockroachdb
 explainers/               (repo root) explainer JSON: load-balancing, caching-basics, replication-lag
   graphs/                 starting designs (saved-design format) used by explainers and lesson starters
 backend/
@@ -214,6 +239,13 @@ It sets the variant's traffic, resets the sim and plays. On every tick, `lessonS
 **...press Next in an explainer**
 `player.ts` applies the next step's ops to the current scene (`applyStep`) and pushes it into the stores: the design (never autosaved), traffic, killed list and highlight. The sim keeps running, so you see the change happen live. A step that loads a new `graph` resets the sim. Back, or clicking an earlier step, rebuilds the scene from step 1 (`sceneAt`) and resets the sim. `App` calls `fitView` after each step so the graph is framed.
 
+**...run a compare (e.g. `#/compare/redis-vs-memcached`)**
+1. `mode.ts` calls `startCompare(id)`. It loads the lesson's starter graph into side A and the same graph with the swap node changed to the other product into side B (`swapped()` keeps only the params the new type has). "Two saved designs" (`#/compare/`) starts empty; **Load A / Load B** copy your sandbox design into a side.
+2. Each side is its own vanilla Zustand store holding a `Run`: the design, its `SimState`, killed list, traffic and history. The two mini canvases are wrapped in `<SimContext.Provider>`, so `BlockNode`, `RoughEdge` and `ContainerNode` color themselves from that side's run, not the main sim.
+3. **▶ Run both** starts a 100 ms timer. Each tick advances both runs by `speed` ticks (1×, 5× or 20×). `tickRun` applies the scenario's events when their time comes (kill, restore, set_params, traffic, spike), calls the same `step()` as the sandbox, and appends a sample (p50, p99, throughput, errors, cost, backlog, cache hit) to the history.
+4. The charts overlay both histories (A solid, B dashed). The table (`summarize`) turns them into rows: peak throughput, worst p99, errors, recovery time, cache hit, backlog, cost. Each row names a winner, unless the two are within a small tolerance.
+5. When the scenario ends the timer stops. Your written verdict is saved in localStorage (`sysdesign.verdict.<id>`).
+
 **...Export / Import**
 Export calls `toDesign(nodes, edges)`, then `JSON.stringify`, and downloads the result as `design.json`. Import reads the file, `fromDesign` validates it (version, known block types, edges point at existing nodes), and the canvas is replaced. A bad file shows a red message in the header and leaves the canvas unchanged.
 
@@ -267,11 +299,17 @@ What each behavior does:
 | `sql` | SQL DB | Writes go to the primary only; reads spread over primary + read replicas. The connection pool caps throughput at `pool_size / base latency`. Replication lag grows while the primary is above ρ 0.8. |
 | `queue` | Queue | Accepts up to its capacity; children are competing consumers. The producer only waits for the enqueue, so its latency stays low while the backlog grows. |
 | `stream` | Stream | Each child is a consumer group that reads **every** message. A group can use at most `partitions` of its replicas. |
+| `partitioned` | DynamoDB preset | Like `kv`, but the hot-key share of reads and writes all lands on one partition. Above `partition_read_rps` / `partition_write_rps` that share is throttled (errors). |
+| `consensus` | CockroachDB preset | Like a service, but every write is done `replication_factor` times (each replica applies it) and waits for a quorum: +1 ms within a region, +70 ms when `regions` ≥ 3. |
+
+**Cache warmth** (cache behavior): a cache's hit ratio is `hit_ratio × warm`. A cache that restarts with `persistence: none` comes back empty (`warm = 0`); with `rdb` or `aof` it keeps its data. Losing nodes without `replication: replica` loses that share of the keys. Warmth climbs back with a 30 s time constant (an estimate).
+
+**Hot key:** the Hot key slider (0 to 100%) is the share of traffic that hits one key. Only the `partitioned` behavior uses it.
 
 - **Regions and AZs:** an edge between two regions adds 70 ms, and between two AZs adds 1 ms (estimates).
 - **Killed block:** `μ = 0`, so everything sent to it fails. Load balancers skip killed children, like a health check would.
 - **Partitioned region:** every edge with exactly one end inside the region is cut. The sender sees the far side as down, so load balancers route around it, a queue can't be drained across it, and a direct call across fails. Blocks inside keep running and still serve traffic that stays inside. Cut edges show a red ✕.
-- **Cost/hr:** the block's `cost × replicas` (SQL: primary + read replicas), summed.
+- **Cost/hr:** the block's `cost × replicas` (SQL: primary + read replicas; × 2 with `replication: replica`; per partition for Kinesis-style billing), summed, plus per-request pricing (`requestCost`, USD per million reads/writes, for SQS, DynamoDB, S3, CloudFront) at the current request rate.
 - **Deterministic:** randomness comes from a seeded generator stored in the state, so the same inputs give the same run. That's what makes it testable.
 
 On screen, health is green below ρ 0.85, amber up to 1, and red when saturated or failing more than 1% (`display.ts`). Edges take the color of the block they point at.
@@ -288,7 +326,7 @@ Claude Code runs in a terminal under the canvas. It can't see the browser, so th
 |---|---|---|
 | `link.ts` | browser | Opens `ws://localhost:8000/ws`. Every second, and right after each command, it sends a snapshot: the design (saved format), traffic settings, running or paused, killed/partitioned lists, the mode, the explainer step or open lesson, and metrics rounded to 3 significant digits so Claude can read them. It applies commands from the backend to `simStore`. If the socket closes, it retries every 3 s. |
 | `/ws` | `backend/app/main.py` | Keeps the latest snapshot in memory (the **mirror**). It only accepts browser connections from `localhost` pages, because any website could otherwise open a WebSocket to localhost. |
-| MCP tools | `backend/app/tools.py` | `get_design`, `get_metrics` read the mirror. `run`, `set_traffic`, `spike`, `kill_node`, `restore_node`, `partition_region` and `highlight` validate their input, then send a command to the browser. Lesson tools: `get_lesson` (brief, requirements, step, notes, hints shown, live checks, pass timer, `tutor_notes`), `set_requirements` (switch variant, or change traffic / limits as a twist), `advance_step`, `give_hint(level)` (shows it in the app, returns the text). With no tab open, every tool says so; lesson tools also say so when no lesson is open. |
+| MCP tools | `backend/app/tools.py` | `get_design`, `get_metrics` read the mirror. `run`, `set_traffic`, `spike`, `kill_node`, `restore_node`, `partition_region` and `highlight` validate their input, then send a command to the browser. `set_traffic` also takes `hot_key` (0 to 1). Compare tools: `get_compare` (sides, scenario, time, the results table with the winner per row, questions, verdict, `tutor_notes`) and `run_scenario(scenario_id)` (picks the scenario and runs both sides). `give_hint` shows the compare lesson's hints when a compare is open. Lesson tools: `get_lesson` (brief, requirements, step, notes, hints shown, live checks, pass timer, `tutor_notes`), `set_requirements` (switch variant, or change traffic / limits as a twist), `advance_step`, `give_hint(level)` (shows it in the app, returns the text). With no tab open, every tool says so; lesson tools also say so when no lesson is open. |
 | `/mcp` | backend | The MCP server (official Python SDK 2.x, `MCPServer`, streamable HTTP). The SDK rejects requests whose Host/Origin isn't localhost (DNS-rebinding protection). |
 | `.mcp.json` | repo root | Tells Claude Code about the server. Claude asks you to approve it the first time. |
 | `TerminalPanel.tsx` | browser | Shows ttyd in an iframe, or the commands to start it. Its status line shows whether `link.ts` is connected. The panel opens by itself when ttyd is running. |
@@ -320,6 +358,8 @@ Both are JSON files in the repo root. The formats are in `docs/SPEC.md` ("Lesson
 
 **The numbers are tested, not guessed.** `content.test.ts` runs the simulator on each lesson: the starter (or a naive design) must fail, the intended design must pass, and an over-provisioned one must break the cost limit. For each explainer it checks the outcome every caption claims (for example "one server saturates at 1.5k rps"). If you change a block's defaults or the sim model, these tests tell you which lesson needs retuning.
 
+**Compare lesson** (`lessons/<id>.json` with `mode: "compare"`): one `starter_graph` (or one per side), a `swap` (`node` plus the two product `options`), `scenarios` (each a timeline: `seconds`, `traffic`, and `events` at given times: `kill`, `restore`, `set_params`, `traffic`, `spike`), `questions` to answer in the verdict box, and hints. Nobody passes or fails; the table shows who wins each metric and you write why. `content.test.ts` runs every scenario headless and checks the winners the lesson's questions rely on (for example Memcached loses its cache hit after a restart, Redis with AOF doesn't).
+
 **Add one:** drop a JSON file in `lessons/` or `explainers/`. Restart `npm run dev` (Vite doesn't watch folders outside `frontend/`, so a new file isn't noticed until then); edits to existing files also need a reload. The `sysdesign-add-lesson` skill walks through writing a lesson.
 
 ## 10. The block registry
@@ -339,6 +379,10 @@ export const service: BlockDef = {
 - The comment at the top of each file says where its numbers come from. Most are order-of-magnitude estimates.
 
 To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `blocks/index.ts`. The `sysdesign-add-block` skill walks through it.
+
+**Product presets** (`blocks/presets/`) are a generic block with a product's numbers. `presetBlock({ base: cache, label: 'Redis', logo: siRedis, params: { capacity_rps: 100000 }, cost: 0.219, sources: {...}, estimates: [...] })` copies the base block, overrides those defaults, and attaches the product info the param panel shows (facts, sources, notes). A preset can also drop or add params and pick another `simBehavior` (DynamoDB uses `partitioned`, CockroachDB `consensus`). Rule: every default a preset changes, and its price, has either a `sources` entry (a URL, with the date read for prices) or is listed in `estimates` and explained in `notes`. `presets.test.ts` enforces it.
+
+**Shapes:** a block's `shape` (`blocks/types.ts`) picks its outline in `canvas/shapes.ts`. Each block file sets one (cylinder for databases, pipe for queues, cloud for the CDN...); presets inherit their base block's shape.
 
 ## 11. Debugging in the browser
 
@@ -370,17 +414,25 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - **Origin:** scheme + host + port of a page (`http://localhost:5173`). The browser isolates pages of different origins from each other.
 - **MCP (Model Context Protocol):** how Claude Code discovers and calls tools that a server offers. Here, over HTTP at `/mcp`.
 - **Mirror:** the backend's copy of the browser's latest state.
+- **Preset:** a generic block filled in with one product's defaults, logo and price (Redis is a preset of Cache).
+- **Scenario:** a scripted timeline (traffic plus events at set times) that a compare runs against both designs.
+- **Hot key:** one key that gets a large share of all traffic, so its partition overloads before the rest.
+- **Cache warmth:** how much of the cache's normal hit ratio it has right now; 0 after an empty restart.
 
 ## 13. Known limits
 
-- Every block is a rough box. Per-category shapes (cylinder, cloud, diamond...) are Phase 5.
-- Ignored by the simulator for now: cache `ttl_s` and `eviction`, function `cold_start_ms`, LLM `tokens_per_s`. Traffic has no payload size or hot-key skew yet (they matter for Phase 5 presets).
+- Ignored by the simulator for now: cache `ttl_s` and `eviction`, function `cold_start_ms`, LLM `tokens_per_s`. Traffic has no payload size. Hot-key skew only affects `partitioned` blocks (not caches).
+- Not modeled, so presets can't show them: multi-key operations, message ordering and replay, joins, memory per GB (no sourced prices).
+- Kill takes down a whole block, not one replica. To lose one node, lower `replicas` (scenarios use `set_params`).
+- Consensus write latency is an average added to every write, not a per-request quorum wait. The cluster is treated as spanning all its `regions` wherever it sits on the canvas.
+- Compare canvases are read-only. Change a side through the scenario, or edit in the sandbox and use **Load A / Load B**.
+- The generic Blob block's comment still says 5,500 GET/s; the S3 preset uses the documented 11,000 per prefix.
 - p50/p99 are global, not per block. Samples include requests that fail, so a dead path can still show a low p99 next to a high error %.
 - Edges that form a cycle are ignored by the simulator.
 - Clients each get an equal share of the global rps.
 - No "clear canvas" button. Select everything (drag a box with Shift held) and press Backspace, or delete the localStorage key.
 - Autosave writes on every drag frame. That's fine for designs this size; add a debounce if large designs feel slow.
-- Four lessons (URL shortener, welcome emails, p99 fix, rate limiter) and three explainers ship. The spec's news feed and chat lessons aren't written: the sim sends every request to every downstream block (no separate read and write paths), has no fan-out multiplier, and checks nothing about consistency, so it can't tell their right and wrong designs apart.
+- Four lessons (URL shortener, welcome emails, p99 fix, rate limiter), four compare lessons and three explainers ship. The spec's news feed and chat lessons aren't written: the sim sends every request to every downstream block (no separate read and write paths), has no fan-out multiplier, and checks nothing about consistency, so it can't tell their right and wrong designs apart.
 - The sim can't tell one client's requests from another's in the error check, so in the rate-limiter lesson a global limit and a per-client limit score the same.
 - Without Claude, a lesson's twist is text only: it tells you what changed, but the requirements stay the same until you or Claude change them (`set_requirements`). The estimation, API and postmortem steps are notes boxes with nothing checking them; Claude reviews them.
 - Explainer and lesson designs aren't validated against the registry at load time beyond what `content.test.ts` checks.

@@ -26,6 +26,7 @@ frontend/     React app (canvas, sim, panels)
   src/sim/handlers/    per-behavior handlers: (node, inbound flows, dt) -> (outbound flows, metrics)
   src/lessons/         lesson loader, lesson store + UI (also loads explainer files)
   src/explainers/      explainer player + UI
+  src/compare/         compare view: two designs, scripted scenarios, results table
 lessons/      lesson JSON files
 explainers/   explainer JSON files (+ graphs/ for saved starting graphs)
 docs/         SPEC.md and design notes

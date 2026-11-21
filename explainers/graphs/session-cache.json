@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "client",
+      "type": "client",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "params": {}
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "position": {
+        "x": 220,
+        "y": 120
+      },
+      "params": {
+        "replicas": 20,
+        "capacity_rps": 10000
+      }
+    },
+    {
+      "id": "cache",
+      "type": "redis",
+      "position": {
+        "x": 440,
+        "y": 120
+      },
+      "params": {
+        "replicas": 3,
+        "hit_ratio": 0.9,
+        "write_mode": "write-through",
+        "persistence": "aof",
+        "replication": "replica"
+      }
+    },
+    {
+      "id": "sessions",
+      "type": "kv",
+      "position": {
+        "x": 660,
+        "y": 120
+      },
+      "params": {
+        "replicas": 2
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "client-api",
+      "source": "client",
+      "target": "api"
+    },
+    {
+      "id": "api-cache",
+      "source": "api",
+      "target": "cache"
+    },
+    {
+      "id": "cache-sessions",
+      "source": "cache",
+      "target": "sessions"
+    }
+  ]
+}

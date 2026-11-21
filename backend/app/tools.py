@@ -33,6 +33,12 @@ class Link:
             raise ToolError("No lesson is open. Ask the user to pick one from the mode menu in the app header.")
         return lesson
 
+    def compare(self) -> dict[str, Any]:
+        compare = self.snapshot().get("compare")
+        if not compare:
+            raise ToolError("The compare view isn't open. Ask the user to pick one under Compare in the mode menu.")
+        return compare
+
     async def send(self, op: str, **args: Any) -> None:
         self.snapshot()
         # ponytail: every open tab gets the command and the last tab to report wins the mirror;
@@ -52,7 +58,9 @@ mcp = MCPServer(
         "failures with the other tools. Metrics refresh about once a second, so wait a few seconds "
         "after a change before judging its effect. Node ids come from get_design. "
         "When a lesson is open, get_lesson returns its brief, requirements, current step, the user's "
-        "notes and the live pass/fail checks; tutor_notes holds the intended math. Give hints in order."
+        "notes and the live pass/fail checks; tutor_notes holds the intended math. Give hints in order. "
+        "In the compare view (two designs, same scenario), use get_compare and run_scenario instead: "
+        "there's no overall winner, so challenge the user's verdict against their requirements."
     ),
 )
 
@@ -188,8 +196,30 @@ async def advance_step() -> str:
 async def give_hint(level: int) -> str:
     """Show hint `level` (1 = a question, 2 = a direction, 3 = a near-answer) in the app and return its text.
     Earlier hints are shown too."""
-    hints = link.lesson()["_hints"]
+    snap = link.snapshot()
+    hints = (link.compare() if snap.get("compare") else link.lesson())["_hints"]
     if not 1 <= level <= len(hints):
         raise ToolError(f"level must be 1-{len(hints)}")
     await link.send("give_hint", level=level)
     return hints[level - 1]
+
+
+@mcp.tool()
+def get_compare() -> dict[str, Any]:
+    """The compare view: the two sides (labels and designs), the scenarios and which one is
+    running, sim time, live global metrics per side, and the A/B table (metric, a, b, better =
+    "A"/"B"/null). Also the questions the verdict should answer, the user's verdict text, hints
+    shown, and tutor_notes (the intended numbers). Metrics in the snapshot are rounded."""
+    return {k: v for k, v in link.compare().items() if k != "_hints"}
+
+
+@mcp.tool()
+async def run_scenario(scenario_id: str) -> str:
+    """Pick a scenario in the compare view and run it from t = 0 on both sides."""
+    compare = link.compare()
+    scenario = next((s for s in compare["scenarios"] if s["id"] == scenario_id), None)
+    if scenario is None:
+        raise ToolError(f"No scenario {scenario_id!r}. Options: {', '.join(s['id'] for s in compare['scenarios'])}")
+    await link.send("run_scenario", id=scenario_id)
+    return f"running {scenario['label']} ({scenario['seconds']} s of sim time). Call get_compare when it's done."
+

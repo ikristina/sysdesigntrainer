@@ -97,6 +97,29 @@ def test_lesson_tools(client):
             call(client, "advance_step")
 
 
+COMPARE = {
+    "id": "x", "scenarios": [{"id": "steady", "label": "Steady", "seconds": 30}],
+    "_hints": ["question", "direction", "near-answer"], "verdict": "",
+}
+
+
+def test_compare_tools(client):
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "state", "state": {**STATE, "compare": None}})
+        client.portal.call(_wait_for, lambda: link.state.get("compare", 1) is None)
+        with pytest.raises(ToolError, match="compare view"):
+            call(client, "get_compare")
+
+        ws.send_json({"type": "state", "state": {**STATE, "compare": COMPARE}})
+        client.portal.call(_wait_for, lambda: link.state.get("compare"))
+        assert "_hints" not in call(client, "get_compare").structured_content
+        call(client, "run_scenario", {"scenario_id": "steady"})
+        assert ws.receive_json() == {"op": "run_scenario", "args": {"id": "steady"}}
+        with pytest.raises(ToolError, match="No scenario"):
+            call(client, "run_scenario", {"scenario_id": "nope"})
+        assert call(client, "give_hint", {"level": 1}).structured_content["result"] == "question"
+
+
 async def _wait_for(ready):
     with anyio.fail_after(2):
         while not ready():

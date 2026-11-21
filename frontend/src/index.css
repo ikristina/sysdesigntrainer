@@ -160,3 +160,18 @@ body { margin: 0; background: var(--paper); }
 .product li { margin: 2px 0; }
 .product summary { cursor: pointer; margin-top: 6px; color: var(--muted); }
 .product__sources { word-break: break-word; }
+
+/* Phase 5: compare view */
+.compare { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+.compare__canvases { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.compare__side { flex: 1; min-height: 0; display: flex; flex-direction: column; border: 2px solid; background: var(--panel); }
+.compare__side .react-flow { flex: 1; }
+.compare__head { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1.5px dashed var(--rule); font-size: 12px; flex-wrap: wrap; }
+.compare__head b { font-family: Kalam, cursive; font-size: 18px; }
+.compare__charts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.compare__chart svg { height: 90px; }
+.compare__table { border-collapse: collapse; font-size: 13px; width: 100%; }
+.compare__table th, .compare__table td { padding: 5px 4px; border-bottom: 1px solid var(--rule); text-align: right; }
+.compare__table tbody th { text-align: left; font-weight: 400; }
+.compare__table td.win { font-weight: 700; background: #EBFBEE; }
+.compare-panel__sides { display: flex; flex-direction: column; gap: 2px; font-family: Kalam, cursive; font-size: 17px; }

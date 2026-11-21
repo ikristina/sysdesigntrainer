@@ -3,15 +3,15 @@
 import { NodeResizer, type NodeProps } from '@xyflow/react'
 import { useMemo } from 'react'
 import { registry } from '../blocks'
-import { isDown, useSim } from '../simStore'
+import { isDown, useSimView } from '../simStore'
 import type { FlowNode } from '../design'
 import { roughRect, seedOf } from './rough'
 import { RoughPaths } from './RoughPaths'
 
 export function ContainerNode({ id, data, selected, width = 0, height = 0 }: NodeProps<FlowNode>) {
   const def = registry[data.blockType]
-  const down = useSim((s) => isDown(s.killed, id)) // killing a region/AZ kills everything inside
-  const cut = useSim((s) => s.partitioned.includes(id))
+  const down = useSimView((s) => isDown(s.killed, id, s.nodes)) // killing a region/AZ kills everything inside
+  const cut = useSimView((s) => s.partitioned.includes(id))
   const frame = useMemo(
     () => roughRect(width, height, {
       seed: seedOf(id), roughness: 1.5, strokeWidth: 2, strokeLineDash: [8, 8],

@@ -22,6 +22,31 @@ export type Lesson = {
   _notes?: string              // the math behind the numbers; Claude sees it, the UI doesn't
 }
 
+// Trade-off lesson (mode 'compare', docs/SPEC.md): one design, one block swapped between two
+// products, the same scenarios run on both. No variants or success checks: the user writes the verdict.
+export type ScenarioEvent = {
+  at: number                                              // seconds into the scenario
+  kill?: string[]
+  restore?: string[]
+  set_params?: Record<string, Record<string, number | string>> // node id -> params (skipped where the block has no such param)
+  traffic?: Traffic
+  spike?: { multiplier: number; seconds: number }
+}
+export type Scenario = { id: string; label: string; about?: string; seconds: number; traffic: Traffic & { rps: number; read_ratio: number }; events: ScenarioEvent[] }
+export type CompareLesson = {
+  id: string
+  title: string
+  mode: 'compare'
+  brief: string
+  starter_graph: string | [string, string] // one graph for both sides, or one per side (when B places the node differently)
+  swap: { node: string; options: [string, string] } // block types for side A and side B
+  scenarios: Scenario[]
+  questions: string[]          // what the verdict should answer
+  hints: string[]
+  explainers?: string[]
+  _notes?: string
+}
+
 // One explainer step: a caption plus ops applied to the live scene (see explainers/ops.ts).
 export type AddOp = { type: string; id: string; params?: Record<string, number | string>; between?: [string, string]; position?: { x: number; y: number } }
 export type ExplainerStep = {
@@ -40,7 +65,9 @@ export type Explainer = { id: string; title: string; steps: ExplainerStep[]; les
 const byId = <T extends { id: string }>(mods: Record<string, T>) =>
   Object.values(mods).sort((a, b) => a.id.localeCompare(b.id))
 
-export const lessons: Lesson[] = byId(import.meta.glob<Lesson>('../../../lessons/*.json', { eager: true, import: 'default' }))
+const lessonFiles = byId(import.meta.glob<Lesson | CompareLesson>('../../../lessons/*.json', { eager: true, import: 'default' }))
+export const lessons = lessonFiles.filter((l): l is Lesson => l.mode !== 'compare')
+export const compareLessons = lessonFiles.filter((l): l is CompareLesson => l.mode === 'compare')
 export const explainers: Explainer[] = byId(import.meta.glob<Explainer>('../../../explainers/*.json', { eager: true, import: 'default' }))
 const graphFiles = import.meta.glob<Design>('../../../explainers/graphs/*.json', { eager: true, import: 'default' })
 

@@ -2,7 +2,7 @@
 
 A local web app for learning system design hands-on. You drag components (services, databases, caches, queues...) onto a canvas, connect them, run simulated load, and watch the design break. Then you fix it. Claude coaches you from a terminal under the canvas and talks to the app over MCP.
 
-**Status:** Phases 1 (canvas), 2 (simulator), 3 (Claude link) and 4 (lessons and explainers) are done. See `docs/SPEC.md` for the plan.
+**Status:** Phases 1 (canvas), 2 (simulator), 3 (Claude link), 4 (lessons and explainers) and 5 (product presets and compare) are done. See `docs/SPEC.md` for the plan.
 
 ## What you need
 
@@ -54,6 +54,8 @@ Open http://localhost:5173.
 - **Save:** your design autosaves in the browser. Use **Export JSON** and **Import JSON** to save it to or load it from a file.
 - **Simulate:** add a **Client**, connect it to your design, and press **▶ Run**. Set load with the **Traffic** and **Read / write** sliders in the header. **⚡ Spike** triples traffic for 10 s. **✕ Kill** takes down the selected block (or a whole region). **⇹ Partition** (region selected) cuts the network at that region's border. **Reset** clears queues and the chart.
 - **Lessons and explainers:** pick one from the menu at the top left. An **explainer** is a short guided tour: press **Next →** and watch the live sim change. A **lesson** gives you requirements, walks you through steps (notes box per step), and checks your design: press **▶ Run load test** and keep every success check green for 10 s. **Show hint** reveals hints one at a time. Your sandbox design is kept separately and comes back when you pick **Sandbox**.
+- **Products:** the palette's product tiles (Redis, Kafka, Postgres, DynamoDB...) are generic blocks with that product's defaults, logo and price. Click one to see its facts and sources.
+- **Compare:** pick a compare lesson (or **Two saved designs**) under *Compare* in the menu. Choose a scenario, a speed, and press **▶ Run both**. Both designs run the same scripted timeline; the table on the right shows who wins each metric. Write your verdict on the left.
 - **Read the results:** blocks turn amber near capacity and red (shaking) when saturated. Edges show flow, and red dots fall off where requests fail. The right panel shows p50/p99, errors, throughput, cost and the most saturated blocks. How the model works: `docs/frontend-guide.md`, section 7.
 
 ### With Claude
@@ -72,7 +74,7 @@ ttyd -W -O -i lo0 -p 7681 claude
 4. The first time, Claude Code asks whether to use the project's `sysdesign` MCP server. Approve it.
 5. Check the panel's status line says `connected to sysdesign MCP`. Then ask Claude something like "look at my design and load test it at 5k rps".
 
-What Claude can do: read the design and live metrics, start or pause the sim, set traffic, spike, kill or restore blocks, partition a region, and highlight blocks with a note. In a lesson it also reads your notes and progress, changes the requirements (the twist), moves to the next step and gives hints. How it works: `docs/frontend-guide.md`, section 8. What ttyd is, its flags and why each matters: `docs/terminal-ttyd.md`.
+What Claude can do: read the design and live metrics, start or pause the sim, set traffic, spike, kill or restore blocks, partition a region, and highlight blocks with a note. In a lesson it also reads your notes and progress, changes the requirements (the twist), moves to the next step and gives hints. In a compare it reads the results table and your verdict, and runs scenarios. How it works: `docs/frontend-guide.md`, section 8. What ttyd is, its flags and why each matters: `docs/terminal-ttyd.md`.
 
 ## Test, lint, build
 
@@ -92,11 +94,11 @@ cd ../backend && uv run pytest            # backend tests (websocket mirror + MC
 ## Project layout
 
 ```
-frontend/   React + TypeScript app (canvas, block registry, panels)
+frontend/   React + TypeScript app (canvas, block registry + product presets, simulator, panels, compare view)
 backend/    FastAPI app: websocket mirror (/ws) + MCP server (/mcp) for Claude
 .mcp.json   tells Claude Code where the MCP server is
 docs/       SPEC.md (full spec), frontend-guide.md, terminal-ttyd.md, mockups/
-lessons/    lesson JSON
+lessons/    lesson JSON (including compare lessons)
 explainers/ explainer JSON (+ graphs/: starting designs)
 ```
 

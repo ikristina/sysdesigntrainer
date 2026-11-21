@@ -1,7 +1,8 @@
 // Simulator state for the UI: traffic controls, killed nodes, and the latest sim result.
 // While running, a timer calls tick() 10 times a second; each tick runs one step of the
 // pure simulator (src/sim/engine.ts) on the current design from the design store.
-import { create } from 'zustand'
+import { createContext, useContext } from 'react'
+import { create, useStore, type StoreApi } from 'zustand'
 import { toDesign } from './design'
 import { initialSim, step, type SimState } from './sim/engine'
 import { useDesign } from './store'
@@ -78,10 +79,17 @@ export const useSim = create<Sim>((set, get) => ({
   setHighlight: (ids, message = '') => set({ highlight: { ids, message } }),
 }))
 
-/** Is this node killed, or inside a killed region/AZ? */
-export function isDown(killed: string[], id: string) {
+// What the canvas blocks and edges read to draw live state. Normally the main sim (useSim); the
+// compare view wraps each of its two canvases in a SimContext with that side's own run.
+export type SimView = Pick<Sim, 'sim' | 'running' | 'killed' | 'partitioned' | 'highlight'> & { nodes?: { id: string; parentId?: string }[] }
+export const SimContext = createContext<StoreApi<SimView> | null>(null)
+export function useSimView<T>(select: (s: SimView) => T): T {
+  return useStore(useContext(SimContext) ?? (useSim as unknown as StoreApi<SimView>), select)
+}
+
+/** Is this node killed, or inside a killed region/AZ? `nodes` defaults to the design store's. */
+export function isDown(killed: string[], id: string, nodes: { id: string; parentId?: string }[] = useDesign.getState().nodes) {
   if (!killed.length) return false
-  const nodes = useDesign.getState().nodes
   for (let cur = nodes.find((n) => n.id === id); cur; cur = nodes.find((n) => n.id === cur!.parentId)) {
     if (killed.includes(cur.id)) return true
   }

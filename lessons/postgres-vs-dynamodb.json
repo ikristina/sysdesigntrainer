@@ -1,0 +1,26 @@
+{
+  "id": "postgres-vs-dynamodb",
+  "title": "User profiles: Postgres vs DynamoDB",
+  "mode": "compare",
+  "brief": "A profile service serves 8k requests/s, 90% reads. Side A stores profiles in Postgres with 5 read replicas; side B in DynamoDB on demand. Run the scenarios and decide which fits, and what would make you switch.",
+  "starter_graph": "graphs/user-profiles.json",
+  "swap": { "node": "profiles", "options": ["postgres", "dynamodb"] },
+  "scenarios": [
+    { "id": "steady", "label": "Steady 8k rps", "about": "Both handle it. Compare the cost: servers by the hour against pay per request.", "seconds": 30, "traffic": { "rps": 8000, "read_ratio": 0.9 }, "events": [] },
+    { "id": "hot-key", "label": "One profile goes viral", "about": "From 10 s to 30 s, 90% of requests hit one profile. DynamoDB keeps each key on one partition, and a partition has a limit.", "seconds": 40, "traffic": { "rps": 8000, "read_ratio": 0.9 }, "events": [{ "at": 10, "traffic": { "hot_key": 0.9 } }, { "at": 30, "traffic": { "hot_key": 0 } }] },
+    { "id": "more-writes", "label": "Writes grow to 40%", "about": "At 10 s a new feature makes 40% of requests writes. Postgres has one primary for every write.", "seconds": 40, "traffic": { "rps": 8000, "read_ratio": 0.9 }, "events": [{ "at": 10, "traffic": { "read_ratio": 0.6 } }] }
+  ],
+  "questions": [
+    "Why does Postgres shrug off the viral profile while DynamoDB throttles it? How would you fix the hot key?",
+    "What limits Postgres when writes grow, and what are your options (bigger primary, sharding, another database)?",
+    "At this load, which is cheaper? What happens to that answer at 10x the traffic?",
+    "The sim doesn't model joins or cross-table queries. How would those change the choice?"
+  ],
+  "hints": [
+    "Look at which block throttles in each scenario, and why. Is the limit total load or load on one key?",
+    "DynamoDB allows about 6,000 eventually consistent reads/s per partition. 90% of 7.2k reads is 6.5k on one key. Postgres has a single primary capped near 3k queries/s, and it takes every write.",
+    "DynamoDB: a cache (DAX or Redis) in front of hot keys, or spread the key. Postgres: writes need a bigger primary or sharding, and read replicas don't help. Postgres is cheaper at a steady 8k/s; DynamoDB costs scale with requests but need no capacity planning."
+  ],
+  "explainers": ["replication-lag"],
+  "_notes": "Graph: client -> lb -> api (20 x 1k) -> profiles. Postgres: primary + 5 read replicas, 3k/node (estimate): primary gets 800 writes + 7.2k/6 reads = 2k (rho 0.67); $0.225 x 6. DynamoDB on demand: 40k table cap, 6k reads / 1k writes per partition; $0.0625/M eventual reads, $0.625/M writes. Sim at 8k: p99 104 vs 97 ms, cost $3.38 vs $5.45/hr. Hot key 0.9 (10-30 s): hot reads 6.48k > 6k, so DynamoDB throttles ~480/s (1.4% over the run); Postgres unaffected. Writes 40%: Postgres primary 3.2k writes + 0.8k reads = 4k > 3k: errors 17.7%, p99 3.8 s; DynamoDB fine but $9.19/hr. Not modeled: joins, transactions, item size. Checked in frontend/src/lessons/content.test.ts."
+}

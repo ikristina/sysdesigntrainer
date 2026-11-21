@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "nodes": [
+    { "id": "client", "type": "client", "position": { "x": 0, "y": 120 }, "params": {} },
+    { "id": "lb", "type": "load_balancer", "position": { "x": 220, "y": 120 }, "params": {} },
+    { "id": "api", "type": "service", "position": { "x": 440, "y": 120 }, "params": { "replicas": 20 } },
+    { "id": "profiles", "type": "postgres", "position": { "x": 660, "y": 120 }, "params": { "read_replicas": 5 } }
+  ],
+  "edges": [
+    { "id": "client-lb", "source": "client", "target": "lb" },
+    { "id": "lb-api", "source": "lb", "target": "api" },
+    { "id": "api-profiles", "source": "api", "target": "profiles" }
+  ]
+}

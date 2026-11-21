@@ -6,7 +6,7 @@
 import { BaseEdge, getBezierPath, type EdgeProps } from '@xyflow/react'
 import { useMemo } from 'react'
 import { healthColor, healthOf } from '../display'
-import { isDown, useSim } from '../simStore'
+import { isDown, useSimView } from '../simStore'
 import { roughLine, roughPath, seedOf } from './rough'
 import { RoughPaths } from './RoughPaths'
 
@@ -20,11 +20,11 @@ export function RoughEdge(p: EdgeProps) {
     return [roughPath(d, o), roughLine(x - 10, y - 6, x, y, o), roughLine(x - 10, y + 6, x, y, o)]
   }, [id, d, x, y, stroke])
 
-  const rps = useSim((s) => s.sim.edges[id] ?? 0)
-  const running = useSim((s) => s.running)
-  const m = useSim((s) => s.sim.metrics[target])
-  const down = useSim((s) => isDown(s.killed, target))
-  const isCut = useSim((s) => s.sim.cut.includes(id))
+  const rps = useSimView((s) => s.sim.edges[id] ?? 0)
+  const running = useSimView((s) => s.running)
+  const m = useSimView((s) => s.sim.metrics[target])
+  const down = useSimView((s) => isDown(s.killed, target, s.nodes))
+  const isCut = useSimView((s) => s.sim.cut.includes(id))
   const health = isCut ? 'bad' : healthOf(m, down)
   const failing = isCut || (m && m.lambda > 0 && m.dropped / m.lambda > 0.01)
   // Buckets, so the animation doesn't restart on every small change.

@@ -5,7 +5,8 @@ import { registry } from '../blocks'
 import { fromDesign, toDesign, type Design, type SavedNode } from '../design'
 import { sceneAt } from '../explainers/ops'
 import { initialSim, step, type SimState } from '../sim/engine'
-import { checks, explainers, graph, lessons, STEP_GUIDE, type Variant } from './content'
+import { runScenario, summarize, swapped, type Run } from '../compare/run'
+import { checks, compareLessons, explainers, graph, lessons, STEP_GUIDE, type CompareLesson, type Variant } from './content'
 
 // Fill in default params, the way the app does when it loads a design.
 const withDefaults = (d: Design) => { const f = fromDesign(d); return toDesign(f.nodes, f.edges) }
@@ -164,5 +165,53 @@ describe('lessons match the simulator', () => {
     expect(passes(emails(7, n('q', 'stream', { partitions: 6 }), 22), launch)).toBe(false)
     expect(passes(emails(7, n('q', 'stream', { partitions: 22 }), 22), launch)).toBe(true)
     expect(passes(emails(12, n('q', 'stream', { partitions: 40 }), 40), launch)).toBe(false)
+  })
+})
+
+describe('compare lessons', () => {
+  const sidesOf = (l: CompareLesson) => l.swap.options.map((t, i) =>
+    swapped(graph(typeof l.starter_graph === 'string' ? l.starter_graph : l.starter_graph[i]), l.swap.node, t))
+  // Winner per row label for one scenario, as 'A' | 'B' | '-'.
+  const winners = (id: string, scenario: string) => {
+    const l = compareLessons.find((x) => x.id === id)!
+    const sc = l.scenarios.find((s) => s.id === scenario)!
+    const runs = sidesOf(l).map((d) => runScenario(d, sc, l.swap.node)) as [Run, Run]
+    return Object.fromEntries(summarize(runs, sc).map((r) => [r.label, r.winner === null ? '-' : 'AB'[r.winner]]))
+  }
+
+  it.each(compareLessons.map((l) => [l.id, l] as const))('%s is consistent', (_, l) => {
+    expect(l.swap.options.every((t) => registry[t])).toBe(true)
+    for (const d of sidesOf(l)) {
+      const ids = new Set(d.nodes.map((x) => x.id))
+      expect(ids.has(l.swap.node)).toBe(true)
+      for (const e of l.scenarios.flatMap((s) => s.events)) {
+        for (const id of [...(e.kill ?? []), ...(e.restore ?? []), ...Object.keys(e.set_params ?? {})]) expect(ids.has(id)).toBe(true)
+      }
+    }
+    expect(l.hints).toHaveLength(3)
+    for (const x of l.explainers ?? []) expect(explainers.some((e) => e.id === x)).toBe(true)
+  })
+
+  it('Redis vs Memcached: Memcached is cheaper, Redis keeps its keys through node loss and restart', () => {
+    expect(winners('redis-vs-memcached', 'steady')).toMatchObject({ 'worst p99': '-', errors: '-', cost: 'B' })
+    expect(winners('redis-vs-memcached', 'lose-node')).toMatchObject({ 'worst p99': 'A', 'lowest cache hit': 'A', 'recovery time': 'A', cost: 'B' })
+    expect(winners('redis-vs-memcached', 'restart')).toMatchObject({ errors: 'A', 'lowest cache hit': 'A', 'recovery time': 'A' })
+  })
+
+  it('Kafka vs SQS: Kafka is cheaper, SQS scales consumers past the partition count', () => {
+    expect(winners('kafka-vs-sqs', 'steady')).toMatchObject({ 'worst p99': '-', cost: 'A' })
+    expect(winners('kafka-vs-sqs', 'growth')).toMatchObject({ 'backlog at end': 'B', cost: 'A' })
+    expect(winners('kafka-vs-sqs', 'outage')).toMatchObject({ 'peak backlog': '-', 'backlog at end': 'B' })
+  })
+
+  it('Postgres vs DynamoDB: DynamoDB throttles the hot key, Postgres chokes on writes', () => {
+    expect(winners('postgres-vs-dynamodb', 'steady')).toMatchObject({ errors: '-', cost: 'A' })
+    expect(winners('postgres-vs-dynamodb', 'hot-key')).toMatchObject({ errors: 'A' })
+    expect(winners('postgres-vs-dynamodb', 'more-writes')).toMatchObject({ errors: 'B', 'worst p99': 'B', cost: 'A' })
+  })
+
+  it('Postgres vs CockroachDB: CockroachDB has lower p99 and survives the region, Postgres is cheaper', () => {
+    expect(winners('postgres-vs-cockroachdb', 'steady')).toMatchObject({ 'worst p99': 'B', cost: 'A' })
+    expect(winners('postgres-vs-cockroachdb', 'region-down')).toMatchObject({ errors: 'B', 'recovery time': 'B', cost: 'A' })
   })
 })
