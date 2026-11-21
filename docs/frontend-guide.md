@@ -88,7 +88,7 @@ A backend analogy:
 | **Zustand** | A tiny state store. `create(...)` defines state plus functions that change it, and returns a hook. `useDesign((s) => s.nodes)` reads a slice, and the component re-renders only when that slice changes. `useDesign.getState()` reads it outside React; `useDesign.subscribe` runs code on every change, which is how autosave works. | `store.ts` |
 | **rough.js** | Draws shapes with a hand-drawn wobble. Its **generator** turns "rectangle 150×64" into SVG path strings, which our components render. A fixed **seed** per node keeps the wobble the same on every render, so it doesn't jitter. | `canvas/rough.ts`, `canvas/RoughPaths.tsx` |
 | **SVG** | The browser's vector drawing format. `<svg>` contains `<path d="M0 0 L10 10"/>` elements. Node shapes and edges are SVG. | `BlockNode.tsx`, `RoughEdge.tsx` |
-| **CSS** | Styling, in one global file. Elements get a `className` and rules in `index.css` target it. `:root { --ink: ... }` defines color variables used as `var(--ink)`. The colors and fonts come from `docs/mockups/Main.dc.html`. | `src/index.css` |
+| **CSS** | Styling, in one global file. Elements get a `className` and rules in `index.css` target it. Colors and fonts are **CSS variables** (tokens) in `tokens.css`, from `docs/STYLE.md`: `:root { --ink: #3B3355 }` defines one, `var(--ink)` uses it. Components never contain hex values, so a dark theme would be a second set of the same names. SVG gets them through `style={{ stroke: 'var(--ink)' }}`, because SVG attributes like `stroke="..."` don't understand `var()`. | `src/tokens.css`, `src/index.css` |
 | **Vitest** | Test runner, like pytest. `describe`/`it` group tests and `expect(x).toBe(y)` asserts. Test files end in `.test.ts` and sit next to the code they test. | `*.test.ts` |
 | **oxlint** | Linter, similar to ruff. Ships with the Vite template. | `npm run lint` |
 | **Browser APIs** | `localStorage`: per-site key/value storage in the browser, kept across reloads (autosave). HTML drag-and-drop (`draggable`, `onDragStart`, `onDrop`): moving palette tiles. `Blob` + a temporary `<a download>`: the Export button. `<input type="file">`: the Import button. | `store.ts`, `Palette.tsx`, `App.tsx` |
@@ -102,7 +102,7 @@ A backend analogy:
 | **`<select>` / `<optgroup>`, `<textarea>`** | Native form controls: the mode menu (grouped into Lessons and Explainers) and the per-step notes box. A **controlled** input gets `value` from the store and calls a store function in `onChange`, so the store stays the single source of truth. | `App.tsx`, `LessonPanel.tsx` |
 | **Zustand vanilla stores + React context** | `createStore(...)` (no `create`) makes a store that isn't tied to one hook, so we can make two of them: one per compare side. `<SimContext.Provider value={sideStore}>` hands a store to everything inside it; `useSimView(sel)` reads the context's store if there is one, else the main `useSim`. That's how `BlockNode` draws the main canvas and both compare canvases with the same code. | `simStore.ts`, `compare/compareStore.ts` |
 | **simple-icons** | npm package of brand SVG icons. `import { siRedis } from 'simple-icons'` gives `{ title, path, hex }`; only the icons imported end up in the bundle. `Mark.tsx` draws `path` in a 24×24 SVG. No AWS, Memcached or Valkey icons exist, so those blocks show a text badge. License note in the README. | `blocks/presets/*.ts`, `canvas/Mark.tsx` |
-| **Google Fonts** | Kalam (hand-written headings), Inter (UI text), JetBrains Mono (code), loaded in `index.html`. | `index.html` |
+| **Google Fonts** | Shantell Sans (one hand-written family for everything, weights 400/600/800), loaded in `index.html`. The terminal panel uses the system monospace font. | `index.html` |
 
 ## 4. Files
 
@@ -115,7 +115,8 @@ frontend/
     App.tsx               layout + header (mode menu, Claude / Export / Import), columns per mode, highlight note
     mode.ts               sandbox / lesson / explainer / compare, kept in the URL hash; entering a mode resets the run
     link.ts               tutor layer: WebSocket to the backend, state snapshots out, MCP commands in
-    index.css             all styles
+    tokens.css            every color and font (docs/STYLE.md), as CSS variables
+    index.css             all styles (layout and components), using the tokens
     store.ts              Zustand store: nodes, edges, actions; open(key) swaps designs, autosave to that key
     simStore.ts           Zustand store for the run: traffic (incl. hot key), killed/partitioned, highlight, tick loop,
                           latest SimState; SimContext + useSimView so canvas parts can read a compare side instead

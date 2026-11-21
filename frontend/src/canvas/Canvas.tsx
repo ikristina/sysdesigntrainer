@@ -86,7 +86,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
       deleteKeyCode={readOnly ? null : 'Backspace'}
       fitView={fitOnOpen}
     >
-      <Background variant={BackgroundVariant.Dots} gap={22} color="#D9D4C7" bgColor="#FBFAF6" />
+      <Background variant={BackgroundVariant.Dots} gap={22} color="var(--line-faint)" bgColor="var(--paper)" />
       <Controls />
     </ReactFlow>
   )

@@ -17,7 +17,7 @@ import { RoughPaths } from './RoughPaths'
 export const BLOCK_W = 150
 export const BLOCK_H = 72
 
-const FILL: Record<Health, string> = { idle: '#FFFFFF', ok: '#FFFFFF', warn: '#FFF4E6', bad: '#FFE3E3', dead: '#F1F3F5' }
+const FILL: Record<Health, string> = { idle: 'var(--panel)', ok: 'var(--panel)', warn: 'var(--amber-soft)', bad: 'var(--coral-soft)', dead: 'var(--fill-dead)' }
 
 export function BlockNode({ id, data, selected }: NodeProps<FlowNode>) {
   const def = registry[data.blockType]
@@ -29,11 +29,11 @@ export function BlockNode({ id, data, selected }: NodeProps<FlowNode>) {
   // Redraw only when selection or health changes, so the wobble doesn't jitter.
   const shapes = useMemo(() => {
     const o = { seed: seedOf(id), roughness: 1.2 }
-    const stroke = selected ? '#2F6FDE' : health === 'idle' || health === 'ok' ? '#1E1E1E' : healthColor[health]
+    const stroke = selected ? 'var(--violet)' : health === 'idle' || health === 'ok' ? 'var(--ink)' : healthColor[health]
     const outline = drawShape(def.shape ?? 'box',
       { ...o, strokeWidth: selected || health === 'bad' ? 2.5 : 1.8, fillStyle: 'solid', fill: FILL[health], stroke },
       { ...o, strokeWidth: 1.5, stroke })
-    const crack = roughPath('M 70 2 L 82 22 L 72 38 L 90 56 L 84 70', { ...o, stroke: '#495057', strokeWidth: 1.5 })
+    const crack = roughPath('M 70 2 L 82 22 L 72 38 L 90 56 L 84 70', { ...o, stroke: 'var(--ink-muted)', strokeWidth: 1.5 })
     return health === 'dead' ? [...outline, crack] : outline
   }, [id, selected, health, def.shape])
 

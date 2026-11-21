@@ -9,7 +9,7 @@ export const fmtPct = (p: number) => (p > 0 && p < 0.1 ? '<0.1%' : `${p.toFixed(
 
 export type Health = 'idle' | 'ok' | 'warn' | 'bad' | 'dead'
 export const healthColor: Record<Health, string> = {
-  idle: '#1E1E1E', ok: '#2B8A3E', warn: '#E8590C', bad: '#C92A2A', dead: '#ADB5BD',
+  idle: 'var(--ink)', ok: 'var(--ok-text)', warn: 'var(--amber-text)', bad: 'var(--coral)', dead: 'var(--ink-faint)',
 }
 
 /** bad = saturated or failing more than 1% here; warn = ρ ≥ 0.85. */

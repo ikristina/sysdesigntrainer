@@ -34,16 +34,16 @@ export const blocks: BlockDef[] = [
 
 export const registry: Record<string, BlockDef> = Object.fromEntries(blocks.map((b) => [b.type, b]))
 
-// Palette order, headings and accent colors (colors from docs/mockups/Main.dc.html).
+// Palette order, headings and accent colors (tokens.css).
 export const categories: { id: Category; label: string; color: string }[] = [
-  { id: 'edge', label: 'Edge', color: '#2F6FDE' },
-  { id: 'traffic', label: 'Traffic', color: '#7048E8' },
-  { id: 'compute', label: 'Compute', color: '#1E1E1E' },
-  { id: 'data', label: 'Data', color: '#2B8A3E' },
-  { id: 'cache', label: 'Cache', color: '#D6336C' },
-  { id: 'async', label: 'Async', color: '#E8590C' },
-  { id: 'ai', label: 'AI', color: '#0C8599' },
-  { id: 'grouping', label: 'Groups', color: '#8A8578' },
+  { id: 'edge', label: 'Edge', color: 'var(--flow-client)' },
+  { id: 'traffic', label: 'Traffic', color: 'var(--flow-traffic)' },
+  { id: 'compute', label: 'Compute', color: 'var(--flow-compute)' },
+  { id: 'data', label: 'Data', color: 'var(--flow-sql)' },
+  { id: 'cache', label: 'Cache', color: 'var(--flow-cache)' },
+  { id: 'async', label: 'Async', color: 'var(--flow-async)' },
+  { id: 'ai', label: 'AI', color: 'var(--flow-ai)' },
+  { id: 'grouping', label: 'Groups', color: 'var(--ink-faint)' },
 ]
 
 export const categoryColor = (c: Category) => categories.find((x) => x.id === c)!.color

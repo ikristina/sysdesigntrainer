@@ -68,11 +68,11 @@ function P99Chart({ history }: { history: number[] }) {
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`p99 latency over the last 60 seconds, now ${fmtMs(history.at(-1) ?? 0)}`}>
         {[10, 100, 1000].map((ms) => (
           <g key={ms}>
-            <line x1={0} x2={W} y1={y(ms)} y2={y(ms)} stroke="#ECE8DE" />
-            <text x={4} y={y(ms) - 3} fontSize={9} fill="#8A8578">{fmtMs(ms)}</text>
+            <line x1={0} x2={W} y1={y(ms)} y2={y(ms)} style={{ stroke: 'var(--line-faint)' }} />
+            <text x={4} y={y(ms) - 3} fontSize={9} style={{ fill: 'var(--ink-muted)' }}>{fmtMs(ms)}</text>
           </g>
         ))}
-        <polyline points={points} fill="none" stroke={healthColor.bad} strokeWidth={2} strokeLinejoin="round" />
+        <polyline points={points} fill="none" style={{ stroke: healthColor.bad }} strokeWidth={2} strokeLinejoin="round" />
       </svg>
     </div>
   )

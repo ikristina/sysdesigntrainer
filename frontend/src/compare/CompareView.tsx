@@ -14,7 +14,7 @@ import {
 } from './compareStore'
 import { summarize, type Sample } from './run'
 
-const SIDE_COLORS = ['#2F6FDE', '#E8590C'] as const
+const SIDE_COLORS = ['var(--side-a)', 'var(--side-b)'] as const
 const useSide = <T,>(i: number, select: (s: Side) => T) => useStore(sides[i], select)
 
 /** Header: pick a scenario, run it on both sides, speed. */
@@ -141,7 +141,7 @@ function MiniCanvas({ i }: { i: number }) {
           <ReactFlow nodes={flow.nodes} edges={flow.edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
             fitView fitViewOptions={{ padding: '10%' }} nodesDraggable={false} nodesConnectable={false}
             elementsSelectable={false} deleteKeyCode={null} minZoom={0.1}>
-            <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#CFC9BB" />
+            <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="var(--line-faint)" />
           </ReactFlow>
         </ReactFlowProvider>
       </SimContext.Provider>
@@ -161,9 +161,9 @@ function CompareChart({ title, get, fmt, log = false }: { title: string; get: (s
     <div className="sk chart compare__chart">
       <div className="caps">{title} <span style={{ color: SIDE_COLORS[0] }}>{now[0]}</span> · <span style={{ color: SIDE_COLORS[1] }}>{now[1]}</span></div>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${title}: A ${now[0]}, B ${now[1]}`}>
-        {sc.events.map((e, k) => <line key={k} x1={x(e.at)} x2={x(e.at)} y1={0} y2={H} stroke="#ADB5BD" strokeDasharray="3 3" />)}
+        {sc.events.map((e, k) => <line key={k} x1={x(e.at)} x2={x(e.at)} y1={0} y2={H} style={{ stroke: 'var(--ink-faint)' }} strokeDasharray="3 3" />)}
         {hist.map((h, k) => (
-          <polyline key={k} fill="none" stroke={SIDE_COLORS[k]} strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke"
+          <polyline key={k} fill="none" style={{ stroke: SIDE_COLORS[k] }} strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke"
             strokeDasharray={k === 1 ? '6 3' : undefined} points={h.map((s) => `${x(s.t)},${y(get(s))}`).join(' ')} />
         ))}
       </svg>

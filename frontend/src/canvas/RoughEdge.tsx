@@ -14,7 +14,7 @@ import { RoughPaths } from './RoughPaths'
 
 export function RoughEdge(p: EdgeProps) {
   const [d, midX, midY] = getBezierPath(p)
-  const stroke = p.selected ? '#2F6FDE' : '#1E1E1E'
+  const stroke = p.selected ? 'var(--violet)' : 'var(--ink)'
   const { id, target, targetX: x, targetY: y } = p
   const drawn = useMemo(() => {
     const o = { seed: seedOf(id), roughness: 1, strokeWidth: 2, stroke }

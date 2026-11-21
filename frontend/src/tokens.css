@@ -1,0 +1,68 @@
+/* Every color and font in the app (docs/STYLE.md, "cute sketchbook").
+   Components use these as var(--name), never hex values, so a dark theme is a second block of
+   the same names. SVG gets them through style={{ stroke: 'var(--ink)' }}: presentation
+   attributes (stroke="...") don't resolve var(). */
+:root {
+  --font: 'Shantell Sans', cursive;
+  --font-code: ui-monospace, Menlo, monospace; /* only inside the terminal panel */
+
+  /* Base */
+  --paper: #FCFBFF;       /* app background, canvas */
+  --panel: #FFFFFF;       /* side panels, inputs, gauge center */
+  --hover: #F3F0FA;
+  --ink: #3B3355;         /* strokes, text, logos */
+  --ink-hover: #2A2440;
+  --ink-muted: #5C5377;   /* STYLE.md #6E6589, darkened: it was ~4.1:1 on lilac and pink */
+  --ink-faint: #A39BBF;   /* async/replication edges, regions, disabled */
+  --line-faint: #D9D3EA;  /* dividers, gauge track */
+
+  /* State. Coral means broken, nothing else. */
+  --coral: #E8455A;       /* saturated stroke, failing edges, dropped requests */
+  --coral-text: #A8243A;  /* STYLE.md #C92A3E, darkened: it was 3.7:1 on the saturated fill */
+  --coral-soft: #FFE3E3;
+  --amber: #F59F00;       /* warning, rho >= 0.85 */
+  --amber-text: #8A5300;  /* STYLE.md #B26B00, darkened: it was 4.2:1 on white */
+  --amber-fill: #FFEC99;
+  --amber-soft: #FFF3BF;
+  --ok: #20C997;          /* healthy gauge arc */
+  --ok-text: #0B7A5C;
+  --ok-soft: #E6FCF5;
+
+  /* Accent: links, selection, Claude's notes (not coral: they aren't failures) */
+  --violet: #6741D9;
+  --violet-hover: #4C2FA8;
+  --violet-soft: #F3F0FF;
+  --select-ring: rgba(103, 65, 217, .35);
+
+  /* Block categories: pastel fill, and the color of the flow dots going into the block */
+  --fill-client: #E5DBFF;  --flow-client: #F59F00;
+  --fill-traffic: #FFF1B8; --flow-traffic: #748FFC;
+  --fill-compute: #D0EBFF; --flow-compute: #748FFC;
+  --fill-cache: #FFD6E7;   --flow-cache: #F783AC;
+  --fill-async: #FFE8CC;   --flow-async: #FFA94D;
+  --fill-sql: #C3FAE8;     --flow-sql: #63E6BE;
+  --fill-nosql: #D3F9D8;   --flow-nosql: #69DB7C;
+  --fill-ai: #E3FAFC;      --flow-ai: #3BC9DB;
+  --fill-hot: #FFC9C9;     /* saturated block, under the coral hachure */
+  --hachure: rgba(232, 69, 90, .45);
+  --fill-dead: #EEEBF5;
+
+  /* Panels */
+  --card-p99: #FFE3E3;
+  --card-errors: #FFF3BF;
+  --card-traffic: #E5DBFF;
+  --alert-red: #FFC9C9;
+  --alert-amber: #FFEC99;
+  --alert-off-stroke: #C9C2DD;
+  --alert-off-text: #8F87A8; /* 3.3:1, allowed for a disabled state */
+
+  /* Compare sides (text and chart lines, >= 4.5:1 on white) */
+  --side-a: #4263EB;
+  --side-b: #B35C00;
+
+  /* Claude terminal: dark, like the terminal it embeds */
+  --term-bg: #1B1B1F;
+  --term-text: #E6E3DA;
+  --term-muted: #9C988D;
+  --term-accent: #D97757;
+}

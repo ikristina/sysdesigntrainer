@@ -9,7 +9,7 @@ import { gen } from './rough'
 const path = (d: string, o: Options) => gen.path(d, o)
 
 export function drawShape(shape: Shape, body: Options, mark: Options): Drawable[] {
-  const faint = { ...mark, stroke: '#ADB5BD', strokeWidth: 1 }
+  const faint = { ...mark, stroke: 'var(--ink-faint)', strokeWidth: 1 }
   const rounded = 'M 14 2 L 136 2 Q 148 2 148 14 L 148 58 Q 148 70 136 70 L 14 70 Q 2 70 2 58 L 2 14 Q 2 2 14 2 Z'
   const pipe = 'M 12 3 L 138 3 A 10 33 0 0 1 138 69 L 12 69 A 10 33 0 0 1 12 3 Z'
   const cylinder = (bands: number) => [
@@ -27,13 +27,13 @@ export function drawShape(shape: Shape, body: Options, mark: Options): Drawable[
     case 'cylinder1': return cylinder(1)
     case 'cylinder2': return cylinder(2)
     case 'bucket': return [path('M 2 8 L 16 70 L 134 70 L 148 8 Z', body), gen.ellipse(75, 8, 146, 12, body)]
-    case 'cache': return [gen.rectangle(2, 2, 146, 68, body), path('M 141 6 L 132 19 L 141 19 L 133 32', { ...mark, stroke: '#D6336C' })]
+    case 'cache': return [gen.rectangle(2, 2, 146, 68, body), path('M 141 6 L 132 19 L 141 19 L 133 32', { ...mark, stroke: 'var(--flow-cache)' })]
     case 'pipe': return [path(pipe, body), gen.ellipse(138, 36, 20, 66, mark)]
     case 'lanes': return [path(pipe, body), gen.ellipse(138, 36, 20, 66, mark),
       path('M 14 25 L 126 25 M 14 47 L 126 47', { ...faint, strokeLineDash: [5, 5] })]
     case 'chip': return [gen.rectangle(10, 8, 130, 56, body),
       path([30, 55, 80, 105, 125].map((x) => `M ${x} 2 L ${x} 8 M ${x} 64 L ${x} 70`).join(' '), mark),
-      path('M 146 -2 L 146 12 M 139 5 L 153 5', { ...mark, stroke: '#0C8599' })]
+      path('M 146 -2 L 146 12 M 139 5 L 153 5', { ...mark, stroke: 'var(--flow-ai)' })]
     default: return [gen.rectangle(2, 2, 146, 68, body)]
   }
 }

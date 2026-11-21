@@ -15,14 +15,14 @@ export function ContainerNode({ id, data, selected, width = 0, height = 0 }: Nod
   const frame = useMemo(
     () => {
       const o = { seed: seedOf(id), roughness: 1.5, strokeWidth: 2, strokeLineDash: [8, 8],
-        stroke: selected ? '#2F6FDE' : down ? '#C92A2A' : cut ? '#E8590C' : '#8A8578' }
+        stroke: selected ? 'var(--violet)' : down ? 'var(--coral)' : cut ? 'var(--amber)' : 'var(--ink-faint)' }
       return data.blockType === 'region' ? roughPath(cloudFrame(width, height), o) : roughRect(width, height, o)
     },
     [id, data.blockType, width, height, selected, down, cut],
   )
   return (
     <div className="container-node" style={{ width, height }}>
-      <NodeResizer isVisible={selected} minWidth={160} minHeight={120} color="#2F6FDE" />
+      <NodeResizer isVisible={selected} minWidth={160} minHeight={120} color="var(--violet)" />
       <svg width={width} height={height} className="block-node__bg"><RoughPaths drawables={[frame]} /></svg>
       <div className="container-node__label">{def.label.toLowerCase()} · {String(data.params.name)}{down && ' · down'}{cut && ' · partitioned'}</div>
     </div>

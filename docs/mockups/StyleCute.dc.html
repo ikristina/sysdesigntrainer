@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Style D: cute sketchbook with gauges</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400;600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#6741D9}a:hover{color:#4C2FA8}
+.flow{stroke-dasharray:2 10;animation:dash .8s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-24}}
+@media (prefers-reduced-motion: reduce){.flow{animation:none}}
+</style>
+</helmet>
+<div style="width: 960px; height: 600px; position: relative; background: #FCFBFF; font-family: 'Shantell Sans', cursive; color: #3B3355; overflow: hidden">
+
+  <sc-for list="{{edges}}" as="e" hint-placeholder-count="10">
+    <svg width="960" height="600" aria-hidden="true" style="position: absolute; left: 0; top: 0; overflow: visible">
+      <path d="{{e.p1}}" fill="none" stroke="{{e.color}}" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="{{e.dash}}"></path>
+      <path d="{{e.p1}}" fill="none" stroke="{{e.flowCol}}" stroke-width="3.2" stroke-linecap="round" class="flow"></path>
+      <path d="{{e.head}}" fill="none" stroke="{{e.color}}" stroke-width="1.7" stroke-linecap="round"></path>
+    </svg>
+  </sc-for>
+
+  <sc-for list="{{nodes}}" as="n" hint-placeholder-count="8">
+    <div style="{{n.box}}">
+      <div style="{{n.fill}}"></div>
+      <svg width="{{n.w}}" height="{{n.h}}" aria-hidden="true" style="position: absolute; left: 0; top: 0; overflow: visible">
+        <path d="{{n.p1}}" fill="none" stroke="{{n.stroke}}" stroke-width="1.8" stroke-linejoin="round"></path>
+        <path d="{{n.p2}}" fill="none" stroke="{{n.stroke}}" stroke-width="1.1" stroke-linejoin="round" opacity=".6"></path>
+      </svg>
+      <div style="{{n.text}}">
+        <div style="font-size: 16px; font-weight: 600; line-height: 1.05">{{n.label}}</div>
+      </div>
+      <svg width="30" height="30" viewBox="0 0 40 40" aria-hidden="true" style="{{n.gpos}}">
+        <circle cx="20" cy="20" r="14" fill="#FFFFFF" stroke="#D9D3EA" stroke-width="5" stroke-dasharray="66 88" transform="rotate(135 20 20)" stroke-linecap="round"></circle>
+        <circle cx="20" cy="20" r="14" fill="none" stroke="{{n.gcol}}" stroke-width="5" stroke-dasharray="{{n.arc}}" transform="rotate(135 20 20)" stroke-linecap="round"></circle>
+      </svg>
+      <div style="{{n.vpos}}">{{n.v}}</div>
+    </div>
+  </sc-for>
+
+  <div style="position: absolute; left: 24px; top: 24px; width: 160px; display: flex; flex-direction: column; gap: 14px">
+    <sc-for list="{{reads}}" as="r" hint-placeholder-count="3">
+      <div style="position: relative; height: 84px">
+        <div style="{{r.fill}}"></div>
+        <svg width="160" height="84" aria-hidden="true" style="position: absolute; left: 0; top: 0; overflow: visible">
+          <path d="{{r.p1}}" fill="none" stroke="#3B3355" stroke-width="1.6"></path>
+          <path d="{{r.p2}}" fill="none" stroke="#3B3355" stroke-width="1" opacity=".55"></path>
+        </svg>
+        <div style="position: absolute; left: 16px; top: 12px">
+          <div style="font-size: 13px; color: #6E6589">{{r.k}}</div>
+          <div style="{{r.vstyle}}">{{r.v}}</div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="position: absolute; left: 520px; top: 400px; width: 170px; font-size: 13px; line-height: 1.3; color: #E8455A; transform: rotate(-3deg)">12k requests waiting on the primary</div>
+  <svg width="960" height="600" aria-hidden="true" style="position: absolute; left: 0; top: 0; overflow: visible">
+    <path d="M690 404 Q 760 400 790 352" fill="none" stroke="#E8455A" stroke-width="1.6" stroke-linecap="round"></path>
+    <path d="M790 352 l-11 4 M790 352 l1 12" fill="none" stroke="#E8455A" stroke-width="1.6" stroke-linecap="round"></path>
+  </svg>
+
+  <div style="position: absolute; left: 210px; right: 24px; bottom: 22px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+    <sc-for list="{{alerts}}" as="a" hint-placeholder-count="5">
+      <div style="position: relative; height: 40px; padding: 0 16px; display: flex; align-items: center">
+        <div style="{{a.fill}}"></div>
+        <svg width="{{a.w}}" height="40" aria-hidden="true" style="position: absolute; left: 0; top: 0; overflow: visible">
+          <path d="{{a.p}}" fill="none" stroke="{{a.stroke}}" stroke-width="1.5"></path>
+        </svg>
+        <span style="{{a.tstyle}}">{{a.t}}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":960,"height":600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var seed = 11;
+    function r() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+    function j(a) { return (r() - 0.5) * 2 * a; }
+    function f1(v) { return v.toFixed(1); }
+    function rect(w, h, a) {
+      var x0 = 3, y0 = 3, x1 = w - 3, y1 = h - 3;
+      return 'M' + f1(x0 + j(a)) + ' ' + f1(y0 + j(a)) +
+        ' Q' + f1((x0 + x1) / 2 + j(a)) + ' ' + f1(y0 + j(a * 1.4)) + ' ' + f1(x1 + j(a)) + ' ' + f1(y0 + j(a)) +
+        ' Q' + f1(x1 + j(a * 1.4)) + ' ' + f1((y0 + y1) / 2) + ' ' + f1(x1 + j(a)) + ' ' + f1(y1 + j(a)) +
+        ' Q' + f1((x0 + x1) / 2) + ' ' + f1(y1 + j(a * 1.4)) + ' ' + f1(x0 + j(a)) + ' ' + f1(y1 + j(a)) +
+        ' Q' + f1(x0 + j(a * 1.4)) + ' ' + f1((y0 + y1) / 2) + ' ' + f1(x0 + j(a)) + ' ' + f1(y0 + j(a * 2));
+    }
+    function diamond(w, h, a) {
+      return 'M' + f1(w / 2 + j(a)) + ' ' + f1(3 + j(a)) + ' L' + f1(w - 3 + j(a)) + ' ' + f1(h / 2 + j(a)) +
+        ' L' + f1(w / 2 + j(a)) + ' ' + f1(h - 3 + j(a)) + ' L' + f1(3 + j(a)) + ' ' + f1(h / 2 + j(a)) + ' Z';
+    }
+    function cyl(w, h, a) {
+      var rx = (w - 6) / 2, ry = 10, x0 = f1(3 + j(a)), x1 = f1(w - 3 + j(a)), t = 3 + ry, b = h - 3 - ry;
+      return 'M' + x0 + ' ' + t + ' A' + rx + ' ' + ry + ' 0 1 0 ' + x1 + ' ' + t + ' A' + rx + ' ' + ry + ' 0 1 0 ' + x0 + ' ' + t +
+        ' M' + x0 + ' ' + t + ' L' + f1(Number(x0) + j(a)) + ' ' + b + ' A' + rx + ' ' + ry + ' 0 0 0 ' + x1 + ' ' + b + ' L' + x1 + ' ' + t;
+    }
+    var pastel = { client: '#E5DBFF', lb: '#FFF1B8', api: '#D0EBFF', cache: '#FFD6E7', db: '#C3FAE8', hot: '#FFC9C9' };
+    var defs = [
+      { id: 'client', label: 'Client', cx: 270, cy: 220, w: 104, h: 58, shape: 'rect', c: pastel.client, rho: 0.7 },
+      { id: 'lb', label: 'LB', cx: 410, cy: 220, w: 110, h: 82, shape: 'diamond', c: pastel.lb, rho: 0.71 },
+      { id: 'a1', label: 'api', cx: 545, cy: 105, w: 90, h: 50, shape: 'rect', c: pastel.api, rho: 0.94 },
+      { id: 'a2', label: 'api', cx: 545, cy: 220, w: 90, h: 50, shape: 'rect', c: pastel.api, rho: 0.97 },
+      { id: 'a3', label: 'api', cx: 545, cy: 335, w: 90, h: 50, shape: 'rect', c: pastel.api, rho: 0.95 },
+      { id: 'cache', label: 'Redis', cx: 700, cy: 105, w: 100, h: 56, shape: 'rect', c: pastel.cache, rho: 0.41 },
+      { id: 'rep', label: 'Replica', cx: 860, cy: 105, w: 108, h: 80, shape: 'cyl', c: pastel.db, rho: 0.52 },
+      { id: 'pri', label: 'Primary', cx: 850, cy: 290, w: 122, h: 98, shape: 'cyl', c: pastel.hot, rho: 1.43, hot: true }
+    ];
+    var byId = {};
+    var nodes = defs.map(function (d) {
+      byId[d.id] = d;
+      var f = d.shape === 'diamond' ? diamond : (d.shape === 'cyl' ? cyl : rect);
+      var stroke = d.hot ? '#E8455A' : '#3B3355';
+      var inset = d.shape === 'diamond' ? 'left:22%;top:22%;right:22%;bottom:22%;border-radius:6px;transform:rotate(45deg)' : (d.shape === 'cyl' ? 'left:6px;top:10px;right:6px;bottom:4px;border-radius:50% / 14%' : 'left:5px;top:6px;right:3px;bottom:3px;border-radius:9px 14px 8px 12px');
+      var bg = d.hot ? 'background:#FFC9C9 repeating-linear-gradient(-45deg,rgba(232,69,90,.45) 0 1.6px,transparent 1.6px 7px)' : 'background:' + d.c;
+      var frac = Math.min(d.rho / 1.5, 1);
+      var gcol = d.rho >= 1 ? '#E8455A' : (d.rho >= 0.85 ? '#F59F00' : '#20C997');
+      return {
+        label: d.label, w: d.w, h: d.h, p1: f(d.w, d.h, 2.2), p2: f(d.w, d.h, 2.2), stroke: stroke,
+        fill: 'position:absolute;' + inset + ';' + bg,
+        box: 'position:absolute;left:' + (d.cx - d.w / 2) + 'px;top:' + (d.cy - d.h / 2) + 'px;width:' + d.w + 'px;height:' + d.h + 'px',
+        text: 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;' + (d.shape === 'cyl' ? 'padding-top:12px;' : '') + (d.hot ? 'color:#C92A3E' : ''),
+        gcol: gcol, arc: (66 * frac).toFixed(1) + ' 88',
+        gpos: 'position:absolute;right:-12px;top:-14px',
+        v: d.rho.toFixed(2),
+        vpos: 'position:absolute;right:-10px;top:14px;font-size:11px;font-weight:800;color:' + (d.rho >= 1 ? '#C92A3E' : (d.rho >= 0.85 ? '#B26B00' : '#0B7A5C'))
+      };
+    });
+    function clip(d, tx, ty) {
+      var dx = tx - d.cx, dy = ty - d.cy;
+      var s = Math.min((d.w / 2 + 8) / Math.max(Math.abs(dx), .01), (d.h / 2 + 8) / Math.max(Math.abs(dy), .01));
+      return [d.cx + dx * s, d.cy + dy * s];
+    }
+    function edge(a, b, color, flowCol, dash) {
+      var A = byId[a], B = byId[b];
+      var p = clip(A, B.cx, B.cy), q = clip(B, A.cx, A.cy);
+      var mx = (p[0] + q[0]) / 2 + j(5), my = (p[1] + q[1]) / 2 + j(5);
+      var ang = Math.atan2(q[1] - my, q[0] - mx);
+      var h1 = [q[0] - 11 * Math.cos(ang - .45), q[1] - 11 * Math.sin(ang - .45)];
+      var h2 = [q[0] - 11 * Math.cos(ang + .45), q[1] - 11 * Math.sin(ang + .45)];
+      return {
+        p1: 'M' + f1(p[0]) + ' ' + f1(p[1]) + ' Q' + f1(mx) + ' ' + f1(my) + ' ' + f1(q[0]) + ' ' + f1(q[1]),
+        head: 'M' + f1(h1[0]) + ' ' + f1(h1[1]) + ' L' + f1(q[0]) + ' ' + f1(q[1]) + ' L' + f1(h2[0]) + ' ' + f1(h2[1]),
+        color: color, flowCol: flowCol, dash: dash || 'none'
+      };
+    }
+    var ink = '#3B3355', coral = '#E8455A';
+    var edges = [
+      edge('client', 'lb', ink, '#F59F00'), edge('lb', 'a1', ink, '#748FFC'), edge('lb', 'a2', ink, '#748FFC'), edge('lb', 'a3', ink, '#748FFC'),
+      edge('a1', 'cache', ink, '#F783AC'), edge('cache', 'rep', ink, '#63E6BE'),
+      edge('a1', 'pri', coral, coral), edge('a2', 'pri', coral, coral), edge('a3', 'pri', coral, coral),
+      edge('pri', 'rep', '#A39BBF', 'transparent', '4 6')
+    ];
+    function card(k, v, bg, col) {
+      return { k: k, v: v, p1: rect(160, 84, 2.4), p2: rect(160, 84, 2.4), fill: 'position:absolute;left:6px;top:7px;right:3px;bottom:3px;border-radius:10px 16px 9px 14px;background:' + bg, vstyle: 'font-size:32px;font-weight:800;line-height:1.1;color:' + col };
+    }
+    var reads = [card('p99', '4.2 s', '#FFE3E3', '#C92A3E'), card('errors', '11%', '#FFF3BF', '#3B3355'), card('traffic', '60k/s', '#E5DBFF', '#3B3355')];
+    function alert(t, lvl) {
+      var w = t.length * 7.6 + 32;
+      var on = lvl !== 'off';
+      var bg = lvl === 'red' ? '#FFC9C9' : (lvl === 'amber' ? '#FFEC99' : 'transparent');
+      return {
+        t: t, w: w, p: rect(w, 40, 1.8), stroke: on ? '#3B3355' : '#C9C2DD',
+        fill: 'position:absolute;left:4px;top:5px;right:2px;bottom:2px;border-radius:999px;background:' + bg,
+        tstyle: 'position:relative;font-size:13px;font-weight:600;color:' + (on ? '#3B3355' : '#8F87A8')
+      };
+    }
+    var alerts = [alert('Primary saturated', 'red'), alert('Replica lag', 'amber'), alert('Retry storm', 'amber'), alert('Cache cold', 'off'), alert('Region down', 'off')];
+    return { nodes: nodes, edges: edges, reads: reads, alerts: alerts };
+  }
+}
+</script>
+</body>
+</html>

@@ -8,7 +8,7 @@ Local web app for learning system design interactively. Drag blocks onto a canva
 
 Full spec: `docs/SPEC.md`. Read it before starting any phase.
 
-UI mockups: `docs/mockups/` (`Main` = build screen, `Breaking` = under load, `Compare` = variant comparison). The `.dc.html` files are design-tool sources: read them for layout, colors, fonts (Kalam, Inter, JetBrains Mono), the hand-drawn border trick and panel structure. They won't run standalone. PNG exports, if present, show how they look. Match the look; don't copy the markup.
+Visual style: `docs/STYLE.md` ("cute sketchbook": pastel category fills, plum ink, Shantell Sans, gauges, alert lights). Its mockups are `docs/mockups/StyleCute.dc.html` (scene under load) and `docs/mockups/Products.dc.html` (product blocks). Every color and font is a token in `frontend/src/tokens.css`; components use `var(--token)`, never hex values. The older mockups (`Main`, `Breaking`, `Compare`) still show the screen layout and panel structure, not the look. The `.dc.html` files are design-tool sources: read them for values and structure, don't copy the markup. They won't run standalone.
 
 ## Stack
 - Backend: Python 3.12+, FastAPI, official `mcp` Python SDK (FastMCP), uv for deps
