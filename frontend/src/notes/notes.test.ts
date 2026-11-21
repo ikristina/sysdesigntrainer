@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { parseNotes, toHtml } from './notes'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { parseNotes, renderNote } from './notes'
+
+const toHtml = (md: string) => renderToStaticMarkup(createElement('div', null, renderNote(md))).slice(5, -6)
 
 describe('study notes', () => {
   it('parse title, lessons and category', () => {
@@ -9,7 +13,7 @@ describe('study notes', () => {
   })
 
   it('render tables, lists and inline marks, escaping html', () => {
-    expect(toHtml('| | a |\n|---|---|\n| x | `y` |')).toBe('<table><tr><th></th><th>a</th></tr><tr><td>x</td><td><code>y</code></td></tr></table>')
+    expect(toHtml('| | a |\n|---|---|\n| x | `y` |')).toBe('<table><tbody><tr><th></th><th>a</th></tr><tr><td>x</td><td><code>y</code></td></tr></tbody></table>')
     expect(toHtml('Pick **302** <now>:\n- one\n- two')).toBe('<p>Pick <b>302</b> &lt;now&gt;:</p><ul><li>one</li><li>two</li></ul>')
   })
 })

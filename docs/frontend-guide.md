@@ -183,7 +183,7 @@ frontend/
                           <CompareTable/> (right)
     notes/
       notes.ts            parseNotes(): docs/study-notes.md -> notes (title, lessons, category, body);
-                          toHtml(): the small markdown subset notes use (paragraphs, - lists, | tables, bold, code)
+                          renderNote(): React elements for the small markdown subset notes use (paragraphs, - lists, | tables, bold, code)
       notes.test.ts       parsing and rendering
       NotesPanel.tsx      the 📓 Notes panel: replaces the right column while open; grouped by category,
                           filtered to the open lesson (or all)
@@ -400,7 +400,7 @@ Both are JSON files in the repo root. The formats are in `docs/SPEC.md` ("Lesson
 
 **Compare lesson** (`lessons/<id>.json` with `mode: "compare"`): one `starter_graph` (or one per side), a `swap` (`node` plus the two product `options`), `scenarios` (each a timeline: `seconds`, `traffic`, and `events` at given times: `kill`, `restore`, `set_params`, `traffic`, `spike`), `questions` to answer in the verdict box, and hints. Each scenario has a `watch` line (what to look at on the canvases), and the first scenario is the one the lesson opens on, so put the disruption first. When a run ends, the table says to write the verdict and ask Claude to challenge it (and how to start Claude if ttyd isn't up). Nobody passes or fails; the table shows who wins each metric and you write why. `content.test.ts` runs every scenario headless and checks the winners the lesson's questions rely on (for example Memcached loses its cache hit after a restart, Redis with AOF doesn't).
 
-**Study notes** (`docs/study-notes.md`): things worth remembering, like "301 vs 302". The **📓 Notes** button in the header swaps the right column for them, grouped by category and filtered to the open lesson. Each note is a `## Title`, then `lesson: <id>, <id>` and `category: <name>` lines, then markdown. You add one by telling Claude "save that to my study notes"; it appends to the file and the panel updates without a reload (Vite watches it because `vite.config.ts` lists it in `server.fs.allow`). The file is untracked, so the notes stay yours. The renderer is a few regexes, not a markdown library (`npm install marked` was blocked in the session that built it): headings inside a note, links and numbered lists show as plain text.
+**Study notes** (`docs/study-notes.md`): things worth remembering, like "301 vs 302". The **📓 Notes** button in the header swaps the right column for them, grouped by category and filtered to the open lesson. Each note is a `## Title`, then `lesson: <id>, <id>` and `category: <name>` lines, then markdown. You add one by telling Claude "save that to my study notes"; it appends to the file and the panel updates without a reload (Vite watches it because `vite.config.ts` lists it in `server.fs.allow`). The file is untracked, so the notes stay yours. The renderer is a few regexes that build React elements, not a markdown library: a library like `marked` outputs an HTML string, and putting that in the page lets note text turn into markup. Headings inside a note, links and numbered lists show as plain text.
 
 **Add one:** drop a JSON file in `lessons/` or `explainers/`. Restart `npm run dev` (Vite doesn't watch folders outside `frontend/`, so a new file isn't noticed until then); edits to existing files also need a reload. The `sysdesign-add-lesson` skill walks through writing a lesson.
 

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { compareLessons, lessons } from '../lessons/content'
 import { useMode } from '../mode'
-import { parseNotes, toHtml } from './notes'
+import { parseNotes, renderNote } from './notes'
 
 // Eager glob instead of a plain import so a missing file is an empty list, not a build error.
 const raw = Object.values(import.meta.glob<string>('../../../docs/study-notes.md', { eager: true, query: '?raw', import: 'default' }))[0] ?? ''
@@ -33,7 +33,7 @@ export function NotesPanel() {
             <details key={n.title} className="note">
               <summary>{n.title}</summary>
               {!lesson && n.lessons.length > 0 && <div className="muted">{n.lessons.map(titleOf).join(', ')}</div>}
-              <div className="note__body" dangerouslySetInnerHTML={{ __html: toHtml(n.body) }} />
+              <div className="note__body">{renderNote(n.body)}</div>
             </details>
           ))}
         </section>
