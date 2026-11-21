@@ -146,3 +146,5 @@ body { margin: 0; background: var(--paper); }
 .util--wide { position: static; height: 8px; margin-top: 4px; }
 .palette.explainer { width: 280px; }
 .explainer__steps button { vertical-align: top; text-align: left; }
+/* Shapes with a lid (cylinders, bucket): start the label below it. */
+.shape--cylinder .block-node__label, .shape--cylinder1 .block-node__label, .shape--cylinder2 .block-node__label, .shape--bucket .block-node__label { padding-top: 19px; }

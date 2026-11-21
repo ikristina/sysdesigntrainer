@@ -2,7 +2,7 @@ import { type BlockDef, replicas, capacity, latency } from './types'
 
 // In-memory cache: ~50k simple GETs/s per node, ~1 ms. Estimate.
 export const cache: BlockDef = {
-  type: 'cache', label: 'Cache', icon: '⚡', category: 'cache', simBehavior: 'cache', cost: 0.15,
+  type: 'cache', label: 'Cache', icon: '⚡', category: 'cache', simBehavior: 'cache', cost: 0.15, shape: 'cache',
   params: [
     replicas(1), capacity(50_000), latency(1),
     { key: 'hit_ratio', label: 'Hit ratio', default: 0.8, min: 0, max: 1 },

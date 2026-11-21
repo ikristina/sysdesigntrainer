@@ -2,7 +2,7 @@ import { type BlockDef, replicas, capacity, latency, timeout } from './types'
 
 // Serverless: replicas = max concurrent instances. Cold starts add latency on scale-up. Estimates.
 export const fn: BlockDef = {
-  type: 'function', label: 'Function', icon: 'λ', category: 'compute', simBehavior: 'service', cost: 0.02,
+  type: 'function', label: 'Function', icon: 'λ', category: 'compute', simBehavior: 'service', cost: 0.02, shape: 'lambda',
   params: [
     { ...replicas(100), label: 'Max instances', max: 10_000 },
     capacity(10), latency(50),

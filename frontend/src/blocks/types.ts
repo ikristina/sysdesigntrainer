@@ -6,6 +6,10 @@ export type Category =
 
 export type ParamValue = number | string
 
+/** Outline drawn on the canvas (canvas/shapes.ts). cylinder1/2 = a cylinder with 1 or 2 bands. */
+export type Shape = 'box' | 'rounded' | 'lambda' | 'monitor' | 'cloud' | 'diamond'
+  | 'cylinder' | 'cylinder1' | 'cylinder2' | 'bucket' | 'cache' | 'pipe' | 'lanes' | 'chip'
+
 export type ParamDef = {
   key: string
   label: string
@@ -25,6 +29,7 @@ export type BlockDef = {
   params: ParamDef[]
   simBehavior: string  // which simulator handler runs this block (stub until Phase 2)
   cost: number         // USD per replica-hour, order-of-magnitude estimate
+  shape?: Shape        // default 'box'
 }
 
 // Returns an error message, or null if the value is OK for this param.
