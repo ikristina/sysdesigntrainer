@@ -42,6 +42,7 @@ export const sql: Handler = ({ node, inbound, children, state, dt }) => {
       queue: prim.queue + repl.queue, served, dropped: prim.dropped + repl.dropped, baseMs,
       latencyMs: lambda > 0 ? (toPrimary * latP + toReplicas * latR) / lambda : baseMs,
       lagS: replicas > 0 ? lagS : undefined,
+      stale: repl.out, // read replicas apply writes asynchronously, so any replica read can be stale
       note: replicas > 0 && lagS >= 0.1 ? `lag ${lagS.toFixed(1)} s` : undefined,
     },
   }

@@ -141,7 +141,7 @@ frontend/
       Mark.tsx            the block's logo (simple-icons SVG), text badge, or emoji
       nodeTypes.ts        nodeTypes / edgeTypes maps, shared by the main and compare canvases
       ContainerNode.tsx   how a region/AZ looks (dashed rough frame, resize handles)
-      RoughEdge.tsx       how a connection looks (rough curve + arrowhead)
+      RoughEdge.tsx       how a connection looks (rough curve + arrowhead, plus a tag like "writes × followers")
       rough.ts            rough.js helpers (rect/path/line, seed from node id)
       RoughPaths.tsx      renders rough.js output as SVG <path>s
     sim/
@@ -154,9 +154,11 @@ frontend/
         client.ts service.ts balancer.ts cache.ts sql.ts queue.ts stream.ts partitioned.ts consensus.ts
     panels/
       Palette.tsx         left panel: draggable tiles grouped by category (generic tiles, then products)
-      ParamPanel.tsx      right column, bottom: param inputs with min/max validation; price, facts, sources
+      ParamPanel.tsx      right column, bottom: param inputs with min/max validation; price, facts, sources.
+                          With a connection selected: its Carries and Fan-out selects (EdgePanel)
       MetricsPanel.tsx    right column, top: p99 chart, headline numbers, most saturated blocks
-      TrafficBar.tsx      header: traffic, read/write and hot-key sliders, Spike, Kill/Restore, Partition/Heal, Run/Pause, Reset
+      TrafficBar.tsx      header: traffic and read/write sliders, More ▾ (hot key, payload KB, followers, following),
+                          Spike, Kill/Restore, Partition/Heal, Run/Pause, Reset
       TerminalPanel.tsx   under the canvas: ttyd iframe, or how to start it; link status line
     lessons/
       content.ts          loads lessons/*.json (split into lessons and compareLessons), explainers/*.json and graphs;
@@ -174,8 +176,9 @@ frontend/
       compareStore.ts     the open compare: two side stores, scenario, speed, play/pause, hints, verdict
       CompareView.tsx     <CompareBar/> (header), <ComparePanel/> (left), <CompareView/> (canvases + charts),
                           <CompareTable/> (right)
-lessons/                  (repo root) lesson JSON: url-shortener, welcome-emails, p99-fix, rate-limiter, and the
-                          compare lessons redis-vs-memcached, kafka-vs-sqs, postgres-vs-dynamodb, postgres-vs-cockroachdb
+lessons/                  (repo root) lesson JSON: url-shortener, welcome-emails, p99-fix, rate-limiter, news-feed, chat,
+                          and the compare lessons redis-vs-memcached, redis-vs-valkey, kafka-vs-sqs, kinesis-vs-kafka,
+                          postgres-vs-dynamodb, postgres-vs-cockroachdb, cloudfront-vs-cloudflare
 explainers/               (repo root) explainer JSON: load-balancing, caching-basics, replication-lag
   graphs/                 starting designs (saved-design format) used by explainers and lesson starters
 backend/
@@ -249,6 +252,11 @@ It sets the variant's traffic, resets the sim and plays. On every tick, `lessonS
 **...Export / Import**
 Export calls `toDesign(nodes, edges)`, then `JSON.stringify`, and downloads the result as `design.json`. Import reads the file, `fromDesign` validates it (version, known block types, edges point at existing nodes), and the canvas is replaced. A bad file shows a red message in the header and leaves the canvas unchanged.
 
+**...click a connection**
+1. React Flow marks the edge `selected` (no node is selected now), so `ParamPanel` shows `EdgePanel` instead of block params.
+2. Changing **Carries** or **Fan-out** calls `store.setRoute(edgeId, { carries | fanout })`, which merges it into the edge's `data`.
+3. `RoughEdge` reads `data` and draws a tag in the middle of the curve. The sim reads the same fields from the saved design on the next tick.
+
 ## 6. Saved-design format
 
 This is our own format, not React Flow's internal one. Lessons, explainers and the MCP tools will read it, so it shouldn't change when the library does.
@@ -269,6 +277,7 @@ This is our own format, not React Flow's internal one. Lessons, explainers and t
 - `type` is a registry key (`blocks/<type>.ts`).
 - `position` is relative to `parentId` when one is set.
 - `size` appears only on regions and AZs.
+- An edge may carry `"carries": "read" | "write"` (only that kind of request takes it) and `"fanout": "write" | "read"` (each request becomes N calls, see section 7). Both are left out when not set. In the store they live in the React Flow edge's `data`.
 - On load, params missing from the file are filled from the registry defaults, so old saves keep working when a block gains a param.
 
 ## 7. The simulator
@@ -306,10 +315,18 @@ What each behavior does:
 
 **Hot key:** the Hot key slider (0 to 100%) is the share of traffic that hits one key. Only the `partitioned` behavior uses it.
 
+**Read and write paths:** by default a request goes down every edge. An edge with `carries: "read"` passes only the reads, `carries: "write"` only the writes, so a service can send writes to one store and reads to another.
+
+**Fan-out:** an edge with `fanout: "write"` turns each write into `followers` writes (a post copied into every follower's feed). `fanout: "read"` turns each read into `following` reads (a feed gathered from everyone you follow). Followers and following are traffic settings (More ▾ in the header, `set_traffic`, lesson `traffic`). `fanoutRps` in the global metrics is the extra rps fan-out created. The backward pass weighs latency by the flow before fan-out, so the N calls count as one call (as if they ran in parallel).
+
+**Stale reads:** caches and SQL read replicas copy writes asynchronously, so the sim counts every read they answer as possibly stale (the `stale` metric on that block). `stalePct` = all stale reads ÷ the reads users sent, capped at 100%. KV, partitioned and consensus stores count as always current.
+
+**Payload:** Payload KB (default 10) is the size of a read response. It only feeds `transferCost` (USD per GB sent, CloudFront); it doesn't change latency.
+
 - **Regions and AZs:** an edge between two regions adds 70 ms, and between two AZs adds 1 ms (estimates).
 - **Killed block:** `μ = 0`, so everything sent to it fails. Load balancers skip killed children, like a health check would.
 - **Partitioned region:** every edge with exactly one end inside the region is cut. The sender sees the far side as down, so load balancers route around it, a queue can't be drained across it, and a direct call across fails. Blocks inside keep running and still serve traffic that stays inside. Cut edges show a red ✕.
-- **Cost/hr:** the block's `cost × replicas` (SQL: primary + read replicas; × 2 with `replication: replica`; per partition for Kinesis-style billing), summed, plus per-request pricing (`requestCost`, USD per million reads/writes, for SQS, DynamoDB, S3, CloudFront) at the current request rate.
+- **Cost/hr:** the block's `cost × replicas` (SQL: primary + read replicas; × 2 with `replication: replica`; per partition for Kinesis-style billing), summed, plus per-request pricing (`requestCost`, USD per million reads/writes, for SQS, DynamoDB, S3, CloudFront) at the current request rate, plus `transferCost` × GB sent (read rps × payload KB).
 - **Deterministic:** randomness comes from a seeded generator stored in the state, so the same inputs give the same run. That's what makes it testable.
 
 On screen, health is green below ρ 0.85, amber up to 1, and red when saturated or failing more than 1% (`display.ts`). Edges take the color of the block they point at.
@@ -326,7 +343,7 @@ Claude Code runs in a terminal under the canvas. It can't see the browser, so th
 |---|---|---|
 | `link.ts` | browser | Opens `ws://localhost:8000/ws`. Every second, and right after each command, it sends a snapshot: the design (saved format), traffic settings, running or paused, killed/partitioned lists, the mode, the explainer step or open lesson, and metrics rounded to 3 significant digits so Claude can read them. It applies commands from the backend to `simStore`. If the socket closes, it retries every 3 s. |
 | `/ws` | `backend/app/main.py` | Keeps the latest snapshot in memory (the **mirror**). It only accepts browser connections from `localhost` pages, because any website could otherwise open a WebSocket to localhost. |
-| MCP tools | `backend/app/tools.py` | `get_design`, `get_metrics` read the mirror. `run`, `set_traffic`, `spike`, `kill_node`, `restore_node`, `partition_region` and `highlight` validate their input, then send a command to the browser. `set_traffic` also takes `hot_key` (0 to 1). Compare tools: `get_compare` (sides, scenario, time, the results table with the winner per row, questions, verdict, `tutor_notes`) and `run_scenario(scenario_id)` (picks the scenario and runs both sides). `give_hint` shows the compare lesson's hints when a compare is open. Lesson tools: `get_lesson` (brief, requirements, step, notes, hints shown, live checks, pass timer, `tutor_notes`), `set_requirements` (switch variant, or change traffic / limits as a twist), `advance_step`, `give_hint(level)` (shows it in the app, returns the text). With no tab open, every tool says so; lesson tools also say so when no lesson is open. |
+| MCP tools | `backend/app/tools.py` | `get_design`, `get_metrics` read the mirror. `run`, `set_traffic`, `spike`, `kill_node`, `restore_node`, `partition_region` and `highlight` validate their input, then send a command to the browser. `set_traffic` also takes `hot_key` (0 to 1), `payload_kb`, `followers` and `following`. `get_design` returns edges with their `carries` / `fanout`. Compare tools: `get_compare` (sides, scenario, time, the results table with the winner per row, questions, verdict, `tutor_notes`) and `run_scenario(scenario_id)` (picks the scenario and runs both sides). `give_hint` shows the compare lesson's hints when a compare is open. Lesson tools: `get_lesson` (brief, requirements, step, notes, hints shown, live checks, pass timer, `tutor_notes`), `set_requirements` (switch variant, or change traffic / limits as a twist), `advance_step`, `give_hint(level)` (shows it in the app, returns the text). With no tab open, every tool says so; lesson tools also say so when no lesson is open. |
 | `/mcp` | backend | The MCP server (official Python SDK 2.x, `MCPServer`, streamable HTTP). The SDK rejects requests whose Host/Origin isn't localhost (DNS-rebinding protection). |
 | `.mcp.json` | repo root | Tells Claude Code about the server. Claude asks you to approve it the first time. |
 | `TerminalPanel.tsx` | browser | Shows ttyd in an iframe, or the commands to start it. Its status line shows whether `link.ts` is connected. The panel opens by itself when ttyd is running. |
@@ -352,7 +369,7 @@ Both are JSON files in the repo root. The formats are in `docs/SPEC.md` ("Lesson
 
 **Explainer** (`explainers/<id>.json`): a short guided tour, 4 to 7 steps. Each step has a `caption` and **ops** that change the live scene: `graph` (load a starting design from `explainers/graphs/`), `add` (a block, optionally `between: [a, b]` to splice it into that edge), `remove`, `set_params`, `traffic`, `kill`, `highlight` (this step only), `spike`. The canvas is read-only; you watch. On the last step, **Open in sandbox** copies the design into your sandbox (asking first if the sandbox isn't empty), and links point to related lessons.
 
-**Lesson** (`lessons/<id>.json`): a problem with requirement **variants** (traffic plus success criteria: p99, error %, cost per hour, and optionally `max_backlog`: the most requests or messages allowed to wait in any one block, so a queue with too few workers fails), a `twist` per variant, a three-level **hint ladder** (a question, a direction, a near-answer), and its `steps`. `mode: "full"` starts from an empty canvas and walks all 7 steps (requirements, estimation, API and data model, design, load test, twist, postmortem). `mode: "targeted"` starts from a broken `starter_graph` and skips the early steps. `_notes` holds the math behind the numbers: Claude reads it through `get_lesson`, the UI never shows it.
+**Lesson** (`lessons/<id>.json`): a problem with requirement **variants** (traffic plus success criteria: p99, error %, cost per hour, and optionally `max_backlog`: the most requests or messages allowed to wait in any one block, so a queue with too few workers fails; `max_stale_pct`: the most stale reads allowed, 0 for strong consistency; `needs_fanout`: some edge must fan out). Variant `traffic` can also set `hot_key`, `payload_kb`, `followers` and `following`, a `twist` per variant, a three-level **hint ladder** (a question, a direction, a near-answer), and its `steps`. `mode: "full"` starts from an empty canvas and walks all 7 steps (requirements, estimation, API and data model, design, load test, twist, postmortem). `mode: "targeted"` starts from a broken `starter_graph` and skips the early steps. `_notes` holds the math behind the numbers: Claude reads it through `get_lesson`, the UI never shows it.
 
 **Passing** means all checks green for 10 s at the variant's traffic (section 5). Each step has a notes box; notes are saved and Claude reads them, which is how the estimation scratchpad works.
 
@@ -418,10 +435,13 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - **Scenario:** a scripted timeline (traffic plus events at set times) that a compare runs against both designs.
 - **Hot key:** one key that gets a large share of all traffic, so its partition overloads before the rest.
 - **Cache warmth:** how much of the cache's normal hit ratio it has right now; 0 after an empty restart.
+- **Fan-out on write / on read:** copy each post into every follower's feed when it's written, or gather a feed from everyone you follow when it's read.
+- **Stale read:** a read answered from a copy (cache, read replica) that may not have the latest write yet.
+- **Strong / eventual consistency:** every read sees every acknowledged write / reads catch up a moment later.
 
 ## 13. Known limits
 
-- Ignored by the simulator for now: cache `ttl_s` and `eviction`, function `cold_start_ms`, LLM `tokens_per_s`. Traffic has no payload size. Hot-key skew only affects `partitioned` blocks (not caches).
+- Ignored by the simulator for now: cache `ttl_s` and `eviction`, function `cold_start_ms`, LLM `tokens_per_s`. Payload size only affects per-GB cost, not latency. Hot-key skew only affects `partitioned` blocks (not caches).
 - Not modeled, so presets can't show them: multi-key operations, message ordering and replay, joins. Memory per GB is a price (node $/hr ÷ node GiB, cache presets only), not per-key overhead, which has no sourced numbers.
 - Kill takes down a whole block, not one replica. To lose one node, lower `replicas` (scenarios use `set_params`).
 - Consensus write latency is an average added to every write, not a per-request quorum wait. The cluster is treated as spanning all its `regions` wherever it sits on the canvas.
@@ -431,7 +451,9 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - Clients each get an equal share of the global rps.
 - No "clear canvas" button. Select everything (drag a box with Shift held) and press Backspace, or delete the localStorage key.
 - Autosave writes on every drag frame. That's fine for designs this size; add a debounce if large designs feel slow.
-- Four lessons (URL shortener, welcome emails, p99 fix, rate limiter), four compare lessons and three explainers ship. The spec's news feed and chat lessons aren't written: the sim sends every request to every downstream block (no separate read and write paths), has no fan-out multiplier, and checks nothing about consistency, so it can't tell their right and wrong designs apart.
+- Six lessons (URL shortener, welcome emails, p99 fix, rate limiter, news feed, chat), seven compare lessons and three explainers ship.
+- Fan-out: the N calls count as one for latency, and `followers` / `following` are one average for everyone (no celebrity tail). On a load balancer, `carries` filters after the even split.
+- Stale reads are a share, not a time: every cache hit and replica read counts, however fresh the copy is, and KV stores never count. Read-your-own-writes can't be modeled because the sim doesn't tell users apart.
 - The sim can't tell one client's requests from another's in the error check, so in the rate-limiter lesson a global limit and a per-client limit score the same.
 - Without Claude, a lesson's twist is text only: it tells you what changed, but the requirements stay the same until you or Claude change them (`set_requirements`). The estimation, API and postmortem steps are notes boxes with nothing checking them; Claude reviews them.
 - Explainer and lesson designs aren't validated against the registry at load time beyond what `content.test.ts` checks.

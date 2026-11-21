@@ -2,11 +2,13 @@
 // React Flow gives us the start/end coordinates; getBezierPath turns them into an SVG curve.
 // While the sim runs, moving dashes ("particles") flow along it: width by volume, speed by
 // throughput, color by the target's health. Red dots fall off the end when the target fails requests.
-// An edge cut by a partitioned region gets a red ✕ in the middle.
+// An edge cut by a partitioned region gets a red ✕ in the middle. A routed edge shows a tag:
+// 'reads' / 'writes' if it carries only one kind, '× followers' / '× following' if it fans out.
 import { BaseEdge, getBezierPath, type EdgeProps } from '@xyflow/react'
 import { useMemo } from 'react'
 import { healthColor, healthOf } from '../display'
 import { isDown, useSimView } from '../simStore'
+import type { EdgeRoute } from '../design'
 import { roughLine, roughPath, seedOf } from './rough'
 import { RoughPaths } from './RoughPaths'
 
@@ -26,6 +28,9 @@ export function RoughEdge(p: EdgeProps) {
   const down = useSimView((s) => isDown(s.killed, target, s.nodes))
   const isCut = useSimView((s) => s.sim.cut.includes(id))
   const health = isCut ? 'bad' : healthOf(m, down)
+  const r = (p.data ?? {}) as EdgeRoute
+  const fanTag = r.fanout === 'write' ? 'writes × followers' : r.fanout === 'read' ? 'reads × following' : ''
+  const tag = r.carries && r.carries !== r.fanout ? [`${r.carries}s only`, fanTag].filter(Boolean).join(' · ') : fanTag
   const failing = isCut || (m && m.lambda > 0 && m.dropped / m.lambda > 0.01)
   // Buckets, so the animation doesn't restart on every small change.
   const width = Math.round(Math.min(6, 1.5 + Math.max(0, Math.log10(rps) - 1)) * 2) / 2
@@ -42,6 +47,7 @@ export function RoughEdge(p: EdgeProps) {
         <circle key={delay} cx={x - 16} cy={y} r={3} className="edge-drop" style={{ animationDelay: `${delay}s` }} />
       ))}
       {isCut && <text x={midX} y={midY} className="edge-cut">✕</text>}
+      {tag && <text x={midX} y={midY - 10} textAnchor="middle" className="edge-tag">{tag}</text>}
       {/* Invisible wide path so the edge is easy to click/select. */}
       <BaseEdge id={p.id} path={d} style={{ stroke: 'transparent' }} interactionWidth={16} />
     </>

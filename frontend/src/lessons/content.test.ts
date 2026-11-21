@@ -2,35 +2,36 @@
 // the captions and lesson notes claim (the naive design fails, the intended one passes).
 import { describe, expect, it } from 'vitest'
 import { registry } from '../blocks'
-import { fromDesign, toDesign, type Design, type SavedNode } from '../design'
+import { fromDesign, toDesign, type Design, type EdgeRoute, type SavedNode } from '../design'
 import { sceneAt } from '../explainers/ops'
 import { initialSim, step, type SimState } from '../sim/engine'
+import type { Traffic } from '../sim/types'
 import { runScenario, summarize, swapped, type Run } from '../compare/run'
-import { checks, compareLessons, explainers, graph, lessons, STEP_GUIDE, type CompareLesson, type Variant } from './content'
+import { checks, compareLessons, explainers, graph, lessons, simTraffic, STEP_GUIDE, type CompareLesson, type Variant } from './content'
 
 // Fill in default params, the way the app does when it loads a design.
 const withDefaults = (d: Design) => { const f = fromDesign(d); return toDesign(f.nodes, f.edges) }
-const run = (d: Design, rps: number, readRatio: number, killed: string[] = [], seconds = 15, from?: SimState) => {
+const run = (d: Design, rps: number, readRatio: number, killed: string[] = [], seconds = 15, from?: SimState, extra: Partial<Traffic> = {}) => {
   let s = from ?? initialSim()
   const full = withDefaults(d)
-  for (let i = 0; i < seconds * 10; i++) s = step(full, s, { traffic: { rps, readRatio, multiplier: 1 }, killed })
+  for (let i = 0; i < seconds * 10; i++) s = step(full, s, { traffic: { rps, readRatio, multiplier: 1, ...extra }, killed })
   return s
 }
 const passes = (d: Design, v: Variant) => {
-  const s = run(d, v.traffic.rps, v.traffic.read_ratio)
+  const s = run(d, v.traffic.rps, v.traffic.read_ratio, [], 15, undefined, simTraffic(v.traffic))
   return checks(s, v.success).every((c) => c.ok)
 }
 const n = (id: string, type: string, params: Record<string, number | string> = {}): SavedNode =>
   ({ id, type, position: { x: 0, y: 0 }, params })
-const graphOf = (nodes: SavedNode[], edges: [string, string][]): Design =>
-  ({ version: 1, nodes, edges: edges.map(([source, target]) => ({ id: `${source}-${target}`, source, target })) })
+const graphOf = (nodes: SavedNode[], edges: ([string, string] | [string, string, EdgeRoute])[]): Design =>
+  ({ version: 1, nodes, edges: edges.map(([source, target, r]) => ({ id: `${source}-${target}`, source, target, ...r })) })
 const chain = (...nodes: SavedNode[]): Design => ({
   version: 1, nodes, edges: nodes.slice(1).map((b, i) => ({ id: `${nodes[i].id}-${b.id}`, source: nodes[i].id, target: b.id })),
 })
 
 describe('content files', () => {
   it('found the files', () => {
-    expect(lessons.map((l) => l.id)).toEqual(['p99-fix', 'rate-limiter', 'url-shortener', 'welcome-emails'])
+    expect(lessons.map((l) => l.id)).toEqual(['chat', 'news-feed', 'p99-fix', 'rate-limiter', 'url-shortener', 'welcome-emails'])
     expect(explainers.map((e) => e.id)).toEqual(['caching-basics', 'load-balancing', 'replication-lag'])
   })
 
@@ -106,6 +107,50 @@ describe('lessons match the simulator', () => {
     expect(passes(chain(n('c', 'client'), n('api', 'service'), n('db', 'sql_db')), v)).toBe(false)
     expect(passes(chain(n('c', 'client'), n('api', 'service', { replicas: 16 }), n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'sql_db')), v)).toBe(true)
     expect(passes(chain(n('c', 'client'), n('api', 'service', { replicas: 30 }), n('db', 'sql_db', { read_replicas: 5 })), v)).toBe(false)
+  })
+
+  // client -> lb -> api(replicas), then the store edges
+  const front = (replicas: number, ...rest: SavedNode[]) =>
+    [n('c', 'client'), n('lb', 'load_balancer'), n('api', 'service', { replicas }), ...rest]
+  const fe: [string, string][] = [['c', 'lb'], ['lb', 'api']]
+  const writeFan = graphOf(front(33, n('feeds', 'cache', { replicas: 2 }), n('posts', 'kv')),
+    [...fe, ['api', 'feeds', { fanout: 'write' }], ['api', 'posts', { carries: 'write' }]])
+  const readFan = (cache: number, kv: number) => graphOf(front(33, n('pc', 'cache', { replicas: cache, hit_ratio: 0.9 }), n('posts', 'kv', { replicas: kv })),
+    [...fe, ['api', 'pc', { fanout: 'read' }], ['pc', 'posts']])
+  const noFan = graphOf(front(33, n('posts', 'kv')), [...fe, ['api', 'posts']])
+
+  it('news-feed friends: no fan-out fails, fan-out on write passes, fan-out on read melts', () => {
+    const v = variant('news-feed', 'friends')
+    expect(passes(noFan, v)).toBe(false)
+    expect(passes(writeFan, v)).toBe(true)
+    expect(passes(readFan(13, 7), v)).toBe(false)
+  })
+
+  it('news-feed creators: fan-out on write melts, fan-out on read passes, over-provisioning breaks the budget', () => {
+    const v = variant('news-feed', 'creators')
+    expect(passes(writeFan, v)).toBe(false)
+    expect(passes(readFan(13, 7), v)).toBe(true)
+    expect(passes(readFan(20, 10), v)).toBe(false)
+  })
+
+  const chatOf = (...stores: SavedNode[]) => graphOf(front(50, ...stores),
+    [...fe, ...stores.map((x, i) => [i ? stores[i - 1].id : 'api', x.id] as [string, string])])
+  const cached = chatOf(n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'kv', { replicas: 1 }))
+  const kv4 = chatOf(n('db', 'kv', { replicas: 4 }))
+
+  it('chat channels: one SQL fails, cache + small KV passes, KV-only breaks the budget', () => {
+    const v = variant('chat', 'channels')
+    expect(passes(chatOf(n('db', 'sql_db')), v)).toBe(false)
+    expect(passes(cached, v)).toBe(true)
+    expect(passes(kv4, v)).toBe(false)
+  })
+
+  it('chat dms: the cache and read replicas fail on stale reads, KV with 4 replicas passes', () => {
+    const v = variant('chat', 'dms')
+    expect(passes(cached, v)).toBe(false)
+    expect(passes(chatOf(n('db', 'sql_db', { read_replicas: 5 })), v)).toBe(false)
+    expect(passes(kv4, v)).toBe(true)
+    expect(passes(chatOf(n('db', 'cockroachdb', { replicas: 18 })), v)).toBe(false)
   })
 
   it('url-shortener write-heavy: SQL + cache fails, KV passes', () => {

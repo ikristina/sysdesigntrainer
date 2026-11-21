@@ -11,7 +11,12 @@ export const simTraffic = (t: Traffic & { rps: number; read_ratio: number }) => 
   rps: t.rps, readRatio: t.read_ratio, hotKey: t.hot_key ?? TRAFFIC_DEFAULTS.hotKey, payloadKb: t.payload_kb ?? TRAFFIC_DEFAULTS.payloadKb,
   followers: t.followers ?? TRAFFIC_DEFAULTS.followers, following: t.following ?? TRAFFIC_DEFAULTS.following,
 })
-export type Success = { p99_ms: number; error_pct: number; max_cost_hr: number; max_backlog?: number }
+export type Success = {
+  p99_ms: number; error_pct: number; max_cost_hr: number
+  max_backlog?: number    // most requests/messages waiting in any one block
+  max_stale_pct?: number  // most user reads allowed to come from a copy that may lag (0 = strongly consistent reads)
+  needs_fanout?: boolean  // the design must fan out somewhere (an edge marked fan-out carries traffic)
+}
 export type Requirements = { requirements: string[]; traffic: Traffic & { rps: number; read_ratio: number }; success: Success }
 export type Variant = Requirements & { id: string; twist?: string }
 export type StepName = 'requirements' | 'estimation' | 'api_and_data_model' | 'design' | 'load_test' | 'twist' | 'postmortem'
@@ -97,6 +102,11 @@ export function checks({ global: g, metrics }: Pick<SimState, 'global' | 'metric
     const backlog = Math.max(0, ...Object.values(metrics).map((m) => m.queue))
     list.push({ label: `backlog under ${s.max_backlog.toLocaleString('en-US')}`, ok: backlog <= s.max_backlog })
   }
+  if (s.max_stale_pct != null) {
+    list.push({ label: s.max_stale_pct === 0 ? 'no stale reads (no cache or replica on the read path)' : `stale reads under ${s.max_stale_pct}%`,
+      ok: g.stalePct <= s.max_stale_pct + 1e-9 })
+  }
+  if (s.needs_fanout) list.push({ label: 'feeds are built: an edge fans out (× followers or × following)', ok: g.fanoutRps > 0 })
   return list
 }
 

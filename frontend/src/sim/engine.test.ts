@@ -193,6 +193,29 @@ describe('simulator', () => {
     expect(s.global.costHr - registry.client.cost).toBeCloseTo(3.6)
   })
 
+  it('edges can carry only reads or only writes, and fan out by followers / following', () => {
+    const d: Design = { version: 1, nodes: [node('c', 'client'), node('api', 'service', { replicas: 100 }), node('posts', 'kv', { replicas: 100 }), node('feeds', 'kv', { replicas: 100 })],
+      edges: [{ id: 'c-api', source: 'c', target: 'api' },
+        { id: 'api-posts', source: 'api', target: 'posts', carries: 'write' },
+        { id: 'api-feeds', source: 'api', target: 'feeds', fanout: 'write' }] }
+    const step1 = (t: object) => step(d, initialSim(), { traffic: { rps: 1000, readRatio: 0.9, multiplier: 1, ...t }, killed: [] })
+    const s = step1({ followers: 50 })
+    expect(s.metrics.posts.lambda).toBeCloseTo(100)            // writes only
+    expect(s.metrics.feeds.lambda).toBeCloseTo(900 + 100 * 50) // reads once, each write × 50 followers
+    expect(s.global.fanoutRps).toBeCloseTo(100 * 49)
+    d.edges[2].fanout = 'read'
+    expect(step1({ following: 20 }).metrics.feeds.lambda).toBeCloseTo(900 * 20 + 100)
+    expect(step1({}).global.fanoutRps).toBeGreaterThan(0) // defaults: 100 following
+  })
+
+  it('stale reads: read replicas and cache hits count, the primary does not', () => {
+    const viaReplicas = run(design([node('c', 'client'), node('db', 'sql_db', { read_replicas: 3, capacity_rps: 100_000 })], [['c', 'db']]), { readRatio: 1, seconds: 1 })
+    expect(viaReplicas.global.stalePct).toBeCloseTo(75) // 3 of 4 nodes serving reads are replicas
+    const viaCache = run(design([node('c', 'client'), node('k', 'cache', { hit_ratio: 0.9 }), node('db', 'sql_db')], [['c', 'k'], ['k', 'db']]), { readRatio: 1, seconds: 1 })
+    expect(viaCache.global.stalePct).toBeCloseTo(90)
+    expect(run(design([node('c', 'client'), node('db', 'sql_db')], [['c', 'db']]), { seconds: 1 }).global.stalePct).toBe(0)
+  })
+
   it('per-partition billing counts partitions, not replicas', () => {
     registry.test_shards = { ...registry.stream, type: 'test_shards', cost: 0.01, costPer: 'partition' }
     const s = run(design([node('t', 'test_shards', { partitions: 8 })], []), { seconds: 0.1 })

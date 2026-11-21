@@ -19,6 +19,7 @@ export function MetricsPanel() {
     ['errors', fmtPct(g.errorPct), g.errorPct > 1 ? healthColor.bad : g.errorPct > 0.1 ? healthColor.warn : undefined],
     ['throughput', fmtRps(g.throughput)],
     ...(lags.length ? [['repl. lag', `${Math.max(...lags).toFixed(1)} s`, Math.max(...lags) > 1 ? healthColor.warn : undefined] as [string, string, string?]] : []),
+    ...(g.stalePct > 0 ? [['stale reads', fmtPct(g.stalePct)] as [string, string]] : []),
     ['cost', `$${g.costHr.toFixed(2)}/hr`],
   ]
   const hottest = Object.entries(metrics)

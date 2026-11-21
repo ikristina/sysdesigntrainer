@@ -17,11 +17,20 @@ export type SavedNode = {
   size?: { w: number; h: number }      // containers only
   params: Record<string, ParamValue>
 }
+/** What crosses an edge. Absent fields = reads and writes, no fan-out (the default). */
+export type EdgeRoute = {
+  carries?: 'read' | 'write'  // only reads or only writes take this edge
+  fanout?: 'write' | 'read'   // each write is sent `followers` times / each read fetches `following` times
+}
+export type SavedEdge = { id: string; source: string; target: string } & EdgeRoute
 export type Design = {
   version: 1
   nodes: SavedNode[]
-  edges: { id: string; source: string; target: string }[]
+  edges: SavedEdge[]
 }
+const routeOf = (r: EdgeRoute | undefined): EdgeRoute => ({
+  ...(r?.carries && { carries: r.carries }), ...(r?.fanout && { fanout: r.fanout }),
+})
 
 export const isContainer = (type: string) => registry[type]?.category === 'grouping'
 
@@ -36,7 +45,7 @@ export function toDesign(nodes: FlowNode[], edges: Edge[]): Design {
       }
       return s
     }),
-    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target })),
+    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, ...routeOf(e.data as EdgeRoute) })),
   }
 }
 
@@ -65,10 +74,12 @@ export function fromDesign(input: unknown): { nodes: FlowNode[]; edges: Edge[] }
   }
   for (const e of d.edges) {
     if (!ids.has(e.source) || !ids.has(e.target)) throw new Error(`Edge ${e.id} points at a missing node`)
+    if (e.carries && !['read', 'write'].includes(e.carries)) throw new Error(`Edge ${e.id}: carries must be "read" or "write"`)
+    if (e.fanout && !['read', 'write'].includes(e.fanout)) throw new Error(`Edge ${e.id}: fanout must be "read" or "write"`)
   }
   return {
     nodes: d.nodes.map(makeNode),
-    edges: d.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: 'rough' })),
+    edges: d.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: 'rough', data: routeOf(e) })),
   }
 }
 

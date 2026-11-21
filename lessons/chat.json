@@ -1,0 +1,69 @@
+{
+  "id": "chat",
+  "title": "Chat: strong or eventual consistency?",
+  "mode": "full",
+  "brief": "Build the message store for a chat app. Sending a message is a write; opening a conversation loads its recent messages (a read). 30k requests/s, 95% reads. Two products: public channels, where a message may show up a moment late, and direct messages, where you must see your own message the moment you send it, in order. The sim counts every read answered by a cache or a read replica as possibly stale (they copy writes asynchronously).",
+  "variants": [
+    {
+      "id": "channels",
+      "requirements": [
+        "30k rps, 95% reads (load history), 5% writes (send)",
+        "Reads may be a moment stale",
+        "p99 < 250 ms",
+        "errors < 0.1%",
+        "cost < $6/hr"
+      ],
+      "traffic": {
+        "rps": 30000,
+        "read_ratio": 0.95
+      },
+      "success": {
+        "p99_ms": 250,
+        "error_pct": 0.1,
+        "max_cost_hr": 6
+      },
+      "twist": "Users complain they don't see their own message right after sending it. You may not drop the cache. What could you change so only the sender's own reads are fresh? (The sim can't tell users apart: talk it through.)"
+    },
+    {
+      "id": "dms",
+      "requirements": [
+        "30k rps, 95% reads (load history), 5% writes (send)",
+        "No stale reads: every read sees every acknowledged write",
+        "p99 < 250 ms",
+        "errors < 0.1%",
+        "cost < $7.50/hr"
+      ],
+      "traffic": {
+        "rps": 30000,
+        "read_ratio": 0.95
+      },
+      "success": {
+        "p99_ms": 250,
+        "error_pct": 0.1,
+        "max_cost_hr": 7.5,
+        "max_stale_pct": 0
+      },
+      "twist": "DMs take off: 60k rps at the same mix. Apply with set_traffic(rps=60000). What has to grow, and why can't a cache take the load this time?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Which blocks can answer a read with data that's a moment old? Which ones always have the latest write?",
+    "Caches and read replicas are cheap ways to serve reads, but they lag behind writes. For DMs every read has to reach a copy that's always current, so that store has to scale its reads on its own.",
+    "Channels: a cache (hit 0.9) in front of a small KV store keeps the store tiny. DMs: no cache and no read replicas on the read path; a KV store with enough replicas for all 30k ops/s (4 at 10k each), which costs about $1 more than the cached design."
+  ],
+  "steps": [
+    "requirements",
+    "estimation",
+    "api_and_data_model",
+    "design",
+    "load_test",
+    "twist",
+    "postmortem"
+  ],
+  "explainers": [
+    "replication-lag",
+    "caching-basics"
+  ],
+  "_notes": "Sim: 30k rps at 0.95 reads = 28.5k reads + 1.5k writes. api 50 replicas (rho 0.6). One sql_db (5k cap) melts on both variants. sql + 5 read replicas still melts on the primary path and fails the budget. channels: cache (hit 0.9) + kv 1 replica: PASS, $5.48 (stale 85%, allowed). kv-only needs 4 replicas: $6.23, over the $6 budget. dms: max_stale_pct 0, so the cache (85% stale) fails. kv 4 replicas (40k cap, rho 0.75): PASS, $6.23. kv 5: $6.53. CockroachDB 18 nodes: $8.34, over $7.50. The sim treats kv stores as consistent (no replica lag), so only caches and SQL read replicas count as stale. Checked in frontend/src/lessons/content.test.ts."
+}

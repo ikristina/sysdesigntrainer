@@ -100,6 +100,7 @@ body { margin: 0; background: var(--paper); }
 .edge-flow--run { animation: dash 1s linear infinite; }
 @keyframes dash { to { stroke-dashoffset: -32; } }
 .edge-cut { fill: #C92A2A; font: 700 18px Inter, sans-serif; text-anchor: middle; dominant-baseline: central; }
+.edge-tag { font: 600 11px 'JetBrains Mono', monospace; fill: var(--muted); paint-order: stroke; stroke: var(--paper); stroke-width: 4px; }
 .block-node--lit { outline: 3px solid var(--accent); outline-offset: 5px; border-radius: 6px; animation: lit 1.4s ease-in-out infinite; }
 @keyframes lit { 50% { outline-color: transparent; } }
 .edge-drop { fill: #C92A2A; animation: fall 1.2s ease-in infinite; }

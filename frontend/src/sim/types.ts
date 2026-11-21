@@ -34,6 +34,7 @@ export type NodeMetrics = {
   note?: string      // short status shown on the block, e.g. "lag 2.1 s"
   lagS?: number      // SQL replication lag
   hit?: number       // cache: effective hit ratio right now (0-1)
+  stale?: number     // reads/s answered from a copy that may lag the primary (cache hits, read replicas)
 }
 
 /** What one tick of a handler gets. */

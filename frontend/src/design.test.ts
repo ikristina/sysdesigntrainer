@@ -24,6 +24,12 @@ describe('save/load', () => {
     expect(trip(back)).toEqual(back)
   })
 
+  it('keeps edge routes (carries, fanout) and rejects unknown values', () => {
+    const routed = { ...design, edges: [{ id: 'e1', source: 'api', target: 'db', carries: 'write', fanout: 'write' }] }
+    expect(trip(routed).edges).toEqual(routed.edges)
+    expect(() => fromDesign({ ...design, edges: [{ ...design.edges[0], carries: 'both' }] })).toThrow(/carries/)
+  })
+
   it('survives JSON serialization (what export/import and localStorage do)', () => {
     const json = JSON.parse(JSON.stringify(trip(design)))
     expect(trip(json)).toEqual(json)

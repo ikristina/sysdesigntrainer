@@ -38,6 +38,6 @@ export const cache: Handler = ({ node, inbound, children, state, dt }) => {
     fanout: 'all',
     state: { queue: q.queue, mix, warm, replicas },
     metrics: { lambda, mu, rho, queue: q.queue, served: q.out, dropped: q.dropped, baseMs,
-      latencyMs: latencyOf(baseMs, rho, q.waitMs), hit, note: `hit ${Math.round(hit * 100)}%` },
+      latencyMs: latencyOf(baseMs, rho, q.waitMs), hit, stale: reads * hit, note: `hit ${Math.round(hit * 100)}%` },
   }
 }

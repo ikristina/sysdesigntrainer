@@ -4,15 +4,19 @@
 import { useState } from 'react'
 import { registry } from '../blocks'
 import { validateParam, type BlockDef, type ParamDef, type ParamValue } from '../blocks/types'
+import type { Edge } from '@xyflow/react'
+import type { EdgeRoute } from '../design'
 import { useDesign } from '../store'
 
 export function ParamPanel() {
   // React Flow marks clicked nodes with `selected: true`; show the first one.
   const node = useDesign((s) => s.nodes.find((n) => n.selected))
+  const edge = useDesign((s) => s.edges.find((e) => e.selected))
   const setParam = useDesign((s) => s.setParam)
 
+  if (!node && edge) return <EdgePanel edge={edge} />
   if (!node) {
-    return <section className="stack"><div className="caps">Selected</div><p className="muted">Click a block to edit it.</p></section>
+    return <section className="stack"><div className="caps">Selected</div><p className="muted">Click a block or a connection to edit it.</p></section>
   }
   const def = registry[node.data.blockType]
   return (
@@ -32,9 +36,10 @@ export function ParamPanel() {
   )
 }
 
-const priceOf = ({ cost, costPer, requestCost }: BlockDef) => [
+const priceOf = ({ cost, costPer, requestCost, transferCost }: BlockDef) => [
   cost > 0 || !requestCost ? `$${Number(cost.toPrecision(3))}/${costPer ?? 'replica'}-hr` : '',
   requestCost ? `$${requestCost.read}/M reads, $${requestCost.write}/M writes` : '',
+  transferCost ? `$${transferCost}/GB sent` : '',
 ].filter(Boolean).join(' + ')
 
 // What makes this product different, and where its numbers come from.
@@ -94,5 +99,38 @@ function ParamField({ def, value, onCommit }: { def: ParamDef; value: ParamValue
       )}
       {error && <span className="field__error">{def.label} {error}</span>}
     </label>
+  )
+}
+
+// A selected connection: which requests take it, and whether it fans out.
+function EdgePanel({ edge }: { edge: Edge }) {
+  const setRoute = useDesign((s) => s.setRoute)
+  const r = (edge.data ?? {}) as EdgeRoute
+  return (
+    <section className="stack" aria-label="Selected connection">
+      <div>
+        <div className="caps">Selected</div>
+        <div className="inspector__title">Connection</div>
+        <div className="muted mono">{edge.source} → {edge.target}</div>
+      </div>
+      <label className="field">
+        <span className="field__row"><span>Carries</span></span>
+        <select className="sk" value={r.carries ?? ''} onChange={(e) => setRoute(edge.id, { carries: (e.target.value || undefined) as EdgeRoute['carries'] })}>
+          <option value="">reads and writes</option>
+          <option value="read">reads only</option>
+          <option value="write">writes only</option>
+        </select>
+      </label>
+      <label className="field">
+        <span className="field__row"><span>Fan-out</span></span>
+        <select className="sk" value={r.fanout ?? ''} onChange={(e) => setRoute(edge.id, { fanout: (e.target.value || undefined) as EdgeRoute['fanout'] })}>
+          <option value="">none: one call per request</option>
+          <option value="write">on write: each write × followers</option>
+          <option value="read">on read: each read × following</option>
+        </select>
+      </label>
+      <p className="muted">Followers and following are set under More ▾ in the header. Fan-out on write copies each post into every
+        follower's feed; fan-out on read gathers posts from everyone a reader follows.</p>
+    </section>
   )
 }

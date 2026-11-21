@@ -3,7 +3,7 @@
 // for p50/p99. Pure: step(design, previous state, inputs) -> next state.
 // Per-block logic lives in ./handlers; this file never needs to change for a new block.
 import { registry } from '../blocks'
-import type { Design } from '../design'
+import type { Design, SavedEdge } from '../design'
 import { handlers } from './handlers'
 import { CROSS_AZ_MS, CROSS_REGION_MS, NONE, total } from './handlers/common'
 import { TRAFFIC_DEFAULTS, type Fanout, type Flow, type HandlerOutput, type NodeMetrics, type NodeState, type SimNode, type Traffic } from './types'
@@ -20,6 +20,8 @@ export type GlobalMetrics = {
   p50Ms: number
   p99Ms: number
   costHr: number
+  stalePct: number    // share of user reads answered from a copy that may lag (cache hits, read replicas)
+  fanoutRps: number   // extra rps created by fan-out edges (0 = nothing fans out)
 }
 export type SimState = {
   t: number                          // sim time, seconds
@@ -35,7 +37,7 @@ export type SimInputs = { traffic: Traffic; killed: string[]; partitioned?: stri
 
 export const initialSim = (): SimState => ({
   t: 0, seed: 1, nodes: {}, metrics: {}, edges: {}, cut: [], samples: [],
-  global: { offered: 0, throughput: 0, errorPct: 0, p50Ms: 0, p99Ms: 0, costHr: 0 },
+  global: { offered: 0, throughput: 0, errorPct: 0, p50Ms: 0, p99Ms: 0, costHr: 0, stalePct: 0, fanoutRps: 0 },
 })
 
 const behavior = (type: string) => registry[type]?.simBehavior
@@ -68,7 +70,7 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
   const order = topoOrder([...nodes.keys()], design.edges.filter((e) => nodes.has(e.source) && nodes.has(e.target)))
   const pos = new Map(order.map((id, i) => [id, i]))
   // ponytail: edges that close a cycle are ignored; a real retry/callback loop would need iteration.
-  const kids = new Map<string, { id: string; target: string }[]>(order.map((id) => [id, []]))
+  const kids = new Map<string, SavedEdge[]>(order.map((id) => [id, []]))
   for (const e of design.edges) {
     if (pos.has(e.source) && pos.has(e.target) && pos.get(e.source)! < pos.get(e.target)!) kids.get(e.source)!.push(e)
   }
@@ -84,6 +86,8 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
   const share = sources.length ? (traffic.rps * traffic.multiplier) / sources.length : 0
   const inbound = new Map<string, Flow>()
   const results = new Map<string, HandlerOutput>()
+  const routed = new Map<string, Flow[]>() // per node, per child: what each request sends (before fan-out)
+  let fanoutRps = 0
   const edges: Record<string, number> = {}
   const nextNodes: Record<string, NodeState> = {}
   for (const id of order) {
@@ -94,8 +98,14 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
       state: prev.nodes[id] ?? {}, prevPathFail: prev.metrics[id]?.pathFail ?? 0,
       offered: sources.includes(id) ? share : 0, readRatio: traffic.readRatio, hotKey: traffic.hotKey ?? 0, dt,
     })
+    // An edge can carry only reads or only writes, and can fan out: each write becomes `followers`
+    // copies, or each read gathers from `following` sources.
+    // ponytail: the fan-out's N calls count as one call for latency (as if sent in parallel).
+    const sent = children.map((e, i) => route(r.out[i], e))
+    routed.set(id, sent)
     children.forEach((e, i) => {
-      const f = r.out[i], acc = inbound.get(e.target) ?? NONE
+      const f = fan(sent[i], e, traffic), acc = inbound.get(e.target) ?? NONE
+      fanoutRps += total(f) - total(sent[i])
       edges[e.id] = total(f)
       if (!cut.has(e.id)) inbound.set(e.target, { read: acc.read + f.read, write: acc.write + f.write })
     })
@@ -111,7 +121,7 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     const own = m.lambda > 0 ? Math.min(1, m.dropped / m.lambda) : node.killed ? 1 : 0
     const ls: Link[] = r.fanout === 'async' ? [] : kids.get(id)!.map((e, i) => ({
       target: e.target, edgeMs: edgeMs(id, e.target), cut: cut.has(e.id),
-      w: m.served > 0 ? Math.min(1, total(r.out[i]) / m.served) : 0,
+      w: m.served > 0 ? Math.min(1, total(routed.get(id)![i]) / m.served) : 0,
     }))
     links.set(id, ls)
     let downMs = 0, downFail = 0, survive = 1
@@ -144,11 +154,12 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     }
     return t
   }
-  let offered = 0, failed = 0
+  let offered = 0, failed = 0, userReads = 0
   const fresh: number[] = []
   for (const id of sources) {
     const src = results.get(id)!.source!
     offered += src.offered
+    userReads += results.get(id)!.metrics.served * traffic.readRatio
     failed += src.offered * metrics[id].pathFail ** (src.retries + 1)
   }
   for (const id of sources) {
@@ -163,10 +174,18 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     t: prev.t + dt, seed: rand.seed, nodes: nextNodes, metrics, edges, cut: [...cut], samples,
     global: {
       offered, throughput: offered - failed, errorPct: offered > 0 ? (100 * failed) / offered : 0,
+      stalePct: userReads > 0 ? Math.min(100, (100 * Object.values(metrics).reduce((a, m) => a + (m.stale ?? 0), 0)) / userReads) : 0,
+      fanoutRps,
       p50Ms: pct(0.5), p99Ms: pct(0.99), costHr: costPerHour(design) + requestCostPerHour(design, inbound, traffic.payloadKb ?? TRAFFIC_DEFAULTS.payloadKb),
     },
   }
 }
+
+const route = (f: Flow, e: SavedEdge): Flow =>
+  e.carries === 'read' ? { read: f.read, write: 0 } : e.carries === 'write' ? { read: 0, write: f.write } : f
+const fan = (f: Flow, e: SavedEdge, t: Traffic): Flow =>
+  e.fanout === 'write' ? { ...f, write: f.write * (t.followers ?? TRAFFIC_DEFAULTS.followers) }
+    : e.fanout === 'read' ? { ...f, read: f.read * (t.following ?? TRAFFIC_DEFAULTS.following) } : f
 
 /** $/hour for running the blocks: cost × replicas (SQL: primary + read replicas; × 2 with a
  *  replica per node; per partition for blocks billed per shard). Request pricing is separate. */

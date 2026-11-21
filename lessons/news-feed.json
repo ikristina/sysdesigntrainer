@@ -1,0 +1,75 @@
+{
+  "id": "news-feed",
+  "title": "News feed: fan-out on write or on read?",
+  "mode": "full",
+  "brief": "Build the home feed of a social app: a feed shows the latest posts from everyone you follow. Posting is a write, opening your feed is a read. Each post has to reach every follower's feed somehow: either copied in when it's posted, or gathered when the feed is opened. Mark that step on the canvas: select a connection and set its Fan-out. Same app, two follower graphs.",
+  "variants": [
+    {
+      "id": "friends",
+      "requirements": [
+        "20k rps, 99% feed reads, 1% posts",
+        "Everyone has about 200 friends: 200 followers, follows 200",
+        "feeds are built (an edge fans out)",
+        "p99 < 250 ms",
+        "errors < 0.1%",
+        "cost < $5.50/hr"
+      ],
+      "traffic": {
+        "rps": 20000,
+        "read_ratio": 0.99,
+        "followers": 200,
+        "following": 200
+      },
+      "success": {
+        "p99_ms": 250,
+        "error_pct": 0.1,
+        "max_cost_hr": 5.5,
+        "needs_fanout": true
+      },
+      "twist": "A celebrity joins and 1% of posts now come from accounts with 50k followers. The average followers per post goes to about 700. Apply with set_traffic(followers=700). Which block grows, and is fan-out on write still the right call for everyone?"
+    },
+    {
+      "id": "creators",
+      "requirements": [
+        "20k rps, 99% feed reads, 1% posts",
+        "Posts come from creators with about 100k followers each; a reader follows about 20 creators",
+        "feeds are built (an edge fans out)",
+        "p99 < 250 ms",
+        "errors < 0.1%",
+        "cost < $9/hr"
+      ],
+      "traffic": {
+        "rps": 20000,
+        "read_ratio": 0.99,
+        "followers": 100000,
+        "following": 20
+      },
+      "success": {
+        "p99_ms": 250,
+        "error_pct": 0.1,
+        "max_cost_hr": 9,
+        "needs_fanout": true
+      },
+      "twist": "Readers start following more creators: 60 each on average. Apply with set_traffic(following=60). What grows, and what would you cache harder?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "When someone opens their feed, where do its posts come from? When someone posts, who needs to see it?",
+    "You can do that work when a post is written (copy it into every follower's feed) or when a feed is read (gather from everyone the reader follows). Mark the connection that does it with Fan-out, then compare posts/s × followers with reads/s × following.",
+    "Friends: fan out on write into a cache that holds every user's feed (2 nodes), and store each post once in a KV store on a writes-only connection. Creators: 200 posts/s × 100k followers is 20M copies/s, so fan out on read instead, through a cache (hit 0.9) in front of the posts store."
+  ],
+  "steps": [
+    "requirements",
+    "estimation",
+    "api_and_data_model",
+    "design",
+    "load_test",
+    "twist",
+    "postmortem"
+  ],
+  "explainers": [
+    "caching-basics"
+  ],
+  "_notes": "Sim: 20k rps at 0.99 reads = 19.8k reads + 200 posts/s. api 33 replicas (1k each, rho 0.61). friends: fan-out on write = 200 x 200 = 40k cache writes + 19.8k reads on a 2-node feeds cache (100k cap, rho 0.6), posts kv on a writes-only edge: PASS, $4.53. Fan-out on read = 19.8k x 200 = 3.96M reads: 13 cache + 7 kv nodes melt (rho 10), fail. creators: fan-out on write = 200 x 100k = 20M writes/s: feeds cache rho 330, fail. Fan-out on read = 19.8k x 20 = 396k reads through 13 cache nodes (hit 0.9) and 7 kv replicas: PASS, $7.38. 20 cache + 10 kv: $9.33, over the $9 budget. No fan-out at all fails the 'feeds are built' check. Checked in frontend/src/lessons/content.test.ts."
+}

@@ -3,7 +3,7 @@
 import { addEdge, type Connection, type Edge, type EdgeChangeset, type NodeChangeset } from '@xyflow/react'
 import { create } from 'zustand'
 import type { ParamValue } from './blocks/types'
-import { type FlowNode, fromDesign, loadLocal, makeNode, SANDBOX_KEY, saveLocal, toDesign, isContainer } from './design'
+import { type EdgeRoute, type FlowNode, fromDesign, loadLocal, makeNode, SANDBOX_KEY, saveLocal, toDesign, isContainer } from './design'
 
 type State = {
   nodes: FlowNode[]
@@ -15,6 +15,7 @@ type State = {
   onConnect: (c: Connection) => void
   addBlock: (type: string, position: { x: number; y: number }, parentId?: string) => void
   setParam: (id: string, key: string, value: ParamValue) => void
+  setRoute: (id: string, route: EdgeRoute) => void // what an edge carries and whether it fans out
   loadDesign: (json: unknown) => void // throws on invalid input
   // Switch to the design saved under `key` (or `initial` if nothing is saved there yet).
   open: (key: string | null, initial?: unknown) => void
@@ -51,6 +52,9 @@ export const useDesign = create<State>((set) => ({
       nodes: s.nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, params: { ...n.data.params, [key]: value } } } : n),
     })),
+
+  setRoute: (id, route) =>
+    set((s) => ({ edges: s.edges.map((e) => (e.id === id ? { ...e, data: { ...e.data, ...route } } : e)) })),
 
   loadDesign: (json) => set(fromDesign(json)),
 
