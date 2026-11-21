@@ -209,7 +209,7 @@ function NextStep() {
   return (
     <div className="compare__next" role="status">
       <b>Run finished.</b> Write your verdict on the left, then ask Claude in the terminal: "challenge my verdict".
-      {claude === false && <p className="muted">Claude isn't running. Start the backend and ttyd (README, "Run"), then press Claude in the header.</p>}
+      {claude === false && <p className="muted">Claude isn't running. Start the backend and ttyd (README, "Run"), then press ✦ Ask Claude in the header.</p>}
     </div>
   )
 }

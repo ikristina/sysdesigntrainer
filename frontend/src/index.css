@@ -18,6 +18,9 @@ body { margin: 0; background: var(--paper); }
 .btn:hover:not(:disabled) { background: var(--hover); }
 .btn:disabled { opacity: .45; cursor: default; }
 .btn--dark { background: var(--ink); color: var(--panel); }
+/* The one way into the tutor, so it stands out from the file buttons next to it. */
+.btn--claude { background: var(--violet); border-color: var(--violet); color: var(--panel); }
+.btn--claude:hover { background: var(--violet-hover); }
 .btn--dark:hover:not(:disabled) { background: var(--ink-hover); }
 .btn--spike { background: var(--amber-fill); }
 

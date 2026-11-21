@@ -70,7 +70,7 @@ cd backend && uv run uvicorn app.main:app --reload --port 8000
 ttyd -W -O -i lo0 -p 7681 claude
 ```
 
-3. Open (or reload) http://localhost:5173. The terminal panel opens under the canvas by itself once ttyd is running. The **Claude** button in the header shows or hides it.
+3. Open (or reload) http://localhost:5173. The terminal panel opens under the canvas by itself once ttyd is running. The violet **✦ Ask Claude** button in the header shows or hides it.
 4. The first time, Claude Code asks whether to use the project's `sysdesign` MCP server. Approve it.
 5. Check the panel's status line says `connected to sysdesign MCP`. Then ask Claude something like "look at my design and load test it at 5k rps".
 

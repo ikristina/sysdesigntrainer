@@ -1,6 +1,6 @@
 # ttyd: the embedded Claude terminal
 
-The app has a terminal panel (under the canvas; the **Claude** button shows or hides it) running Claude Code. That panel is **ttyd**: a small program that runs a command in a terminal and shows that terminal on a web page.
+The app has a terminal panel (under the canvas; the violet **✦ Ask Claude** button in the header shows or hides it) running Claude Code. That panel is **ttyd**: a small program that runs a command in a terminal and shows that terminal on a web page.
 
 Sources: the ttyd README, man page, wiki, release notes and source (`src/server.c`, `src/http.c`, `src/protocol.c`) at https://github.com/tsl0922/ttyd, read 2026-11-20. The latest release there is 1.7.7.
 

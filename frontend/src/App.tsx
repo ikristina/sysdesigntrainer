@@ -77,7 +77,7 @@ export default function App() {
         {mode.kind === 'lesson' && <StepNav />}
         {compare ? <CompareBar /> : !explainer && <TrafficBar />}
         <div className="header__actions">
-          <button className="btn sk" onClick={() => setTerminal(!terminal)} aria-pressed={terminal}>Claude</button>
+          <button className="btn btn--claude sk" onClick={() => setTerminal(!terminal)} aria-pressed={terminal}>✦ Ask Claude</button>
           {!compare && <button className="btn sk" onClick={exportFile}>Export JSON</button>}
           {!explainer && !compare && <button className="btn sk" onClick={() => fileInput.current?.click()}>Import JSON</button>}
           <input ref={fileInput} type="file" accept=".json,application/json" hidden
