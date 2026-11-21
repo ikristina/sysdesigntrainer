@@ -23,11 +23,13 @@ import { llm } from './llm'
 import { embedding } from './embedding'
 import { region } from './region'
 import { az } from './az'
+import { presets } from './presets'
 
 export const blocks: BlockDef[] = [
   client, dns, cdn, load_balancer, api_gateway, service, worker, fn,
   sql_db, kv, wide_column, graph_db, search, vector_db, blob,
   cache, queue, stream, llm, embedding, region, az,
+  ...presets,
 ]
 
 export const registry: Record<string, BlockDef> = Object.fromEntries(blocks.map((b) => [b.type, b]))

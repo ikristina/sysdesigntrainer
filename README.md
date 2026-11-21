@@ -109,3 +109,8 @@ New to frontend? `docs/frontend-guide.md` explains every tool, file and data flo
 - **`npm install` fails or warns about the engine:** check `node -v` is 22.12 or higher.
 - **Claude says the app isn't open, or the status line says "backend not running":** start the backend (step 1), then wait 3 s. The app reconnects by itself.
 - **Claude has no `sysdesign` tools:** run `claude mcp list` from the repo root. "Pending approval" means you should restart `claude` and approve it. "Failed" means the backend isn't running.
+
+## Product logos and prices
+
+- **Logos** come from [Simple Icons](https://simpleicons.org) (the `simple-icons` npm package). The package is CC0, but some icons carry their own license (Kafka and Cassandra are Apache-2.0). All marks belong to their owners. The app uses them only to label a block with the product it stands for, and that use doesn't imply any endorsement. Simple Icons has no AWS, Memcached or Valkey icons, so those blocks show a text badge.
+- **Prices and limits** in the product presets come from public docs and price lists (AWS us-east-1 on-demand, read 2026-11-20). Each block lists its sources under *Sources and estimates*. Numbers without a source are marked as estimates. Prices change, so don't use these to budget a real system.

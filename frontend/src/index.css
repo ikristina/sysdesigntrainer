@@ -35,8 +35,8 @@ body { margin: 0; background: var(--paper); }
 /* Traffic controls (header). */
 .traffic { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; font-size: 13px; margin-left: auto; }
 .traffic__ctl { display: flex; align-items: center; gap: 8px; }
-.traffic__ctl input { width: 110px; accent-color: var(--ink); }
-.traffic__val { min-width: 64px; }
+.traffic__ctl input { width: 80px; accent-color: var(--ink); }
+.traffic__val { min-width: 40px; }
 
 .body { flex: 1; display: flex; min-height: 0; }
 .palette { width: 230px; padding: 16px; border-right: 2px solid var(--ink); overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
@@ -148,3 +148,15 @@ body { margin: 0; background: var(--paper); }
 .explainer__steps button { vertical-align: top; text-align: left; }
 /* Shapes with a lid (cylinders, bucket): start the label below it. */
 .shape--cylinder .block-node__label, .shape--cylinder1 .block-node__label, .shape--cylinder2 .block-node__label, .shape--bucket .block-node__label { padding-top: 19px; }
+
+/* Phase 5: product presets */
+.mark { display: inline-block; vertical-align: -2px; }
+.mark--badge { font: 700 9px/1 "JetBrains Mono", monospace; padding: 2px 3px; border: 1px solid currentColor; border-radius: 3px; color: #495057; vertical-align: 1px; }
+.palette__items--products { margin-top: 6px; }
+.palette__items--products:empty { display: none; }
+.tile--product { font-size: 11px; padding: 3px 7px; }
+.product { font-size: 12px; }
+.product ul { margin: 0; padding-left: 16px; }
+.product li { margin: 2px 0; }
+.product summary { cursor: pointer; margin-top: 6px; color: var(--muted); }
+.product__sources { word-break: break-word; }

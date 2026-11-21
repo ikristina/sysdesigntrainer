@@ -3,7 +3,7 @@
 // when it passes validation (min/max/whole number), otherwise the error shows under it.
 import { useState } from 'react'
 import { registry } from '../blocks'
-import { validateParam, type ParamDef, type ParamValue } from '../blocks/types'
+import { validateParam, type BlockDef, type ParamDef, type ParamValue } from '../blocks/types'
 import { useDesign } from '../store'
 
 export function ParamPanel() {
@@ -20,8 +20,9 @@ export function ParamPanel() {
       <div>
         <div className="caps">Selected</div>
         <div className="inspector__title">{def.label}</div>
-        <div className="muted mono">{node.id} · ${def.cost}/replica-hr</div>
+        <div className="muted mono">{node.id} · {priceOf(def)}</div>
       </div>
+      {def.product && <ProductInfo def={def} />}
       {def.params.map((p) => (
         // `key` includes the node id so inputs reset when you select a different node.
         <ParamField key={`${node.id}.${p.key}`} def={p} value={node.data.params[p.key]}
@@ -29,6 +30,34 @@ export function ParamPanel() {
       ))}
     </section>
   )
+}
+
+const priceOf = ({ cost, costPer, requestCost }: BlockDef) => [
+  cost > 0 || !requestCost ? `$${Number(cost.toPrecision(3))}/${costPer ?? 'replica'}-hr` : '',
+  requestCost ? `$${requestCost.read}/M reads, $${requestCost.write}/M writes` : '',
+].filter(Boolean).join(' + ')
+
+// What makes this product different, and where its numbers come from.
+function ProductInfo({ def }: { def: BlockDef }) {
+  const p = def.product!
+  return (
+    <div className="product">
+      <ul>{p.facts.map((f) => <li key={f}>{f}</li>)}</ul>
+      <details>
+        <summary>Sources and estimates</summary>
+        <ul className="product__sources">
+          {Object.entries(p.sources).map(([k, v]) => <li key={k}><b className="mono">{k}</b> {linkify(v)}</li>)}
+        </ul>
+        <p className="muted">{p.notes}</p>
+      </details>
+    </div>
+  )
+}
+
+// Turn the URL at the start of a source line into a link.
+function linkify(text: string) {
+  const [, url, rest] = text.match(/^(https?:\/\/\S+)(.*)$/s) ?? []
+  return url ? <><a href={url} target="_blank" rel="noreferrer">{new URL(url).hostname}</a>{rest}</> : text
 }
 
 function ParamField({ def, value, onCommit }: { def: ParamDef; value: ParamValue; onCommit: (v: ParamValue) => void }) {

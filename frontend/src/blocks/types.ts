@@ -32,7 +32,20 @@ export type BlockDef = {
   shape?: Shape        // default 'box'
   costPer?: 'partition' // cost is per partition/shard (Kinesis) instead of per replica
   requestCost?: { read: number; write: number } // USD per million requests arriving at the block (SQS, DynamoDB, S3)
+  product?: Product    // set on product presets (blocks/presets/)
 }
+
+/** What a product preset adds on top of its generic block (shown in the param panel). */
+export type Product = {
+  base: string                         // the generic block type it's built on
+  logo?: { path: string; hex: string } // Simple Icons SVG path (24 × 24) and brand color
+  badge?: string                       // text badge when there's no logo
+  facts: string[]                      // what makes this product different, one line each
+  sources: Record<string, string>      // param key (or 'cost' / 'requestCost') -> where the number comes from
+  estimates: string[]                  // param keys whose value is an estimate (no source found)
+  notes: string
+}
+
 
 // Returns an error message, or null if the value is OK for this param.
 export function validateParam(def: ParamDef, value: ParamValue): string | null {

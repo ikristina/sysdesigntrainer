@@ -5,11 +5,12 @@
 // Phase 3: a blue glow when Claude (or an explainer) highlights it.
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { useMemo } from 'react'
-import { categoryColor, registry } from '../blocks'
+import { registry } from '../blocks'
 import type { FlowNode } from '../design'
 import { fmtPct, healthColor, healthOf, type Health } from '../display'
 import { isDown, useSim } from '../simStore'
 import { roughPath, seedOf } from './rough'
+import { Mark } from './Mark'
 import { drawShape } from './shapes'
 import { RoughPaths } from './RoughPaths'
 
@@ -50,7 +51,7 @@ export function BlockNode({ id, data, selected }: NodeProps<FlowNode>) {
     <div className={`block-node block-node--${health} shape--${def.shape ?? 'box'}${lit ? ' block-node--lit' : ''}`} style={{ width: BLOCK_W, height: BLOCK_H }}>
       <svg width={BLOCK_W} height={BLOCK_H} className="block-node__bg"><RoughPaths drawables={shapes} /></svg>
       <div className="block-node__label">
-        <span style={{ color: categoryColor(def.category) }}>{def.icon}</span> {def.label}
+        <Mark def={def} /> {def.label}
       </div>
       {replicas !== undefined && (
         <div className="block-node__sub">
