@@ -27,3 +27,6 @@ Use when Kristina asks to start, continue, or get feedback on a lesson in the Sy
 - Use `give_hint(level)` only when she's stuck or asks. Escalate 1 -> 2 -> 3.
 - Remember the sim is a model. If a result looks unrealistic, say so instead of defending it.
 - `advance_step()` only when the current step is solid.
+
+## Study notes
+When a concept question comes up (e.g. 301 vs 302) or she says "save that to my notes", append a note to `docs/study-notes.md` (the app shows it under 📓 Notes). Format, as the file's header says: `## Title`, then `lesson: <lesson id>` (comma-separate if it came up in several), `category: <short topic, reuse an existing one>`, a blank line, then the note in markdown: paragraphs, `-` lists, `|` tables, **bold**, `code` only. Keep it short. Never commit the file.

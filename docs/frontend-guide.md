@@ -181,6 +181,12 @@ frontend/
       compareStore.ts     the open compare: two side stores, scenario, speed, play/pause, hints, verdict
       CompareView.tsx     <CompareBar/> (header), <ComparePanel/> (left), <CompareView/> (canvases + charts),
                           <CompareTable/> (right)
+    notes/
+      notes.ts            parseNotes(): docs/study-notes.md -> notes (title, lessons, category, body);
+                          toHtml(): the small markdown subset notes use (paragraphs, - lists, | tables, bold, code)
+      notes.test.ts       parsing and rendering
+      NotesPanel.tsx      the 📓 Notes panel: replaces the right column while open; grouped by category,
+                          filtered to the open lesson (or all)
 lessons/                  (repo root) lesson JSON: url-shortener, welcome-emails, p99-fix, rate-limiter, news-feed, chat,
                           and the compare lessons redis-vs-memcached, kafka-vs-sqs, kinesis-vs-kafka,
                           postgres-vs-dynamodb, postgres-vs-cockroachdb
@@ -393,6 +399,8 @@ Both are JSON files in the repo root. The formats are in `docs/SPEC.md` ("Lesson
 **The numbers are tested, not guessed.** `content.test.ts` runs the simulator on each lesson: the starter (or a naive design) must fail, the intended design must pass, and an over-provisioned one must break the cost limit. For each explainer it checks the outcome every caption claims (for example "one server saturates at 1.5k rps"). If you change a block's defaults or the sim model, these tests tell you which lesson needs retuning.
 
 **Compare lesson** (`lessons/<id>.json` with `mode: "compare"`): one `starter_graph` (or one per side), a `swap` (`node` plus the two product `options`), `scenarios` (each a timeline: `seconds`, `traffic`, and `events` at given times: `kill`, `restore`, `set_params`, `traffic`, `spike`), `questions` to answer in the verdict box, and hints. Each scenario has a `watch` line (what to look at on the canvases), and the first scenario is the one the lesson opens on, so put the disruption first. When a run ends, the table says to write the verdict and ask Claude to challenge it (and how to start Claude if ttyd isn't up). Nobody passes or fails; the table shows who wins each metric and you write why. `content.test.ts` runs every scenario headless and checks the winners the lesson's questions rely on (for example Memcached loses its cache hit after a restart, Redis with AOF doesn't).
+
+**Study notes** (`docs/study-notes.md`): things worth remembering, like "301 vs 302". The **📓 Notes** button in the header swaps the right column for them, grouped by category and filtered to the open lesson. Each note is a `## Title`, then `lesson: <id>, <id>` and `category: <name>` lines, then markdown. You add one by telling Claude "save that to my study notes"; it appends to the file and the panel updates without a reload (Vite watches it because `vite.config.ts` lists it in `server.fs.allow`). The file is untracked, so the notes stay yours. The renderer is a few regexes, not a markdown library (`npm install marked` was blocked in the session that built it): headings inside a note, links and numbered lists show as plain text.
 
 **Add one:** drop a JSON file in `lessons/` or `explainers/`. Restart `npm run dev` (Vite doesn't watch folders outside `frontend/`, so a new file isn't noticed until then); edits to existing files also need a reload. The `sysdesign-add-lesson` skill walks through writing a lesson.
 

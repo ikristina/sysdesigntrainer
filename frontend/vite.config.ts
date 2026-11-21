@@ -5,9 +5,9 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // Lessons and explainers live at the repo root (../lessons, ../explainers). The dev server only
+  // Lessons, explainers and study notes live at the repo root (../lessons, ../explainers, ../docs/study-notes.md). The dev server only
   // serves files inside frontend/ unless they're listed here.
-  server: { fs: { allow: ['.', '../lessons', '../explainers'] } },
+  server: { fs: { allow: ['.', '../lessons', '../explainers', '../docs/study-notes.md'] } },
   // Vitest blanks CSS imports by default; registry.test.ts reads tokens.css (?raw) to check the tokens exist.
   test: { css: { include: [/tokens\.css/] } },
 })

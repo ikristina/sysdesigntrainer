@@ -216,3 +216,13 @@ body { margin: 0; background: var(--paper); }
 .compare__watch { margin: 6px 0 0; padding: 6px 8px; background: var(--amber-soft); border-radius: 6px; }
 .compare__next { padding: 8px 10px; border: 2px solid var(--ink); border-radius: 8px; background: var(--panel); }
 .compare__next p { margin: 6px 0 0; }
+
+/* 📓 Study notes panel (notes/NotesPanel.tsx): replaces the inspector while open. */
+.notes { width: 440px; }
+.notes__cat { display: flex; flex-direction: column; gap: 6px; }
+.note { border: 1.5px dashed var(--line-faint); padding: 8px 10px; }
+.note summary { cursor: pointer; font-weight: 600; }
+.note__body { font-size: 13px; line-height: 1.45; }
+.note__body table { border-collapse: collapse; margin: 8px 0; }
+.note__body th, .note__body td { border: 1px solid var(--line-faint); padding: 3px 6px; text-align: left; vertical-align: top; }
+.note__body code { background: var(--hover); padding: 0 3px; }
