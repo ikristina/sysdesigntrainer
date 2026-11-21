@@ -1,12 +1,13 @@
 // Compare mode UI (docs/mockups/Compare): two live canvases (A above B), overlaid charts under
 // them, the A/B table on the right, and scenario controls in the header.
 import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider } from '@xyflow/react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore, type StoreApi } from 'zustand'
 import { edgeTypes, nodeTypes } from '../canvas/nodeTypes'
 import { fromDesign, toDesign } from '../design'
 import { fmtMs, fmtPct, fmtRps } from '../display'
 import { explainers } from '../lessons/content'
+import { ttydUp } from '../link'
 import { SimContext, type SimView } from '../simStore'
 import {
   loadSide, pause, play, reset, scenarioOf, selectScenario, setSpeed, setVerdict, showHint, sides, useCompare, type Side,
@@ -60,6 +61,7 @@ export function ComparePanel() {
       <div className="lesson__step">
         <b>{sc.label}</b>
         {sc.about && <p>{sc.about}</p>}
+        {sc.watch && <p className="compare__watch"><b>Watch:</b> {sc.watch}</p>}
       </div>
       {l && l.questions.length > 0 && (
         <>
@@ -175,6 +177,7 @@ export function CompareTable() {
   const labels = [useSide(0, (s) => s.label), useSide(1, (s) => s.label)]
   const sc = scenarioOf(useCompare())
   const started = runs[0].history.length > 10
+  const done = runs[0].sim.t >= sc.seconds - 1e-9
   const rows = started ? summarize([runs[0], runs[1]], sc) : []
   return (
     <section className="stack" aria-label="Comparison">
@@ -193,7 +196,20 @@ export function CompareTable() {
         </table>
       )}
       <p className="muted">Bold = better on that row. Hover a row for what it measures.</p>
+      {done && <NextStep />}
     </section>
   )
 }
 
+
+/** After a run: what to do next. Claude is the one who pushes back on the verdict. */
+function NextStep() {
+  const [claude, setClaude] = useState<boolean | null>(null)
+  useEffect(() => { ttydUp().then(setClaude) }, [])
+  return (
+    <div className="compare__next" role="status">
+      <b>Run finished.</b> Write your verdict on the left, then ask Claude in the terminal: "challenge my verdict".
+      {claude === false && <p className="muted">Claude isn't running. Start the backend and ttyd (README, "Run"), then press Claude in the header.</p>}
+    </div>
+  )
+}

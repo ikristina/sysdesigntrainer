@@ -234,6 +234,7 @@ describe('compare lessons', () => {
       }
     }
     expect(l.hints).toHaveLength(3)
+    expect(l.scenarios.every((s) => s.watch)).toBe(true) // every scenario says what to look at
     for (const x of l.explainers ?? []) expect(explainers.some((e) => e.id === x)).toBe(true)
   })
 
@@ -255,21 +256,11 @@ describe('compare lessons', () => {
     expect(winners('postgres-vs-dynamodb', 'more-writes')).toMatchObject({ errors: 'B', 'worst p99': 'B', cost: 'A' })
   })
 
-  it('Redis vs Valkey: the same behavior, Valkey is cheaper', () => {
-    for (const sc of ['steady', 'restart']) {
-      expect(winners('redis-vs-valkey', sc)).toMatchObject({ 'worst p99': '-', errors: '-', 'lowest cache hit': '-', 'memory cost per GB': 'B', cost: 'B' })
-    }
-  })
-
   it('Kinesis vs Kafka: Kinesis is cheaper at 5k, rejects the burst, and costs more at 20k', () => {
     expect(winners('kinesis-vs-kafka', 'steady')).toMatchObject({ errors: '-', cost: 'B' })
     expect(winners('kinesis-vs-kafka', 'burst')).toMatchObject({ errors: 'A', 'peak throughput': 'A', 'peak backlog': 'B' })
     expect(winners('kinesis-vs-kafka', 'scale')).toMatchObject({ errors: '-', 'worst p99': '-', cost: 'A' })
     expect(winners('kinesis-vs-kafka', 'scale')).not.toHaveProperty('recovery time') // set_params at 0 s isn't a disruption
-  })
-
-  it('CloudFront vs Cloudflare: same speed, Cloudflare flat price wins on cost everywhere', () => {
-    for (const sc of ['steady', 'small', 'video']) expect(winners('cloudfront-vs-cloudflare', sc)).toMatchObject({ 'worst p99': '-', errors: '-', cost: 'B' })
   })
 
   it('Postgres vs CockroachDB: CockroachDB has lower p99 and survives the region, Postgres is cheaper', () => {

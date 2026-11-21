@@ -177,8 +177,8 @@ frontend/
       CompareView.tsx     <CompareBar/> (header), <ComparePanel/> (left), <CompareView/> (canvases + charts),
                           <CompareTable/> (right)
 lessons/                  (repo root) lesson JSON: url-shortener, welcome-emails, p99-fix, rate-limiter, news-feed, chat,
-                          and the compare lessons redis-vs-memcached, redis-vs-valkey, kafka-vs-sqs, kinesis-vs-kafka,
-                          postgres-vs-dynamodb, postgres-vs-cockroachdb, cloudfront-vs-cloudflare
+                          and the compare lessons redis-vs-memcached, kafka-vs-sqs, kinesis-vs-kafka,
+                          postgres-vs-dynamodb, postgres-vs-cockroachdb
 explainers/               (repo root) explainer JSON: load-balancing, caching-basics, replication-lag
   graphs/                 starting designs (saved-design format) used by explainers and lesson starters
 backend/
@@ -375,7 +375,7 @@ Both are JSON files in the repo root. The formats are in `docs/SPEC.md` ("Lesson
 
 **The numbers are tested, not guessed.** `content.test.ts` runs the simulator on each lesson: the starter (or a naive design) must fail, the intended design must pass, and an over-provisioned one must break the cost limit. For each explainer it checks the outcome every caption claims (for example "one server saturates at 1.5k rps"). If you change a block's defaults or the sim model, these tests tell you which lesson needs retuning.
 
-**Compare lesson** (`lessons/<id>.json` with `mode: "compare"`): one `starter_graph` (or one per side), a `swap` (`node` plus the two product `options`), `scenarios` (each a timeline: `seconds`, `traffic`, and `events` at given times: `kill`, `restore`, `set_params`, `traffic`, `spike`), `questions` to answer in the verdict box, and hints. Nobody passes or fails; the table shows who wins each metric and you write why. `content.test.ts` runs every scenario headless and checks the winners the lesson's questions rely on (for example Memcached loses its cache hit after a restart, Redis with AOF doesn't).
+**Compare lesson** (`lessons/<id>.json` with `mode: "compare"`): one `starter_graph` (or one per side), a `swap` (`node` plus the two product `options`), `scenarios` (each a timeline: `seconds`, `traffic`, and `events` at given times: `kill`, `restore`, `set_params`, `traffic`, `spike`), `questions` to answer in the verdict box, and hints. Each scenario has a `watch` line (what to look at on the canvases), and the first scenario is the one the lesson opens on, so put the disruption first. When a run ends, the table says to write the verdict and ask Claude to challenge it (and how to start Claude if ttyd isn't up). Nobody passes or fails; the table shows who wins each metric and you write why. `content.test.ts` runs every scenario headless and checks the winners the lesson's questions rely on (for example Memcached loses its cache hit after a restart, Redis with AOF doesn't).
 
 **Add one:** drop a JSON file in `lessons/` or `explainers/`. Restart `npm run dev` (Vite doesn't watch folders outside `frontend/`, so a new file isn't noticed until then); edits to existing files also need a reload. The `sysdesign-add-lesson` skill walks through writing a lesson.
 
@@ -451,7 +451,7 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - Clients each get an equal share of the global rps.
 - No "clear canvas" button. Select everything (drag a box with Shift held) and press Backspace, or delete the localStorage key.
 - Autosave writes on every drag frame. That's fine for designs this size; add a debounce if large designs feel slow.
-- Six lessons (URL shortener, welcome emails, p99 fix, rate limiter, news feed, chat), seven compare lessons and three explainers ship.
+- Six lessons (URL shortener, welcome emails, p99 fix, rate limiter, news feed, chat), five compare lessons and three explainers ship. A compare lesson needs a scenario where the two products behave differently in the sim; products that differ only in price (Redis vs Valkey, CloudFront vs Cloudflare) have no lesson, their prices and facts are in the param panel.
 - Fan-out: the N calls count as one for latency, and `followers` / `following` are one average for everyone (no celebrity tail). On a load balancer, `carries` filters after the even split.
 - Stale reads are a share, not a time: every cache hit and replica read counts, however fresh the copy is, and KV stores never count. Read-your-own-writes can't be modeled because the sim doesn't tell users apart.
 - The sim can't tell one client's requests from another's in the error check, so in the rate-limiter lesson a global limit and a per-client limit score the same.

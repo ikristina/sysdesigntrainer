@@ -3,11 +3,55 @@
   "title": "Multi-region: Postgres vs CockroachDB",
   "mode": "compare",
   "brief": "An app runs in two regions, 4k requests/s, 90% reads. Side A keeps one Postgres primary (plus a replica) in us-east-1, so us-west-2 crosses the country for every query. Side B runs CockroachDB across 3 regions with 5 replicas. Decide which you'd run, for which requirements.",
-  "starter_graph": ["graphs/multi-region-postgres.json", "graphs/multi-region-cockroach.json"],
-  "swap": { "node": "db", "options": ["postgres", "cockroachdb"] },
+  "starter_graph": [
+    "graphs/multi-region-postgres.json",
+    "graphs/multi-region-cockroach.json"
+  ],
+  "swap": {
+    "node": "db",
+    "options": [
+      "postgres",
+      "cockroachdb"
+    ]
+  },
   "scenarios": [
-    { "id": "steady", "label": "Steady 4k rps", "about": "Nothing fails. Postgres pays cross-region latency for every west request; CockroachDB pays a quorum round trip on writes.", "seconds": 30, "traffic": { "rps": 4000, "read_ratio": 0.9 }, "events": [] },
-    { "id": "region-down", "label": "us-east-1 goes down", "about": "At 10 s the whole us-east-1 region fails, for 20 s. Postgres's primary lives there.", "seconds": 50, "traffic": { "rps": 4000, "read_ratio": 0.9 }, "events": [{ "at": 10, "kill": ["east"] }, { "at": 30, "restore": ["east"] }] }
+    {
+      "id": "region-down",
+      "label": "us-east-1 goes down",
+      "about": "At 10 s the whole us-east-1 region fails, for 20 s. Postgres's primary lives there.",
+      "seconds": 50,
+      "traffic": {
+        "rps": 4000,
+        "read_ratio": 0.9
+      },
+      "events": [
+        {
+          "at": 10,
+          "kill": [
+            "east"
+          ]
+        },
+        {
+          "at": 30,
+          "restore": [
+            "east"
+          ]
+        }
+      ],
+      "watch": "At 10 s us-east-1 goes down for 20 s. Watch the errors number: the Postgres primary is in that region, so its writes fail. CockroachDB keeps a quorum in the other regions."
+    },
+    {
+      "id": "steady",
+      "label": "Steady 4k rps",
+      "about": "Nothing fails. Postgres pays cross-region latency for every west request; CockroachDB pays a quorum round trip on writes.",
+      "seconds": 30,
+      "traffic": {
+        "rps": 4000,
+        "read_ratio": 0.9
+      },
+      "events": [],
+      "watch": "Nothing fails. Watch p99: Postgres pays a cross-region hop for every us-west request; CockroachDB pays a quorum round trip on writes."
+    }
   ],
   "questions": [
     "What does surviving a region loss cost, in $/hr and in write latency?",

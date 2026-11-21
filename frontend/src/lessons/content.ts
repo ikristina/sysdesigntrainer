@@ -43,7 +43,7 @@ export type ScenarioEvent = {
   traffic?: Traffic
   spike?: { multiplier: number; seconds: number }
 }
-export type Scenario = { id: string; label: string; about?: string; seconds: number; traffic: Traffic & { rps: number; read_ratio: number }; events: ScenarioEvent[] }
+export type Scenario = { id: string; label: string; about?: string; watch?: string; seconds: number; traffic: Traffic & { rps: number; read_ratio: number }; events: ScenarioEvent[] }
 export type CompareLesson = {
   id: string
   title: string

@@ -13,17 +13,6 @@
   },
   "scenarios": [
     {
-      "id": "steady",
-      "label": "Steady 5k events/s",
-      "about": "Both keep up. Kinesis bills per shard-hour and per PUT; Kafka per broker-hour.",
-      "seconds": 30,
-      "traffic": {
-        "rps": 5000,
-        "read_ratio": 0
-      },
-      "events": []
-    },
-    {
       "id": "burst",
       "label": "Burst x3 for 10 s",
       "about": "A campaign triples traffic to 15k/s for 10 s. A Kinesis shard takes 1,000 records/s; what happens to the rest?",
@@ -40,7 +29,8 @@
             "seconds": 10
           }
         }
-      ]
+      ],
+      "watch": "At 10 s traffic triples for 10 s. Watch the Kinesis block turn red and the errors number climb: its shards reject what they can't take. Kafka queues the extra and drains it afterwards."
     },
     {
       "id": "scale",
@@ -67,7 +57,20 @@
             }
           }
         }
-      ]
+      ],
+      "watch": "Nothing breaks after the re-sharding at 0 s. Read the cost row: per-shard and per-PUT pricing at 20k/s."
+    },
+    {
+      "id": "steady",
+      "label": "Steady 5k events/s",
+      "about": "Both keep up. Kinesis bills per shard-hour and per PUT; Kafka per broker-hour.",
+      "seconds": 30,
+      "traffic": {
+        "rps": 5000,
+        "read_ratio": 0
+      },
+      "events": [],
+      "watch": "Nothing breaks, so both canvases look the same. Read the cost row in the table."
     }
   ],
   "questions": [

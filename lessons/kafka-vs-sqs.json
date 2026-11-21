@@ -4,11 +4,70 @@
   "mode": "compare",
   "brief": "An API publishes 2k events/s; 30 workers (200 events/s each) process them. Side A sends them through Kafka with 12 partitions; side B through a standard SQS queue. Same workers on both. Decide which you'd run, and what you'd change on each.",
   "starter_graph": "graphs/event-pipeline.json",
-  "swap": { "node": "events", "options": ["kafka", "sqs"] },
+  "swap": {
+    "node": "events",
+    "options": [
+      "kafka",
+      "sqs"
+    ]
+  },
   "scenarios": [
-    { "id": "steady", "label": "Steady 2k events/s", "about": "Both keep up. Compare the cost row: Kafka is billed per broker-hour, SQS per request.", "seconds": 30, "traffic": { "rps": 2000, "read_ratio": 0 }, "events": [] },
-    { "id": "growth", "label": "Traffic doubles", "about": "At 10 s events double to 4k/s. There are 30 workers on both sides. How many can actually work on each?", "seconds": 40, "traffic": { "rps": 2000, "read_ratio": 0 }, "events": [{ "at": 10, "traffic": { "rps": 4000 } }] },
-    { "id": "outage", "label": "Workers down 10 s", "about": "The workers crash at 10 s and come back at 20 s. Events keep arriving. How fast does each side drain the backlog?", "seconds": 60, "traffic": { "rps": 2000, "read_ratio": 0 }, "events": [{ "at": 10, "kill": ["worker"] }, { "at": 20, "restore": ["worker"] }] }
+    {
+      "id": "outage",
+      "label": "Workers down 10 s",
+      "about": "The workers crash at 10 s and come back at 20 s. Events keep arriving. How fast does each side drain the backlog?",
+      "seconds": 60,
+      "traffic": {
+        "rps": 2000,
+        "read_ratio": 0
+      },
+      "events": [
+        {
+          "at": 10,
+          "kill": [
+            "worker"
+          ]
+        },
+        {
+          "at": 20,
+          "restore": [
+            "worker"
+          ]
+        }
+      ],
+      "watch": "At 10 s the workers die and events keep arriving. Watch the waiting count on the Kafka and SQS blocks grow, then which one is empty first after the workers return at 20 s."
+    },
+    {
+      "id": "growth",
+      "label": "Traffic doubles",
+      "about": "At 10 s events double to 4k/s. There are 30 workers on both sides. How many can actually work on each?",
+      "seconds": 40,
+      "traffic": {
+        "rps": 2000,
+        "read_ratio": 0
+      },
+      "events": [
+        {
+          "at": 10,
+          "traffic": {
+            "rps": 4000
+          }
+        }
+      ],
+      "watch": "At 10 s events double. Watch the Kafka block: only as many workers as partitions can read, so its backlog keeps growing. SQS hands messages to all 30 workers."
+    },
+    {
+      "id": "steady",
+      "label": "Steady 2k events/s",
+      "about": "Both keep up. Compare the cost row: Kafka is billed per broker-hour, SQS per request.",
+      "seconds": 30,
+      "traffic": {
+        "rps": 2000,
+        "read_ratio": 0
+      },
+      "events": [],
+      "watch": "Nothing breaks, so both canvases look the same. Read the cost row in the table."
+    }
   ],
   "questions": [
     "Why do 30 workers drain faster from SQS than from 12 Kafka partitions? What would you change in Kafka?",

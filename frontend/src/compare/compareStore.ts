@@ -37,8 +37,8 @@ function genericScenarios(): Scenario[] {
   const s = useSim.getState()
   const traffic = { rps: s.rps, read_ratio: s.readRatio, hot_key: s.hotKey, payload_kb: s.payloadKb, followers: s.followers, following: s.following }
   return [
-    { id: 'steady', label: 'Steady load', about: 'The sandbox traffic for 30 s.', seconds: 30, traffic, events: [] },
-    { id: 'spike', label: 'Spike ×3', about: 'Traffic triples for 10 s at 10 s, then drops back.', seconds: 40, traffic, events: [{ at: 10, spike: { multiplier: 3, seconds: 10 } }] },
+    { id: 'steady', label: 'Steady load', about: 'The sandbox traffic for 30 s.', watch: 'Where the two designs differ: which blocks get hotter, and the cost row.', seconds: 30, traffic, events: [] },
+    { id: 'spike', label: 'Spike ×3', about: 'Traffic triples for 10 s at 10 s, then drops back.', watch: 'Which side turns red first, and which one is back to normal sooner after 20 s.', seconds: 40, traffic, events: [{ at: 10, spike: { multiplier: 3, seconds: 10 } }] },
   ]
 }
 
