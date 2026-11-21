@@ -65,8 +65,18 @@ body { margin: 0; background: var(--paper); }
 /* Canvas nodes: the SVG draws the rough shape, the text sits on top. */
 .block-node, .container-node { position: relative; }
 .block-node__bg { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
-.block-node__label { position: relative; padding: 12px 12px 0; text-align: center; font-family: var(--font); font-size: 16px; font-weight: 700; line-height: 1.1; }
-.block-node__sub { position: relative; text-align: center; font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+/* Label: up to two lines, clear of the gauge (top-right) on both sides so it stays centered. */
+.block-node__label { position: relative; padding: 10px 24px 0; text-align: center; font-size: 15px; font-weight: 600; line-height: 1.1;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.block-node--bad .block-node__label { color: var(--coral-text); }
+/* Selected: a lilac ring around the block (React Flow puts .selected on its wrapper). */
+.react-flow__node.selected .block-node::before { content: ''; position: absolute; inset: -7px; border-radius: 14px; box-shadow: 0 0 0 3px var(--select-ring); pointer-events: none; }
+/* Gauge: top-right corner, half outside the block. */
+.gauge { position: absolute; right: -12px; top: -14px; width: 30px; pointer-events: none; }
+.gauge svg { display: block; }
+.gauge__v { position: absolute; left: 50%; top: 25px; transform: translateX(-50%); padding: 0 3px; border-radius: 6px; background: var(--panel); font-size: 11px; font-weight: 800; line-height: 1.25; }
+.block-node__sub { position: relative; text-align: center; font-size: 12px; color: var(--ink-muted); margin-top: 2px; padding: 0 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.block-node__sub b { font-weight: 600; }
 .container-node__label { position: absolute; left: 14px; top: 8px; font-family: var(--font); font-size: 15px; color: var(--ink-muted); }
 
 /* React Flow draws its own box around custom nodes by default; we draw ours with rough.js. */
@@ -74,7 +84,6 @@ body { margin: 0; background: var(--paper); }
 .react-flow__handle { width: 9px; height: 9px; background: var(--panel); border: 2px solid var(--ink); }
 
 /* Live sim state on blocks. */
-.block-node__stats { position: relative; text-align: center; font-size: 11px; font-weight: 600; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; }
 .util { position: absolute; left: 14px; right: 14px; bottom: 7px; height: 4px; background: var(--line-faint); border-radius: 2px; overflow: hidden; }
 .util > div { height: 100%; }
 .qstack { position: absolute; right: 8px; bottom: calc(100% + 2px); display: flex; flex-direction: column-reverse; gap: 2px; }
@@ -144,7 +153,7 @@ body { margin: 0; background: var(--paper); }
 .palette.explainer { width: 280px; }
 .explainer__steps button { vertical-align: top; text-align: left; }
 /* Shapes with a lid (cylinders, bucket): start the label below it. */
-.shape--cylinder .block-node__label, .shape--cylinder1 .block-node__label, .shape--cylinder2 .block-node__label, .shape--bucket .block-node__label { padding-top: 19px; }
+.shape--cylinder .block-node__label, .shape--bucket .block-node__label { padding-top: 19px; }
 
 /* Phase 5: product presets */
 .mark { display: inline-block; vertical-align: -2px; }

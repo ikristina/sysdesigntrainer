@@ -48,6 +48,19 @@ export const categories: { id: Category; label: string; color: string }[] = [
 
 export const categoryColor = (c: Category) => categories.find((x) => x.id === c)!.color
 
+/** A block's color family (docs/STYLE.md "Category fills"): fill var(--fill-<tone>), flow dots var(--flow-<tone>).
+ *  Mostly the category, but the client stands apart from DNS/CDN, and SQL from the other data stores. */
+export type Tone = 'client' | 'traffic' | 'compute' | 'cache' | 'async' | 'sql' | 'nosql' | 'ai'
+export function toneOf(def: BlockDef): Tone | null {
+  const base = def.product?.base ?? def.type
+  if (base === 'client') return 'client'
+  if (base === 'sql_db') return 'sql'
+  const byCategory: Partial<Record<Category, Tone>> = {
+    edge: 'traffic', traffic: 'traffic', compute: 'compute', cache: 'cache', async: 'async', data: 'nosql', ai: 'ai',
+  }
+  return byCategory[def.category] ?? null // regions and AZs have no fill
+}
+
 export function defaultParams(type: string): Record<string, ParamValue> {
   return Object.fromEntries(registry[type].params.map((p) => [p.key, p.default]))
 }

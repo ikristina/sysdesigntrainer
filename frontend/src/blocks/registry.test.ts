@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { blocks, categories, defaultParams, registry } from '.'
+import tokens from '../tokens.css?raw'
+import { drawShape, SHAPES } from '../canvas/shapes'
+import { blocks, categories, defaultParams, registry, toneOf } from '.'
 import { validateParam } from './types'
 
 describe('block registry', () => {
@@ -19,6 +21,26 @@ describe('block registry', () => {
       for (const p of b.params) expect(validateParam(p, p.default), `${b.type}.${p.key}`).toBeNull()
       expect(Object.keys(defaultParams(b.type))).toEqual(b.params.map((p) => p.key))
     }
+  })
+})
+
+describe('block looks (docs/STYLE.md)', () => {
+
+  it('every block maps to a drawable shape and to fill and flow tokens that exist', () => {
+    for (const b of blocks.filter((x) => x.category !== 'grouping')) {
+      const shape = b.shape ?? 'box', tone = toneOf(b)
+      expect(SHAPES, b.type).toContain(shape)
+      expect(drawShape(shape, {}, {}).length, b.type).toBeGreaterThan(0)
+      expect(tone, b.type).not.toBeNull()
+      expect(tokens, b.type).toContain(`--fill-${tone}:`)
+      expect(tokens, b.type).toContain(`--flow-${tone}:`)
+    }
+  })
+
+  it('SQL stores are mint, the other data stores green, the client lilac', () => {
+    expect([registry.postgres, registry.cockroachdb, registry.sql_db].map(toneOf)).toEqual(['sql', 'sql', 'sql'])
+    expect([registry.kv, registry.dynamodb, registry.blob].map(toneOf)).toEqual(['nosql', 'nosql', 'nosql'])
+    expect([registry.client, registry.cdn].map(toneOf)).toEqual(['client', 'traffic'])
   })
 })
 

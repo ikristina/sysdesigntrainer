@@ -1,14 +1,14 @@
-// How one block looks on the canvas. React Flow positions it; we draw it.
-// Phase 5: each block has a shape (cylinder for databases, diamond for load balancers...), see shapes.ts.
-// Phase 2: the box shows live sim state: color by health, a utilization bar,
-// a stack of boxes for queue depth, shaking when saturated, gray with a crack when killed.
-// Phase 3: a blue glow when Claude (or an explainer) highlights it.
+// How one block looks on the canvas (docs/STYLE.md). React Flow positions it; we draw it.
+// Shape + pastel fill = what the block does (its tone, blocks/index.ts toneOf). Live sim state:
+// a ρ gauge at the top-right, coral stroke with coral hachure when saturated or failing,
+// a stack of boxes for queue depth, faint with a crack when killed, a glow when Claude highlights it.
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { useMemo } from 'react'
-import { registry } from '../blocks'
+import { registry, toneOf } from '../blocks'
 import type { FlowNode } from '../design'
-import { fmtPct, healthColor, healthOf, type Health } from '../display'
+import { fmtPct, healthColor, healthOf } from '../display'
 import { isDown, useSimView } from '../simStore'
+import { Gauge } from './Gauge'
 import { roughPath, seedOf } from './rough'
 import { Mark } from './Mark'
 import { drawShape } from './shapes'
@@ -17,30 +17,34 @@ import { RoughPaths } from './RoughPaths'
 export const BLOCK_W = 150
 export const BLOCK_H = 72
 
-const FILL: Record<Health, string> = { idle: 'var(--panel)', ok: 'var(--panel)', warn: 'var(--amber-soft)', bad: 'var(--coral-soft)', dead: 'var(--fill-dead)' }
-
-export function BlockNode({ id, data, selected }: NodeProps<FlowNode>) {
+export function BlockNode({ id, data }: NodeProps<FlowNode>) {
   const def = registry[data.blockType]
   const m = useSimView((s) => s.sim.metrics[id])
   const down = useSimView((s) => isDown(s.killed, id, s.nodes))
   const health = healthOf(m, down)
   const lit = useSimView((s) => s.highlight.ids.includes(id))
+  const shape = def.shape ?? 'box'
 
-  // Redraw only when selection or health changes, so the wobble doesn't jitter.
-  const shapes = useMemo(() => {
-    const o = { seed: seedOf(id), roughness: 1.2 }
-    const stroke = selected ? 'var(--violet)' : health === 'idle' || health === 'ok' ? 'var(--ink)' : healthColor[health]
-    const outline = drawShape(def.shape ?? 'box',
-      { ...o, strokeWidth: selected || health === 'bad' ? 2.5 : 1.8, fillStyle: 'solid', fill: FILL[health], stroke },
-      { ...o, strokeWidth: 1.5, stroke })
-    const crack = roughPath('M 70 2 L 82 22 L 72 38 L 90 56 L 84 70', { ...o, stroke: 'var(--ink-muted)', strokeWidth: 1.5 })
-    return health === 'dead' ? [...outline, crack] : outline
-  }, [id, selected, health, def.shape])
+  // Redraw only when health changes, so the wobble doesn't jitter. Same seed = same wobble.
+  const drawn = useMemo(() => {
+    const o = { seed: seedOf(id), roughness: 1.2, bowing: 1 }
+    const mark = { ...o, strokeWidth: 1.4, stroke: 'var(--ink)' }
+    if (health === 'dead') {
+      return [...drawShape(shape, { ...o, strokeWidth: 1.7, stroke: 'var(--ink-faint)', fill: 'var(--fill-dead)', fillStyle: 'solid' }, { ...mark, stroke: 'var(--ink-faint)' }),
+        roughPath('M 70 2 L 82 22 L 72 38 L 90 56 L 84 70', { ...o, stroke: 'var(--ink-muted)', strokeWidth: 1.5 })]
+    }
+    if (health === 'bad') {
+      // Pink base with the outline, then coral hachure over it (no outline, so the stroke isn't doubled).
+      return [...drawShape(shape, { ...o, strokeWidth: 2, stroke: 'var(--coral)', fill: 'var(--fill-hot)', fillStyle: 'solid' }, { ...mark, stroke: 'var(--coral)' }),
+        ...drawShape(shape, { ...o, stroke: 'none', fill: 'var(--hachure)', fillStyle: 'hachure', hachureAngle: -45, hachureGap: 6, fillWeight: 1.6 }, { stroke: 'none' })]
+    }
+    const tone = toneOf(def)
+    return drawShape(shape, { ...o, strokeWidth: 1.7, stroke: 'var(--ink)', fill: tone ? `var(--fill-${tone})` : 'var(--panel)', fillStyle: 'solid' }, mark)
+  }, [id, health, shape, def])
 
   const replicas = data.params.replicas ?? data.params.read_replicas
   const stats = health === 'dead' ? 'down'
     : m && m.lambda > 0 ? [
-      Number.isFinite(m.mu) ? `ρ ${m.rho.toFixed(2)}` : '',
       m.dropped / m.lambda > 0.005 ? `${fmtPct((100 * m.dropped) / m.lambda)} err` : '',
       m.note ?? '',
     ].filter(Boolean).join(' · ') : ''
@@ -48,20 +52,20 @@ export function BlockNode({ id, data, selected }: NodeProps<FlowNode>) {
     ? Math.min(10, Math.ceil(Math.log10(1 + m.queue) * 2)) : 0
 
   return (
-    <div className={`block-node block-node--${health} shape--${def.shape ?? 'box'}${lit ? ' block-node--lit' : ''}`} style={{ width: BLOCK_W, height: BLOCK_H }}>
-      <svg width={BLOCK_W} height={BLOCK_H} className="block-node__bg"><RoughPaths drawables={shapes} /></svg>
+    <div className={`block-node block-node--${health} shape--${shape}${lit ? ' block-node--lit' : ''}`} style={{ width: BLOCK_W, height: BLOCK_H }}>
+      <svg width={BLOCK_W} height={BLOCK_H} className="block-node__bg"><RoughPaths drawables={drawn} /></svg>
       <div className="block-node__label">
         <Mark def={def} /> {def.label}
       </div>
-      {replicas !== undefined && (
+      {/* One line under the label: size, then live status ("×3 · hit 72%"), so two-line labels still fit. */}
+      {(replicas !== undefined || stats) && (
         <div className="block-node__sub">
-          {data.params.read_replicas !== undefined ? `+${replicas} read replicas` : `×${replicas}`}
+          {replicas !== undefined && (data.params.read_replicas !== undefined ? `+${replicas} replicas` : `×${replicas}`)}
+          {replicas !== undefined && stats && ' · '}
+          {stats && <b style={{ color: health === 'bad' ? 'var(--coral-text)' : healthColor[health] }}>{stats}</b>}
         </div>
       )}
-      {stats && <div className="block-node__stats" style={{ color: healthColor[health] }}>{stats}</div>}
-      {m && m.lambda > 0 && Number.isFinite(m.mu) && health !== 'dead' && (
-        <div className="util"><div style={{ width: `${Math.min(100, m.rho * 100)}%`, background: healthColor[health] }} /></div>
-      )}
+      {m && m.lambda > 0 && Number.isFinite(m.mu) && health !== 'dead' && <Gauge rho={m.rho} />}
       {boxes > 0 && (
         <div className="qstack" aria-label={`${Math.round(m!.queue)} waiting`}>
           {Array.from({ length: boxes }, (_, i) => <span key={i} />)}

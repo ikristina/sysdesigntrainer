@@ -6,9 +6,8 @@ export type Category =
 
 export type ParamValue = number | string
 
-/** Outline drawn on the canvas (canvas/shapes.ts). cylinder1/2 = a cylinder with 1 or 2 bands. */
-export type Shape = 'box' | 'rounded' | 'lambda' | 'monitor' | 'cloud' | 'diamond'
-  | 'cylinder' | 'cylinder1' | 'cylinder2' | 'bucket' | 'cache' | 'pipe' | 'lanes' | 'chip'
+/** Outline drawn on the canvas (canvas/shapes.ts, docs/STYLE.md "Shapes"). */
+export type Shape = 'box' | 'lambda' | 'sparkle' | 'cloud' | 'diamond' | 'cylinder' | 'bucket' | 'pipe' | 'lanes'
 
 export type ParamDef = {
   key: string

@@ -137,8 +137,9 @@ frontend/
         presets.test.ts   every changed default and price has a source or is named as an estimate
     canvas/
       Canvas.tsx          <ReactFlow>, palette drops, moving nodes into/out of regions and AZs
-      BlockNode.tsx       how a block looks (rough outline, mark, label, replica count, handles)
-      shapes.ts           one hand-drawn outline per block shape (cylinder, cloud, pipe, diamond...)
+      BlockNode.tsx       how a block looks (rough outline in its tone's pastel, mark, label, "×3 · hit 72%" line, gauge, handles)
+      shapes.ts           one hand-drawn outline per block shape (box, cylinder, cloud, pipe, diamond...)
+      Gauge.tsx           the small ρ dial at a block's top-right corner
       Mark.tsx            the block's logo (simple-icons SVG), text badge, or emoji
       nodeTypes.ts        nodeTypes / edgeTypes maps, shared by the main and compare canvases
       ContainerNode.tsx   how a region/AZ looks (dashed rough frame, resize handles)
@@ -330,7 +331,7 @@ What each behavior does:
 - **Cost/hr:** the block's `cost × replicas` (SQL: primary + read replicas; × 2 with `replication: replica`; per partition for Kinesis-style billing), summed, plus per-request pricing (`requestCost`, USD per million reads/writes, for SQS, DynamoDB, S3, CloudFront) at the current request rate, plus `transferCost` × GB sent (read rps × payload KB).
 - **Deterministic:** randomness comes from a seeded generator stored in the state, so the same inputs give the same run. That's what makes it testable.
 
-On screen, health is green below ρ 0.85, amber up to 1, and red when saturated or failing more than 1% (`display.ts`). Edges take the color of the block they point at.
+On screen, health is green below ρ 0.85, amber up to 1, and red when saturated or failing more than 1% (`display.ts`). Each block has a gauge at its top-right showing live ρ (full at 1.5, "10+" past 10): green, amber from 0.85, coral from 1. A warn block stays its normal color; only the gauge turns amber. A saturated or failing block turns pink with a coral outline and coral diagonal hatching (two rough.js passes: a solid fill, then a `hachure` fill on top). A killed block goes faint grey with a crack. Edges take the color of the block they point at.
 
 To add a behavior: write `sim/handlers/<name>.ts` (a function from `HandlerInput` to `HandlerOutput`) and register it in `sim/handlers/index.ts`. `engine.ts` doesn't change.
 
@@ -400,7 +401,9 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 
 **Product presets** (`blocks/presets/`) are a generic block with a product's numbers. `presetBlock({ base: cache, label: 'Redis', logo: siRedis, params: { capacity_rps: 100000 }, cost: 0.219, sources: {...}, estimates: [...] })` copies the base block, overrides those defaults, and attaches the product info the param panel shows (facts, sources, notes). A preset can also drop or add params and pick another `simBehavior` (DynamoDB uses `partitioned`, CockroachDB `consensus`). Rule: every default a preset changes, and its price, has either a `sources` entry (a URL, with the date read for prices) or is listed in `estimates` and explained in `notes`. `presets.test.ts` enforces it.
 
-**Shapes:** a block's `shape` (`blocks/types.ts`) picks its outline in `canvas/shapes.ts`. Each block file sets one (cylinder for databases, pipe for queues, cloud for the CDN...); presets inherit their base block's shape. Regions draw as a dashed cloud-like frame, AZs as a dashed box.
+**Shapes:** a block's `shape` (`blocks/types.ts`) picks its outline in `canvas/shapes.ts`, following docs/STYLE.md: box by default (client, service, worker, cache), λ mark for functions, a sparkle for LLM and embedding, cylinder for databases, pipe for queues, pipe with lanes for streams, diamond for the load balancer, bucket for blob storage, cloud for the CDN. Presets inherit their base block's shape. Regions draw as a dashed cloud-like frame, AZs as a dashed box.
+
+**Tones:** `toneOf(def)` in `blocks/index.ts` picks a block's color family: the fill is `var(--fill-<tone>)` and the flow color `var(--flow-<tone>)`, both in `tokens.css`. It is mostly the category, except the client (lilac) is split from DNS/CDN (butter), and SQL databases (mint, any preset whose base is `sql_db`) from the other data stores (green). Regions and AZs have none. `registry.test.ts` checks that every block has a shape that draws and that both tokens exist. It reads `tokens.css` with a `?raw` import; Vitest normally blanks CSS imports, so `vite.config.ts` has `test.css.include` for that one file.
 
 ## 11. Debugging in the browser
 
