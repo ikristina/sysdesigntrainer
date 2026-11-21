@@ -7,9 +7,9 @@ const node = (id: string, type: string, params: Record<string, number | string> 
   ({ id, type, position: { x: 0, y: 0 }, parentId, params: { ...defaultParams(type), ...params } })
 const design = (nodes: SavedNode[], links: [string, string][]): Design =>
   ({ version: 1, nodes, edges: links.map(([source, target]) => ({ id: `${source}-${target}`, source, target })) })
-const run = (d: Design, { rps = 1000, readRatio = 0.9, killed = [] as string[], seconds = 5 } = {}) => {
+const run = (d: Design, { rps = 1000, readRatio = 0.9, killed = [] as string[], partitioned = [] as string[], seconds = 5 } = {}) => {
   let s = initialSim()
-  for (let i = 0; i < seconds * 10; i++) s = step(d, s, { traffic: { rps, readRatio, multiplier: 1 }, killed })
+  for (let i = 0; i < seconds * 10; i++) s = step(d, s, { traffic: { rps, readRatio, multiplier: 1 }, killed, partitioned })
   return s
 }
 // client -> one service (2 × 1000 rps, 20 ms) by default
@@ -122,6 +122,20 @@ describe('simulator', () => {
     const s = run(d)
     expect(s.metrics.c.pathMs - s.metrics.s.pathMs).toBeCloseTo(CROSS_REGION_MS)
     expect(run(d, { killed: ['west'] }).metrics.s.dropped).toBeGreaterThan(0)
+  })
+
+  it('partitioned region: the load balancer routes around it; a direct call across fails', () => {
+    const nodes = [node('east', 'region'), node('west', 'region'), node('c', 'client', { retries: 0 }),
+      node('lb', 'load_balancer'), node('a', 'service', {}, 'east'), node('b', 'service', {}, 'west')]
+    const lb = run(design(nodes, [['c', 'lb'], ['lb', 'a'], ['lb', 'b']]), { partitioned: ['west'] })
+    expect(lb.metrics.a.lambda).toBeCloseTo(1000)
+    expect(lb.metrics.b.lambda).toBe(0)
+    expect(lb.global.errorPct).toBeCloseTo(0)
+    expect(lb.cut).toEqual(['lb-b'])
+
+    const direct = run(design(nodes, [['c', 'a'], ['a', 'b']]), { partitioned: ['west'] })
+    expect(direct.metrics.b.lambda).toBe(0) // nothing arrives
+    expect(direct.global.errorPct).toBeCloseTo(100)
   })
 
   it('is deterministic', () => {

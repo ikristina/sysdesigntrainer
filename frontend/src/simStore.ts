@@ -15,7 +15,10 @@ type Sim = {
   rps: number
   readRatio: number
   spikeUntil: number // sim time when the current spike ends
+  spikeMultiplier: number
   killed: string[]
+  partitioned: string[] // regions whose border is cut
+  highlight: { ids: string[]; message: string } // drawn on the canvas (Claude, explainers)
   sim: SimState
   history: number[] // p99 per tick, last 60 s
   play: () => void
@@ -24,8 +27,9 @@ type Sim = {
   tick: () => void
   setRps: (rps: number) => void
   setReadRatio: (r: number) => void
-  spike: () => void
-  toggleKill: (id: string) => void
+  spike: (multiplier?: number, seconds?: number) => void
+  setFlag: (list: 'killed' | 'partitioned', id: string, on: boolean) => void
+  setHighlight: (ids: string[], message?: string) => void
 }
 
 let timer: ReturnType<typeof setInterval> | undefined
@@ -35,7 +39,10 @@ export const useSim = create<Sim>((set, get) => ({
   rps: 1000,
   readRatio: 0.9,
   spikeUntil: 0,
+  spikeMultiplier: SPIKE.multiplier,
   killed: [],
+  partitioned: [],
+  highlight: { ids: [], message: '' },
   sim: initialSim(),
   history: [],
 
@@ -53,17 +60,18 @@ export const useSim = create<Sim>((set, get) => ({
 
   tick: () => set((s) => {
     const { nodes, edges } = useDesign.getState()
-    const multiplier = s.sim.t < s.spikeUntil ? SPIKE.multiplier : 1
-    const sim = step(toDesign(nodes, edges), s.sim, { traffic: { rps: s.rps, readRatio: s.readRatio, multiplier }, killed: s.killed }, TICK_S)
+    const multiplier = s.sim.t < s.spikeUntil ? s.spikeMultiplier : 1
+    const traffic = { rps: s.rps, readRatio: s.readRatio, multiplier }
+    const sim = step(toDesign(nodes, edges), s.sim, { traffic, killed: s.killed, partitioned: s.partitioned }, TICK_S)
     return { sim, history: [...s.history, sim.global.p99Ms].slice(-HISTORY_TICKS) }
   }),
 
   setRps: (rps) => set({ rps }),
   setReadRatio: (readRatio) => set({ readRatio }),
-  spike: () => set((s) => ({ spikeUntil: s.sim.t + SPIKE.seconds })),
-  toggleKill: (id) => set((s) => ({
-    killed: s.killed.includes(id) ? s.killed.filter((k) => k !== id) : [...s.killed, id],
-  })),
+  spike: (multiplier = SPIKE.multiplier, seconds = SPIKE.seconds) =>
+    set((s) => ({ spikeUntil: s.sim.t + seconds, spikeMultiplier: multiplier })),
+  setFlag: (list, id, on) => set((s) => ({ [list]: on ? [...new Set([...s[list], id])] : s[list].filter((k) => k !== id) })),
+  setHighlight: (ids, message = '') => set({ highlight: { ids, message } }),
 }))
 
 /** Is this node killed, or inside a killed region/AZ? */

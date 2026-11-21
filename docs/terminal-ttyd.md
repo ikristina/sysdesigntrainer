@@ -1,6 +1,6 @@
 # ttyd: the embedded Claude terminal
 
-From Phase 3, the app has a terminal panel running Claude Code. That panel is **ttyd**: a small program that runs a command in a terminal and shows that terminal on a web page.
+The app has a terminal panel (under the canvas; the **Claude** button shows or hides it) running Claude Code. That panel is **ttyd**: a small program that runs a command in a terminal and shows that terminal on a web page.
 
 Sources: the ttyd README, man page, wiki, release notes and source (`src/server.c`, `src/http.c`, `src/protocol.c`) at https://github.com/tsl0922/ttyd, read 2026-11-20. The latest release there is 1.7.7.
 
@@ -40,7 +40,7 @@ The terminal is only for you to talk to Claude. Claude acts on the app through t
 - **One `claude` per connection.** Two tabs open means two separate Claude sessions.
 - **Reloading the page restarts Claude.** The old session is killed and a fresh one starts. If that becomes annoying, run Claude inside tmux, which keeps the session alive across reloads (needs `brew install tmux`):
   ```bash
-  ttyd -W -i lo0 -p 7681 tmux new -A -s sysdesign claude
+  ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude
   ```
   `new -A -s sysdesign` attaches to the tmux session named `sysdesign`, or creates it if it doesn't exist.
 - **The app can't script the terminal.** Port 5173 and port 7681 are different origins, so the browser blocks our page from reading or typing into the iframe. That's fine, because app↔Claude communication goes over MCP.
@@ -49,12 +49,14 @@ The terminal is only for you to talk to Claude. Claude acts on the app through t
 ## The command we use
 
 ```bash
-ttyd -W -i lo0 -p 7681 claude        # from the repo root
+ttyd -W -O -i lo0 -p 7681 claude     # from the repo root
 ```
 
 | Flag | Meaning |
 |---|---|
 | `-W`, `--writable` | Let the browser type into the terminal. **Needed:** since ttyd 1.7.4 terminals are read-only by default, and keystrokes are silently dropped without it. |
+| `-O`, `--check-origin` | Only accept WebSockets opened by ttyd's own page. **Needed:** without it, any website you visit could open a WebSocket to `localhost:7681` and type into Claude (browsers don't apply CORS to WebSockets). Our iframe still works, because the iframe's page is ttyd's own (origin `localhost:7681`). |
+| `-i lo0`, `--interface` | Network interface to bind. `lo0` is macOS's loopback (127.0.0.1), so only this machine can connect. See Security below. |
 | `-p 7681`, `--port` | Port to listen on. 7681 is the default; we pass it to be explicit. |
 | `claude` | The command to run. Anything after the flags is the command plus its arguments. |
 
@@ -62,9 +64,7 @@ Other flags you might want:
 
 | Flag | Meaning |
 |---|---|
-| `-i lo0`, `--interface` | Network interface to bind. `lo0` is macOS's loopback (127.0.0.1), so only this machine can connect. See Security below. |
 | `-c user:pass`, `--credential` | HTTP basic auth on the page and the WebSocket. |
-| `-O`, `--check-origin` | Reject WebSockets from other origins. It doesn't block our iframe, since the iframe's own origin is 7681. |
 | `-m N`, `--max-clients` | Max concurrent connections (0 = unlimited, the default). `-m 1` stops a second tab from starting a second Claude. |
 | `-o`, `--once` | Accept one client, then exit when it disconnects. |
 | `-q`, `--exit-no-conn` | Exit when the last client disconnects. |
@@ -74,11 +74,15 @@ Other flags you might want:
 
 ## Security
 
-`-W` with no `-c` means anyone who can reach port 7681 can type into a Claude Code session that runs as you, in this repo, with your tools. Keep it local:
+`-W` with no `-c` means anyone who can reach port 7681 can type into a Claude Code session that runs as you, in this repo, with your tools. Two things can reach it, and one flag closes each:
+
+- **Other machines** → `-i lo0` (below).
+- **Other websites open in your browser** → `-O`. A page on any site can run `new WebSocket("ws://localhost:7681/ws")`. `-O` makes ttyd refuse it unless the request's Origin is ttyd's own address.
+
 
 - **By default ttyd listens on every network interface.** That means other machines on your Wi-Fi can reach it. Always pass `-i lo0`, which every command in this repo does:
   ```bash
-  ttyd -W -i lo0 -p 7681 claude
+  ttyd -W -O -i lo0 -p 7681 claude
   ```
 - Check what it's listening on (`2>/dev/null` hides harmless macOS lsof warnings):
   ```bash
@@ -90,21 +94,22 @@ Verified 2026-11-20 with ttyd 1.7.7 (Homebrew) on macOS:
 - Without `-i`, lsof showed `TCP *:7682 (LISTEN)`, so it was reachable from the network.
 - With `-i lo0`, lsof showed `TCP 127.0.0.1:7683 (LISTEN)`, so it was local only.
 - `GET /` returned 200 with no `X-Frame-Options` or CSP header, so the iframe embedding works.
-
-The `-W` typing check is still to do: open the page in a browser and type, during Phase 3 setup.
+- With `-W -O`, in headless Chrome, typing `touch <file>` into the terminal created the file. That held both on ttyd's own page and inside the app's iframe panel.
+- With `-O`, a WebSocket sent with `Origin: http://evil.example` was refused. One with ttyd's own origin was accepted.
 
 ## Install and check
 
 ```bash
 brew install ttyd
 ttyd --version
-cd <repo root> && ttyd -W -i lo0 -p 7681 claude
+cd <repo root> && ttyd -W -O -i lo0 -p 7681 claude
 # open http://localhost:7681 directly first, to check it works outside the app
 ```
 
 ## Troubleshooting
 
 - **The terminal shows but typing does nothing:** `-W` is missing.
+- **The panel says "The terminal isn't running" but ttyd is up:** click Retry. The app only checks when the panel opens.
 - **"Address already in use":** another ttyd is running. Find it with `lsof -nP -iTCP:7681`, or use another port.
 - **Claude has no `sysdesign` tools:** `claude` wasn't started from the repo root (no `.mcp.json` there), or the backend on :8000 isn't running.
 - **Every reload loses the conversation:** expected (see above). Use the tmux variant.

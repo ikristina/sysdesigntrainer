@@ -1,6 +1,6 @@
 # Frontend guide
 
-A walkthrough of the System Design Trainer frontend for a backend engineer: what each tool is, which file does what, and how data moves when you click or drag something. Covers Phase 1 (the canvas) and Phase 2 (the simulator).
+A walkthrough of the System Design Trainer frontend for a backend engineer: what each tool is, which file does what, and how data moves when you click or drag something. Covers Phase 1 (the canvas), Phase 2 (the simulator) and Phase 3 (the Claude link).
 
 ## 1. Run it
 
@@ -16,16 +16,17 @@ npm run build      # type-check + production build into frontend/dist/ (plain st
 npm run preview    # serve the dist/ build locally, to check it
 ```
 
-Backend (not needed for Phase 1; the frontend works without it):
+Backend and Claude terminal (only for Claude coaching; the frontend works fully without them, see section 8):
 
 ```bash
 cd backend && uv run uvicorn app.main:app --reload --port 8000
 curl localhost:8000/health   # {"status":"ok"}
+ttyd -W -O -i lo0 -p 7681 claude   # from the repo root
 ```
 
 ## 2. The big picture
 
-The frontend is a **single-page app**. The browser downloads one HTML page once. From then on, JavaScript draws and redraws the screen in place, with no page reloads and no server calls. Everything so far, the simulator included, runs in the browser tab.
+The frontend is a **single-page app**. The browser downloads one HTML page once. From then on, JavaScript draws and redraws the screen in place, with no page reloads. The design, the simulator and all the controls run in the browser tab. The backend only exists so Claude can see and poke the tab (section 8).
 
 ```
 index.html ── loads ──> src/main.tsx ── renders ──> <App/>
@@ -45,6 +46,11 @@ index.html ── loads ──> src/main.tsx ── renders ──> <App/>
   simStore.ts (Zustand) ── every 100 ms ──> sim/engine.ts step(design, state) ──> new metrics
        ▲ traffic, killed nodes                                         │
        └──── BlockNode / RoughEdge / MetricsPanel read the metrics ◄────┘
+
+  link.ts ── WebSocket :8000/ws ──> backend mirror ◄── MCP :8000/mcp ── claude (in ttyd)
+     │  every 1 s: design + metrics snapshot ─►                             ▲
+     └─ ◄─ commands (set_traffic, kill_node, highlight...) applied to simStore
+  <TerminalPanel/> under the canvas = <iframe> of ttyd :7681 ──────────────┘
 ```
 
 There are two stores. `store.ts` holds the design (what you drew, saved). `simStore.ts` holds the run (traffic settings, killed nodes, latest metrics, not saved). The simulator itself (`sim/`) is plain TypeScript with no React, so it can be unit-tested like any pure function.
@@ -74,6 +80,9 @@ A backend analogy:
 | **Browser APIs** | `localStorage`: per-site key/value storage in the browser, kept across reloads (autosave). HTML drag-and-drop (`draggable`, `onDragStart`, `onDrop`): moving palette tiles. `Blob` + a temporary `<a download>`: the Export button. `<input type="file">`: the Import button. | `store.ts`, `Palette.tsx`, `App.tsx` |
 | **`setInterval`** | Browser timer: runs a function every N ms. The sim's tick loop is one `setInterval(tick, 100)`, started by ▶ Run and cleared by Pause. | `simStore.ts` |
 | **CSS animations** | `@keyframes` define a motion; `animation: name 1s infinite` plays it. The moving dashes on edges animate `stroke-dashoffset`, saturated blocks shake, and failing edges drop red dots. All CSS, no JS per frame. `prefers-reduced-motion` turns them off for people who ask their OS for less motion. | `index.css` |
+| **WebSocket** | A connection that stays open so both sides can send messages at any time (HTTP is one request, one response). `new WebSocket(url)` with `onopen`/`onmessage`/`onclose` handlers. `link.ts` uses one to stream state to the backend and receive Claude's commands. | `link.ts` |
+| **`<iframe>`** | A web page inside a web page. The Claude panel is ttyd's page in an iframe. The browser keeps the two pages apart (different ports = different **origins**), so our code can't read or type into the terminal, which is fine: Claude talks to the app over MCP, not through the terminal. | `TerminalPanel.tsx` |
+| **`fetch(url, { mode: 'no-cors' })`** | `fetch` is the browser's HTTP client. `no-cors` lets us call another origin without permission to read the answer. We only want to know whether ttyd answers at all, before showing the iframe. | `link.ts` (`ttydUp`) |
 | **Google Fonts** | Kalam (hand-written headings), Inter (UI text), JetBrains Mono (code), loaded in `index.html`. | `index.html` |
 
 ## 4. Files
@@ -83,11 +92,12 @@ frontend/
   index.html              the one HTML page: fonts, <div id="root">, loads main.tsx
   vite.config.ts          Vite config (React plugin). Vitest reads it too.
   src/
-    main.tsx              entry point: mounts <App/> into #root, inside <ReactFlowProvider>
-    App.tsx               layout + header (Export / Import buttons, import error message)
+    main.tsx              entry point: starts the backend link, mounts <App/> inside <ReactFlowProvider>
+    App.tsx               layout + header (Claude / Export / Import buttons), Claude's highlight note
+    link.ts               tutor layer: WebSocket to the backend, state snapshots out, MCP commands in
     index.css             all styles
     store.ts              Zustand store: nodes, edges, actions, autosave
-    simStore.ts           Zustand store for the run: traffic, killed nodes, tick loop, latest SimState
+    simStore.ts           Zustand store for the run: traffic, killed/partitioned, highlight, tick loop, latest SimState
     display.ts            number formatting + green/amber/red health scale
     design.ts             saved-design JSON format: toDesign / fromDesign / localStorage helpers
     design.test.ts        save/load round-trip + bad-input tests
@@ -115,10 +125,14 @@ frontend/
       Palette.tsx         left panel: draggable tiles grouped by category
       ParamPanel.tsx      right column, bottom: param inputs with min/max validation
       MetricsPanel.tsx    right column, top: p99 chart, headline numbers, most saturated blocks
-      TrafficBar.tsx      header: traffic and read/write sliders, Spike, Kill/Restore, Run/Pause, Reset
+      TrafficBar.tsx      header: traffic and read/write sliders, Spike, Kill/Restore, Partition/Heal, Run/Pause, Reset
+      TerminalPanel.tsx   under the canvas: ttyd iframe, or how to start it; link status line
 backend/
-  pyproject.toml          uv project (FastAPI, uvicorn)
-  app/main.py             GET /health
+  pyproject.toml          uv project (FastAPI, uvicorn, mcp)
+  app/main.py             FastAPI app: GET /health, WebSocket /ws, mounts the MCP server at /mcp
+  app/tools.py            the MCP tools Claude calls, and the mirror (last snapshot + open sockets)
+  tests/test_link.py      mirror, commands, origin check
+.mcp.json                 (repo root) tells `claude` the sysdesign server is at http://localhost:8000/mcp
 ```
 
 ## 5. What happens when you...
@@ -153,8 +167,14 @@ Select it and press Backspace (React Flow's default). Deleting a region also del
 3. `step` returns a new `SimState`: per-node metrics (λ, μ, ρ, queue, latency, errors), rps per edge, and global numbers (p50, p99, error %, throughput, cost).
 4. The store saves it, so every component that reads metrics re-renders: blocks recolor, edges change width and speed, and the metrics panel updates.
 
-**...move the Traffic slider / press Spike / Kill**
-They only change `simStore` (rps, read ratio, spike end time, killed list). The next tick picks them up. Kill applies to the selected block; killing a region or AZ kills everything inside it. Reset clears queues, lag and the chart, not your design or settings.
+**...move the Traffic slider / press Spike / Kill / Partition**
+They only change `simStore` (rps, read ratio, spike end time, killed and partitioned lists). The next tick picks them up. Kill applies to the selected block; killing a region or AZ kills everything inside it. Partition appears when a region is selected. Reset clears queues, lag and the chart, not your design or settings.
+
+**...ask Claude to do something (e.g. "kill the cache")**
+1. Claude (running in ttyd) calls the MCP tool `kill_node(id="cache_x1")` on `http://localhost:8000/mcp`.
+2. `backend/app/tools.py` checks the id against the last snapshot and sends `{"op": "kill_node", "args": {"id": "cache_x1"}}` down the WebSocket.
+3. `link.ts` receives it and calls `useSim.getState().setFlag('killed', 'cache_x1', true)`, the same thing the Kill button does. It then sends a fresh snapshot right away.
+4. The next tick simulates without the cache. Claude calls `get_metrics` a few seconds later to see the result.
 
 **...Export / Import**
 Export calls `toDesign(nodes, edges)`, then `JSON.stringify`, and downloads the result as `design.json`. Import reads the file, `fromDesign` validates it (version, known block types, edges point at existing nodes), and the canvas is replaced. A bad file shows a red message in the header and leaves the canvas unchanged.
@@ -212,6 +232,7 @@ What each behavior does:
 
 - **Regions and AZs:** an edge between two regions adds 70 ms, and between two AZs adds 1 ms (estimates).
 - **Killed block:** `μ = 0`, so everything sent to it fails. Load balancers skip killed children, like a health check would.
+- **Partitioned region:** every edge with exactly one end inside the region is cut. The sender sees the far side as down, so load balancers route around it, a queue can't be drained across it, and a direct call across fails. Blocks inside keep running and still serve traffic that stays inside. Cut edges show a red ✕.
 - **Cost/hr:** the block's `cost × replicas` (SQL: primary + read replicas), summed.
 - **Deterministic:** randomness comes from a seeded generator stored in the state, so the same inputs give the same run. That's what makes it testable.
 
@@ -219,7 +240,37 @@ On screen, health is green below ρ 0.85, amber up to 1, and red when saturated 
 
 To add a behavior: write `sim/handlers/<name>.ts` (a function from `HandlerInput` to `HandlerOutput`) and register it in `sim/handlers/index.ts`. `engine.ts` doesn't change.
 
-## 8. The block registry
+## 8. The Claude link (tutor layer)
+
+Claude Code runs in a terminal under the canvas. It can't see the browser, so the app tells the backend what's on screen, and the backend gives Claude tools to read it and act on it.
+
+**Pieces:**
+
+| Piece | Where | What it does |
+|---|---|---|
+| `link.ts` | browser | Opens `ws://localhost:8000/ws`. Every second, and right after each command, it sends a snapshot: the design (saved format), traffic settings, running or paused, killed/partitioned lists, and metrics rounded to 3 significant digits so Claude can read them. It applies commands from the backend to `simStore`. If the socket closes, it retries every 3 s. |
+| `/ws` | `backend/app/main.py` | Keeps the latest snapshot in memory (the **mirror**). It only accepts browser connections from `localhost` pages, because any website could otherwise open a WebSocket to localhost. |
+| MCP tools | `backend/app/tools.py` | `get_design`, `get_metrics` read the mirror. `run`, `set_traffic`, `spike`, `kill_node`, `restore_node`, `partition_region` and `highlight` validate their input, then send a command to the browser. With no tab open, every tool says so. |
+| `/mcp` | backend | The MCP server (official Python SDK 2.x, `MCPServer`, streamable HTTP). The SDK rejects requests whose Host/Origin isn't localhost (DNS-rebinding protection). |
+| `.mcp.json` | repo root | Tells Claude Code about the server. Claude asks you to approve it the first time. |
+| `TerminalPanel.tsx` | browser | Shows ttyd in an iframe, or the commands to start it. Its status line shows whether `link.ts` is connected. The panel opens by itself when ttyd is running. |
+
+**Single source of truth:** the browser's stores. The backend never simulates or edits the design. It only relays. If two tabs are open, both get every command, and the mirror holds whichever tab reported last.
+
+**Why it's a layer:** sandbox files (`store.ts`, `simStore.ts`, `canvas/`, `sim/`) never import `link.ts` or `TerminalPanel.tsx`. Only `main.tsx` and `App.tsx` plug them in. With no backend, the socket just fails and retries, and nothing else changes. Highlight lives in `simStore` because explainers (Phase 4) use it too.
+
+**Try a tool by hand** (backend running, app open in a tab):
+
+```bash
+cd backend && uv run python -c "
+import asyncio; from mcp import Client
+async def main():
+    async with Client('http://localhost:8000/mcp') as c:
+        print((await c.call_tool('get_metrics', {})).content[0].text[:500])
+asyncio.run(main())"
+```
+
+## 9. The block registry
 
 Each block is data, not code. See `blocks/service.ts`:
 
@@ -237,7 +288,7 @@ export const service: BlockDef = {
 
 To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `blocks/index.ts`. The `sysdesign-add-block` skill walks through it.
 
-## 9. Debugging in the browser
+## 10. Debugging in the browser
 
 - **DevTools:** press Cmd+Option+I in Chrome.
   - **Console** tab: errors and `console.log(...)` output.
@@ -245,9 +296,11 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
   - **Application → Local Storage → http://localhost:5173 → `sysdesign.design`**: the autosaved design. Delete the key and reload to start fresh.
 - **React DevTools** (Chrome extension): adds a Components tab showing each component's props and state.
 - **Type errors** show in the editor and in `npx tsc -b`. The dev server does *not* stop on type errors, so run the check.
+- **WebSocket traffic:** DevTools → Network → filter "WS" → click `ws` → Messages shows every snapshot and command.
+- **Console shows "WebSocket connection to ws://localhost:8000/ws failed" every few seconds:** the backend isn't running. That's harmless in sandbox mode.
 - **Dev-only double renders:** `<StrictMode>` in `main.tsx` runs some code twice in development to surface bugs. This is expected.
 
-## 10. Glossary
+## 11. Glossary
 
 - **Component:** a function returning JSX. Name starts with a capital letter.
 - **Props:** a component's inputs, like function arguments.
@@ -262,15 +315,21 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - **Tick:** one step of the simulator (100 ms of sim time).
 - **λ / μ / ρ:** arrival rate, service rate, utilization (λ/μ). ρ ≥ 1 means a growing queue.
 - **p50 / p99:** the latency half of requests beat / 99% of requests beat.
+- **Origin:** scheme + host + port of a page (`http://localhost:5173`). The browser isolates pages of different origins from each other.
+- **MCP (Model Context Protocol):** how Claude Code discovers and calls tools that a server offers. Here, over HTTP at `/mcp`.
+- **Mirror:** the backend's copy of the browser's latest state.
 
-## 11. Known limits
+## 12. Known limits
 
 - Every block is a rough box. Per-category shapes (cylinder, cloud, diamond...) are Phase 5.
 - Ignored by the simulator for now: cache `ttl_s` and `eviction`, function `cold_start_ms`, LLM `tokens_per_s`. Traffic has no payload size or hot-key skew yet (they matter for Phase 5 presets).
 - p50/p99 are global, not per block. Samples include requests that fail, so a dead path can still show a low p99 next to a high error %.
 - Edges that form a cycle are ignored by the simulator.
 - Clients each get an equal share of the global rps.
-- Partitioning a region (cutting edges across it) is Phase 3, with the MCP tool.
 - No "clear canvas" button. Select everything (drag a box with Shift held) and press Backspace, or delete the localStorage key.
 - Autosave writes on every drag frame. That's fine for designs this size; add a debounce if large designs feel slow.
-- Backend has only `/health` and no tests, so `uv run pytest` reports "no tests ran" until Phase 3.
+- The lesson tools from the spec (`get_lesson`, `set_requirements`, `advance_step`, `give_hint`) come with lessons in Phase 4.
+- Claude can't edit the design (add blocks, change params). The spec's tool list doesn't include it; ask if you want it.
+- The backend doesn't serve the built frontend yet. Use `npm run dev` (or any static server for `dist/`).
+- The terminal panel is a fixed 300 px tall. Reloading the app restarts Claude (ttyd starts a new `claude` per connection; see `docs/terminal-ttyd.md` for the tmux workaround).
+- With the backend stopped, the browser console logs a failed WebSocket every 3 s.

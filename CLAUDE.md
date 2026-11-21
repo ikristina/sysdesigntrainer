@@ -49,8 +49,8 @@ docs/         SPEC.md and design notes
 ## Commands
 - Backend: `cd backend && uv run uvicorn app.main:app --reload --port 8000`
 - Frontend: `cd frontend && npm run dev` (http://localhost:5173). Build: `npm run build`. Lint: `npm run lint` (oxlint)
-- Terminal: `ttyd -W -i lo0 -p 7681 claude` (run from repo root; `brew install ttyd` first; see `docs/terminal-ttyd.md`)
-- Tests: `cd frontend && npm test`, `cd backend && uv run pytest` (no backend tests until Phase 3)
+- Terminal: `ttyd -W -O -i lo0 -p 7681 claude` (run from repo root; `brew install ttyd` first; see `docs/terminal-ttyd.md`)
+- Tests: `cd frontend && npm test`, `cd backend && uv run pytest`
 - Single test: `npx vitest run src/sim/foo.test.ts` or `-t "test name"`; `uv run pytest tests/test_x.py::test_name`
 
 ## Working style

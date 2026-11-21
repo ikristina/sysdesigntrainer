@@ -30,20 +30,21 @@ export type SimState = {
   nodes: Record<string, NodeState>   // handler state per node
   metrics: Record<string, PathMetrics>
   edges: Record<string, number>      // rps per edge
+  cut: string[]                      // edges crossing a partitioned region's border
   samples: number[]                  // recent end-to-end latency samples (ms)
   global: GlobalMetrics
 }
-export type SimInputs = { traffic: Traffic; killed: string[] }
+export type SimInputs = { traffic: Traffic; killed: string[]; partitioned?: string[] }
 
 export const initialSim = (): SimState => ({
-  t: 0, seed: 1, nodes: {}, metrics: {}, edges: {}, samples: [],
+  t: 0, seed: 1, nodes: {}, metrics: {}, edges: {}, cut: [], samples: [],
   global: { offered: 0, throughput: 0, errorPct: 0, p50Ms: 0, p99Ms: 0, costHr: 0 },
 })
 
 const behavior = (type: string) => registry[type]?.simBehavior
-type Link = { target: string; w: number; edgeMs: number }
+type Link = { target: string; w: number; edgeMs: number; cut: boolean }
 
-export function step(design: Design, prev: SimState, { traffic, killed }: SimInputs, dt = 0.1): SimState {
+export function step(design: Design, prev: SimState, { traffic, killed, partitioned = [] }: SimInputs, dt = 0.1): SimState {
   const byId = new Map(design.nodes.map((n) => [n.id, n]))
   const dead = new Set(killed)
   // Walk up the parent chain (block -> AZ -> region).
@@ -75,6 +76,12 @@ export function step(design: Design, prev: SimState, { traffic, killed }: SimInp
     if (pos.has(e.source) && pos.has(e.target) && pos.get(e.source)! < pos.get(e.target)!) kids.get(e.source)!.push(e)
   }
 
+  // A partitioned region's border cuts every edge with exactly one end inside it. The sender sees
+  // the other side as down (load balancers route around it); nothing sent across arrives.
+  const inside = (id: string, region: string) => ancestors(id).some((a) => a.id === region)
+  const cut = new Set(design.edges
+    .filter((e) => partitioned.some((r) => inside(e.source, r) !== inside(e.target, r))).map((e) => e.id))
+
   // Forward pass.
   const sources = order.filter((id) => behavior(nodes.get(id)!.type) === 'client')
   const share = sources.length ? (traffic.rps * traffic.multiplier) / sources.length : 0
@@ -86,14 +93,14 @@ export function step(design: Design, prev: SimState, { traffic, killed }: SimInp
     const node = nodes.get(id)!
     const children = kids.get(id)!
     const r = handlers[behavior(node.type)]({
-      node, inbound: inbound.get(id) ?? NONE, children: children.map((e) => nodes.get(e.target)!),
+      node, inbound: inbound.get(id) ?? NONE, children: children.map((e) => cut.has(e.id) ? { ...nodes.get(e.target)!, killed: true } : nodes.get(e.target)!),
       state: prev.nodes[id] ?? {}, prevPathFail: prev.metrics[id]?.pathFail ?? 0,
       offered: sources.includes(id) ? share : 0, readRatio: traffic.readRatio, dt,
     })
     children.forEach((e, i) => {
       const f = r.out[i], acc = inbound.get(e.target) ?? NONE
-      inbound.set(e.target, { read: acc.read + f.read, write: acc.write + f.write })
       edges[e.id] = total(f)
+      if (!cut.has(e.id)) inbound.set(e.target, { read: acc.read + f.read, write: acc.write + f.write })
     })
     results.set(id, r)
     nextNodes[id] = r.state
@@ -106,13 +113,13 @@ export function step(design: Design, prev: SimState, { traffic, killed }: SimInp
     const r = results.get(id)!, m = r.metrics, node = nodes.get(id)!
     const own = m.lambda > 0 ? Math.min(1, m.dropped / m.lambda) : node.killed ? 1 : 0
     const ls: Link[] = r.fanout === 'async' ? [] : kids.get(id)!.map((e, i) => ({
-      target: e.target, edgeMs: edgeMs(id, e.target),
+      target: e.target, edgeMs: edgeMs(id, e.target), cut: cut.has(e.id),
       w: m.served > 0 ? Math.min(1, total(r.out[i]) / m.served) : 0,
     }))
     links.set(id, ls)
     let downMs = 0, downFail = 0, survive = 1
     for (const l of ls) {
-      const c = metrics[l.target]
+      const c = l.cut ? { pathMs: 0, pathFail: 1 } : metrics[l.target]
       downMs += l.w * (c.pathMs + l.edgeMs)
       downFail += l.w * c.pathFail
       survive *= 1 - l.w * c.pathFail
@@ -134,9 +141,9 @@ export function step(design: Design, prev: SimState, { traffic, killed }: SimInp
     if (depth > 30) return t
     if (fanout(id) === 'one') {
       let u = rand.next()
-      for (const l of links.get(id)!) if ((u -= l.w) < 0) { t += l.edgeMs + sample(l.target, depth + 1); break }
+      for (const l of links.get(id)!) if ((u -= l.w) < 0) { if (!l.cut) t += l.edgeMs + sample(l.target, depth + 1); break }
     } else {
-      for (const l of links.get(id)!) if (rand.next() < l.w) t += l.edgeMs + sample(l.target, depth + 1)
+      for (const l of links.get(id)!) if (rand.next() < l.w && !l.cut) t += l.edgeMs + sample(l.target, depth + 1)
     }
     return t
   }
@@ -156,7 +163,7 @@ export function step(design: Design, prev: SimState, { traffic, killed }: SimInp
   const pct = (p: number) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : 0)
 
   return {
-    t: prev.t + dt, seed: rand.seed, nodes: nextNodes, metrics, edges, samples,
+    t: prev.t + dt, seed: rand.seed, nodes: nextNodes, metrics, edges, cut: [...cut], samples,
     global: {
       offered, throughput: offered - failed, errorPct: offered > 0 ? (100 * failed) / offered : 0,
       p50Ms: pct(0.5), p99Ms: pct(0.99), costHr: costPerHour(design),

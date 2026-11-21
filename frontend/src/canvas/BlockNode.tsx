@@ -2,6 +2,7 @@
 // Phase 1: every block is a rough box. Per-category shapes come in Phase 5.
 // Phase 2: the box shows live sim state: color by health, a utilization bar,
 // a stack of boxes for queue depth, shaking when saturated, gray with a crack when killed.
+// Phase 3: a blue glow when Claude (or an explainer) highlights it.
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { useMemo } from 'react'
 import { categoryColor, registry } from '../blocks'
@@ -21,6 +22,7 @@ export function BlockNode({ id, data, selected }: NodeProps<FlowNode>) {
   const m = useSim((s) => s.sim.metrics[id])
   const down = useSim((s) => isDown(s.killed, id))
   const health = healthOf(m, down)
+  const lit = useSim((s) => s.highlight.ids.includes(id))
 
   // Redraw only when selection or health changes, so the wobble doesn't jitter.
   const shapes = useMemo(() => {
@@ -44,7 +46,7 @@ export function BlockNode({ id, data, selected }: NodeProps<FlowNode>) {
     ? Math.min(10, Math.ceil(Math.log10(1 + m.queue) * 2)) : 0
 
   return (
-    <div className={`block-node block-node--${health}`} style={{ width: BLOCK_W, height: BLOCK_H }}>
+    <div className={`block-node block-node--${health}${lit ? ' block-node--lit' : ''}`} style={{ width: BLOCK_W, height: BLOCK_H }}>
       <svg width={BLOCK_W} height={BLOCK_H} className="block-node__bg"><RoughPaths drawables={shapes} /></svg>
       <div className="block-node__label">
         <span style={{ color: categoryColor(def.category) }}>{def.icon}</span> {def.label}
