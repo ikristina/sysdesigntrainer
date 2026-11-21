@@ -243,7 +243,7 @@ It sets the variant's traffic, resets the sim and plays. On every tick, `lessonS
 1. `mode.ts` calls `startCompare(id)`. It loads the lesson's starter graph into side A and the same graph with the swap node changed to the other product into side B (`swapped()` keeps only the params the new type has). "Two saved designs" (`#/compare/`) starts empty; **Load A / Load B** copy your sandbox design into a side.
 2. Each side is its own vanilla Zustand store holding a `Run`: the design, its `SimState`, killed list, traffic and history. The two mini canvases are wrapped in `<SimContext.Provider>`, so `BlockNode`, `RoughEdge` and `ContainerNode` color themselves from that side's run, not the main sim.
 3. **▶ Run both** starts a 100 ms timer. Each tick advances both runs by `speed` ticks (1×, 5× or 20×). `tickRun` applies the scenario's events when their time comes (kill, restore, set_params, traffic, spike), calls the same `step()` as the sandbox, and appends a sample (p50, p99, throughput, errors, cost, backlog, cache hit) to the history.
-4. The charts overlay both histories (A solid, B dashed). The table (`summarize`) turns them into rows: peak throughput, worst p99, errors, recovery time, cache hit, backlog, cost. Each row names a winner, unless the two are within a small tolerance.
+4. The charts overlay both histories (A solid, B dashed). The table (`summarize`) turns them into rows: peak throughput, worst p99, errors, recovery time, cache hit, backlog, memory cost per GB (when both sides have a cache preset: node $/hr × 2 with a replica, ÷ node memory), cost. Each row names a winner, unless the two are within a small tolerance.
 5. When the scenario ends the timer stops. Your written verdict is saved in localStorage (`sysdesign.verdict.<id>`).
 
 **...Export / Import**
@@ -382,7 +382,7 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 
 **Product presets** (`blocks/presets/`) are a generic block with a product's numbers. `presetBlock({ base: cache, label: 'Redis', logo: siRedis, params: { capacity_rps: 100000 }, cost: 0.219, sources: {...}, estimates: [...] })` copies the base block, overrides those defaults, and attaches the product info the param panel shows (facts, sources, notes). A preset can also drop or add params and pick another `simBehavior` (DynamoDB uses `partitioned`, CockroachDB `consensus`). Rule: every default a preset changes, and its price, has either a `sources` entry (a URL, with the date read for prices) or is listed in `estimates` and explained in `notes`. `presets.test.ts` enforces it.
 
-**Shapes:** a block's `shape` (`blocks/types.ts`) picks its outline in `canvas/shapes.ts`. Each block file sets one (cylinder for databases, pipe for queues, cloud for the CDN...); presets inherit their base block's shape.
+**Shapes:** a block's `shape` (`blocks/types.ts`) picks its outline in `canvas/shapes.ts`. Each block file sets one (cylinder for databases, pipe for queues, cloud for the CDN...); presets inherit their base block's shape. Regions draw as a dashed cloud-like frame, AZs as a dashed box.
 
 ## 11. Debugging in the browser
 
@@ -422,11 +422,10 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 ## 13. Known limits
 
 - Ignored by the simulator for now: cache `ttl_s` and `eviction`, function `cold_start_ms`, LLM `tokens_per_s`. Traffic has no payload size. Hot-key skew only affects `partitioned` blocks (not caches).
-- Not modeled, so presets can't show them: multi-key operations, message ordering and replay, joins, memory per GB (no sourced prices).
+- Not modeled, so presets can't show them: multi-key operations, message ordering and replay, joins. Memory per GB is a price (node $/hr ÷ node GiB, cache presets only), not per-key overhead, which has no sourced numbers.
 - Kill takes down a whole block, not one replica. To lose one node, lower `replicas` (scenarios use `set_params`).
 - Consensus write latency is an average added to every write, not a per-request quorum wait. The cluster is treated as spanning all its `regions` wherever it sits on the canvas.
 - Compare canvases are read-only. Change a side through the scenario, or edit in the sandbox and use **Load A / Load B**.
-- The generic Blob block's comment still says 5,500 GET/s; the S3 preset uses the documented 11,000 per prefix.
 - p50/p99 are global, not per block. Samples include requests that fail, so a dead path can still show a low p99 next to a high error %.
 - Edges that form a cycle are ignored by the simulator.
 - Clients each get an equal share of the global rps.

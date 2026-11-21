@@ -116,8 +116,26 @@ export function summarize([a, b]: [Run, Run], sc: Scenario): Row[] {
     add('peak backlog', 'most messages (or requests) waiting in one block', (r) => max(r.history.map((s) => s.backlog)), fmtCount, 'low', 10)
     add('backlog at end', 'what is still waiting when the scenario ends', (r) => r.history.at(-1)?.backlog ?? 0, fmtCount, 'low', 10)
   }
+  const [ma, mb] = [memoryCost(a.design), memoryCost(b.design)]
+  if (ma !== null && mb !== null) {
+    add('memory cost per GB', 'cache $/hour per GB of data it can hold (a replica stores everything twice)',
+      (r) => (r === a ? ma : mb), (n) => `$${n.toFixed(3)}/GB-hr`, 'low', 0.0005)
+  }
   add('cost', 'average $/hour, per-request pricing included', (r) => mean(after(r).map((s) => s.cost)), (n) => `$${n.toFixed(2)}/hr`, 'low', 0.005)
   return rows
+}
+
+/** $/hour per GB of data across the design's in-memory stores (presets with memoryGb), or null if none. */
+export function memoryCost(d: Design) {
+  let usd = 0, gb = 0
+  for (const n of d.nodes) {
+    const def = registry[n.type], mem = def?.product?.memoryGb
+    if (!mem) continue
+    const nodes = typeof n.params.replicas === 'number' ? n.params.replicas : 1
+    usd += def.cost * nodes * (n.params.replication === 'replica' ? 2 : 1)
+    gb += mem * nodes
+  }
+  return gb ? usd / gb : null
 }
 
 /** Seconds after `te` until the last unhealthy sample, compared with the sample just before `te`:

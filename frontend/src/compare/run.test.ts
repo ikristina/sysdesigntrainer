@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Design } from '../design'
-import { recovery, runScenario, swapped, type Sample } from './run'
+import { memoryCost, recovery, runScenario, swapped, type Sample } from './run'
 
 const d: Design = { version: 1, nodes: [
   { id: 'c', type: 'client', position: { x: 0, y: 0 }, params: {} },
@@ -11,6 +11,13 @@ describe('compare runs', () => {
   it('swapping a block keeps only the params the new block has', () => {
     expect(swapped(d, 'k', 'memcached').nodes[1]).toMatchObject({ type: 'memcached', params: { replicas: 2 } })
     expect(swapped(d, 'k', 'memcached').nodes[1].params).not.toHaveProperty('persistence')
+  })
+
+  it('memory cost per GB: a replica doubles it, Memcached has none, no cache gives null', () => {
+    const withReplica = { ...d, nodes: [d.nodes[0], { ...d.nodes[1], params: { replicas: 2, replication: 'replica' } }] }
+    expect(memoryCost(withReplica)).toBeCloseTo((2 * 0.219) / 13.07)
+    expect(memoryCost(swapped(withReplica, 'k', 'memcached'))).toBeCloseTo(0.219 / 13.07)
+    expect(memoryCost({ ...d, nodes: [d.nodes[0]] })).toBeNull()
   })
 
   it('set_params skips params the block does not have', () => {

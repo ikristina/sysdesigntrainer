@@ -1,6 +1,6 @@
 import { cache } from '../cache'
 import { presetBlock } from './preset'
-import { awsPrices } from './urls'
+import { awsPrices, R7G_LARGE_GB, r7gLargeMemory } from './urls'
 
 export const valkey = presetBlock({
   id: 'valkey', base: cache, label: 'Valkey', badge: 'VK',
@@ -11,7 +11,9 @@ export const valkey = presetBlock({
     'Valkey 8 moves more work to I/O threads; the main thread still runs commands',
     'About 20% cheaper than Redis OSS per ElastiCache node',
   ],
+  memoryGb: R7G_LARGE_GB,
   sources: {
+    memoryGb: r7gLargeMemory,
     cost: `${awsPrices('AmazonElastiCache')}: ElastiCache Valkey cache.r7g.large, $0.1752/node-hr`,
     capacity_rps: 'https://valkey.io/blog/unlock-one-million-rps/ (up to 1.19M req/s with 8 I/O threads on a 64-core c7g.16xlarge)',
   },

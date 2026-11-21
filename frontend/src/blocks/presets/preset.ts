@@ -27,7 +27,7 @@ export function presetBlock(p: Preset): BlockDef {
     cost: p.cost, costPer: p.costPer, requestCost: p.requestCost,
     product: {
       base: p.base.type, logo: p.logo && { path: p.logo.path, hex: `#${p.logo.hex}` }, badge: p.badge,
-      facts: p.facts, sources: p.sources, estimates: p.estimates, notes: p.notes,
+      facts: p.facts, sources: p.sources, estimates: p.estimates, notes: p.notes, memoryGb: p.memoryGb,
     },
   }
 }

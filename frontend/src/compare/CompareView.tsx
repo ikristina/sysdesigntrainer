@@ -192,7 +192,7 @@ export function CompareTable() {
           </tbody>
         </table>
       )}
-      <p className="muted">Bold = better on that row. Hover a row for what it measures. Memory per GB isn't shown: no sourced numbers.</p>
+      <p className="muted">Bold = better on that row. Hover a row for what it measures.</p>
     </section>
   )
 }

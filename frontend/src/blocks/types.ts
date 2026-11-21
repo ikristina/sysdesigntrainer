@@ -43,6 +43,7 @@ export type Product = {
   facts: string[]                      // what makes this product different, one line each
   sources: Record<string, string>      // param key (or 'cost' / 'requestCost') -> where the number comes from
   estimates: string[]                  // param keys whose value is an estimate (no source found)
+  memoryGb?: number                    // in-memory stores: usable memory per node, GiB (compare "memory cost per GB")
   notes: string
 }
 

@@ -11,6 +11,7 @@ describe('product presets', () => {
       && base.params.find((b) => b.key === d.key)?.default !== d.default).map((d) => d.key)
     if (p.cost !== 0 || !p.requestCost) changed.push('cost')
     if (p.requestCost) changed.push('requestCost')
+    if (p.product!.memoryGb) changed.push('memoryGb')
     expect(changed.filter((k) => !covered(k))).toEqual([])
     for (const k of p.product!.estimates) expect(p.product!.notes).toContain(k)
   })

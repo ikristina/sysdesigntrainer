@@ -1,7 +1,7 @@
 import { siRedis } from 'simple-icons'
 import { cache } from '../cache'
 import { presetBlock } from './preset'
-import { awsPrices } from './urls'
+import { awsPrices, R7G_LARGE_GB, r7gLargeMemory } from './urls'
 
 export const redis = presetBlock({
   id: 'redis', base: cache, label: 'Redis', logo: siRedis,
@@ -12,7 +12,9 @@ export const redis = presetBlock({
     'Persistence: none, RDB snapshots, AOF log, or both',
     'Async primary-replica replication: a replica takes over when a node dies',
   ],
+  memoryGb: R7G_LARGE_GB,
   sources: {
+    memoryGb: r7gLargeMemory,
     cost: `${awsPrices('AmazonElastiCache')}: ElastiCache Redis OSS cache.r7g.large, $0.219/node-hr`,
     capacity_rps: 'https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/benchmarks/ (~180k SET/s, no pipelining, loopback)',
   },
