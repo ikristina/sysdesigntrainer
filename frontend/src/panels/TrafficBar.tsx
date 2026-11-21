@@ -7,7 +7,7 @@ import { useDesign } from '../store'
 const toRps = (x: number) => Number((10 ** x).toPrecision(2))
 
 export function TrafficBar() {
-  const { running, rps, readRatio, play, pause, reset, setRps, setReadRatio, spike, setFlag } = useSim()
+  const { running, rps, readRatio, hotKey, play, pause, reset, setRps, setReadRatio, setHotKey, spike, setFlag } = useSim()
   const spiking = useSim((s) => s.sim.t < s.spikeUntil)
   const { killed, partitioned } = useSim()
   const selected = useDesign((s) => s.nodes.find((n) => n.selected))
@@ -24,6 +24,11 @@ export function TrafficBar() {
         <input type="range" min={0} max={100} step={1} value={read}
           aria-label="Read percentage" onChange={(e) => setReadRatio(Number(e.target.value) / 100)} />
         <b className="traffic__val">{read} / {100 - read}</b>
+      </label>
+      <label className="traffic__ctl" title="Share of all requests that go to one single key (a celebrity, a flash-sale item)">Hot key
+        <input type="range" min={0} max={100} step={1} value={Math.round(hotKey * 100)}
+          aria-label="Hot key percentage" onChange={(e) => setHotKey(Number(e.target.value) / 100)} />
+        <b className="traffic__val">{Math.round(hotKey * 100)}%</b>
       </label>
       <button className="btn sk btn--spike" onClick={() => spike()} disabled={!running}
         title={`Multiply traffic by ${SPIKE.multiplier} for ${SPIKE.seconds} s`}>

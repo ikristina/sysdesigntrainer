@@ -4,9 +4,9 @@
 import type { Design } from '../design'
 import type { SimState } from '../sim/engine'
 
-export type Traffic = { rps?: number; read_ratio?: number }
+export type Traffic = { rps?: number; read_ratio?: number; hot_key?: number }
 export type Success = { p99_ms: number; error_pct: number; max_cost_hr: number; max_backlog?: number }
-export type Requirements = { requirements: string[]; traffic: Required<Traffic>; success: Success }
+export type Requirements = { requirements: string[]; traffic: Traffic & { rps: number; read_ratio: number }; success: Success }
 export type Variant = Requirements & { id: string; twist?: string }
 export type StepName = 'requirements' | 'estimation' | 'api_and_data_model' | 'design' | 'load_test' | 'twist' | 'postmortem'
 export type Lesson = {

@@ -30,6 +30,8 @@ export type BlockDef = {
   simBehavior: string  // which simulator handler runs this block (stub until Phase 2)
   cost: number         // USD per replica-hour, order-of-magnitude estimate
   shape?: Shape        // default 'box'
+  costPer?: 'partition' // cost is per partition/shard (Kinesis) instead of per replica
+  requestCost?: { read: number; write: number } // USD per million requests arriving at the block (SQS, DynamoDB, S3)
 }
 
 // Returns an error message, or null if the value is OK for this param.

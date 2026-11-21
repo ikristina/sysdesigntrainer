@@ -55,6 +55,7 @@ export function setLessonTraffic() {
   const { traffic } = active(useLesson.getState())
   useSim.getState().setRps(traffic.rps)
   useSim.getState().setReadRatio(traffic.read_ratio)
+  useSim.getState().setHotKey(traffic.hot_key ?? 0)
 }
 /** "▶ Run load test": the variant's traffic, from a clean sim. */
 export function runLoadTest() {
@@ -86,7 +87,8 @@ useSim.subscribe((sim, prev) => {
   const st = useLesson.getState()
   if (!st.lesson || sim.sim === prev.sim) return
   const req = active(st)
-  const atTraffic = sim.rps === req.traffic.rps && sim.readRatio === req.traffic.read_ratio && sim.sim.t >= sim.spikeUntil
+  const atTraffic = sim.rps === req.traffic.rps && sim.readRatio === req.traffic.read_ratio
+    && sim.hotKey === (req.traffic.hot_key ?? 0) && sim.sim.t >= sim.spikeUntil
   const ok = atTraffic && sim.sim.global.offered > 0 && checks(sim.sim, req.success).every((c) => c.ok)
   const heldS = ok ? st.heldS + TICK_S : 0
   const key = passKey(st.progress)

@@ -5,13 +5,10 @@
 import { registry } from '../blocks'
 import type { Design } from '../design'
 import { handlers } from './handlers'
-import { NONE, total } from './handlers/common'
+import { CROSS_AZ_MS, CROSS_REGION_MS, NONE, total } from './handlers/common'
 import type { Fanout, Flow, HandlerOutput, NodeMetrics, NodeState, SimNode, Traffic } from './types'
 
-// Extra latency on an edge between two regions / two AZs. Estimates: ~70 ms is a typical
-// US east-west round trip; cross-AZ is about 1 ms.
-export const CROSS_REGION_MS = 70
-export const CROSS_AZ_MS = 1
+export { CROSS_AZ_MS, CROSS_REGION_MS }
 const SAMPLES_PER_TICK = 100
 const SAMPLE_WINDOW = 2000 // last 20 ticks = 2 s of sim time
 
@@ -95,7 +92,7 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     const r = handlers[behavior(node.type)]({
       node, inbound: inbound.get(id) ?? NONE, children: children.map((e) => cut.has(e.id) ? { ...nodes.get(e.target)!, killed: true } : nodes.get(e.target)!),
       state: prev.nodes[id] ?? {}, prevPathFail: prev.metrics[id]?.pathFail ?? 0,
-      offered: sources.includes(id) ? share : 0, readRatio: traffic.readRatio, dt,
+      offered: sources.includes(id) ? share : 0, readRatio: traffic.readRatio, hotKey: traffic.hotKey ?? 0, dt,
     })
     children.forEach((e, i) => {
       const f = r.out[i], acc = inbound.get(e.target) ?? NONE
@@ -166,20 +163,32 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     t: prev.t + dt, seed: rand.seed, nodes: nextNodes, metrics, edges, cut: [...cut], samples,
     global: {
       offered, throughput: offered - failed, errorPct: offered > 0 ? (100 * failed) / offered : 0,
-      p50Ms: pct(0.5), p99Ms: pct(0.99), costHr: costPerHour(design),
+      p50Ms: pct(0.5), p99Ms: pct(0.99), costHr: costPerHour(design) + requestCostPerHour(design, inbound),
     },
   }
 }
 
-/** $/hour: block cost × replicas (SQL: primary + read replicas). */
+/** $/hour for running the blocks: cost × replicas (SQL: primary + read replicas; × 2 with a
+ *  replica per node; per partition for blocks billed per shard). Request pricing is separate. */
 export function costPerHour(design: Design) {
   let sum = 0
   for (const n of design.nodes) {
     const def = registry[n.type]
     if (!def) continue
-    const count = (typeof n.params.replicas === 'number' ? n.params.replicas : 1)
-      * (1 + (typeof n.params.read_replicas === 'number' ? n.params.read_replicas : 0))
+    const p = n.params, num = (v: unknown, d: number) => (typeof v === 'number' ? v : d)
+    const count = def.costPer === 'partition' ? num(p.partitions, 1)
+      : num(p.replicas, 1) * (1 + num(p.read_replicas, 0)) * (p.replication === 'replica' ? 2 : 1)
     sum += def.cost * count
+  }
+  return sum
+}
+
+/** $/hour for per-request pricing (SQS, DynamoDB on-demand, S3) at the current request rates. */
+function requestCostPerHour(design: Design, inbound: Map<string, Flow>) {
+  let sum = 0
+  for (const n of design.nodes) {
+    const price = registry[n.type]?.requestCost, f = inbound.get(n.id)
+    if (price && f) sum += ((f.read * price.read + f.write * price.write) * 3600) / 1e6
   }
   return sum
 }

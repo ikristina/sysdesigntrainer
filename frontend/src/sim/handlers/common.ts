@@ -2,6 +2,11 @@
 import type { ParamValue } from '../../blocks/types'
 import type { Flow, NodeState, SimNode } from '../types'
 
+// Extra latency on an edge between two regions / two AZs. Estimates: ~70 ms is a typical
+// US east-west round trip; cross-AZ is about 1 ms.
+export const CROSS_REGION_MS = 70
+export const CROSS_AZ_MS = 1
+
 // How long a request may wait in a node's queue before it fails, for blocks with no
 // timeout_ms param (DBs, caches...). Estimate.
 export const DEFAULT_TIMEOUT_MS = 1000

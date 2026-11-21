@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultParams } from '../blocks'
+import { defaultParams, registry } from '../blocks'
 import type { Design, SavedNode } from '../design'
 import { CROSS_REGION_MS, initialSim, step } from './engine'
 
@@ -7,9 +7,9 @@ const node = (id: string, type: string, params: Record<string, number | string> 
   ({ id, type, position: { x: 0, y: 0 }, parentId, params: { ...defaultParams(type), ...params } })
 const design = (nodes: SavedNode[], links: [string, string][]): Design =>
   ({ version: 1, nodes, edges: links.map(([source, target]) => ({ id: `${source}-${target}`, source, target })) })
-const run = (d: Design, { rps = 1000, readRatio = 0.9, killed = [] as string[], partitioned = [] as string[], seconds = 5 } = {}) => {
-  let s = initialSim()
-  for (let i = 0; i < seconds * 10; i++) s = step(d, s, { traffic: { rps, readRatio, multiplier: 1 }, killed, partitioned })
+const run = (d: Design, { rps = 1000, readRatio = 0.9, killed = [] as string[], partitioned = [] as string[], seconds = 5, hotKey = 0, from = initialSim() } = {}) => {
+  let s = from
+  for (let i = 0; i < seconds * 10; i++) s = step(d, s, { traffic: { rps, readRatio, multiplier: 1, hotKey }, killed, partitioned })
   return s
 }
 // client -> one service (2 × 1000 rps, 20 ms) by default
@@ -140,5 +140,77 @@ describe('simulator', () => {
 
   it('is deterministic', () => {
     expect(run(simple(), { rps: 1900 }).global).toEqual(run(simple(), { rps: 1900 }).global)
+  })
+
+  describe('cache warmth', () => {
+    const d = (params: Record<string, number | string>) => design([node('c', 'client'), node('api', 'service', { replicas: 10 }),
+      node('cache', 'cache', { hit_ratio: 0.9, write_mode: 'write-through', ...params }), node('db', 'kv')],
+    [['c', 'api'], ['api', 'cache'], ['cache', 'db']])
+    const restart = (p: Record<string, number | string>) => {
+      const down = run(d(p), { from: run(d(p)), killed: ['cache'], seconds: 1 })
+      return run(d(p), { from: down, seconds: 0.1 }).metrics.cache.hit ?? 0
+    }
+
+    it('a restart with persistence none comes back cold, rdb/aof keep the keys', () => {
+      expect(restart({ persistence: 'none' })).toBeLessThan(0.01)
+      expect(restart({ persistence: 'aof' })).toBeCloseTo(0.9)
+    })
+
+    it('warms back up over about 30 s', () => {
+      const p = { persistence: 'none' }
+      const down = run(d(p), { from: run(d(p)), killed: ['cache'], seconds: 1 })
+      const hit = run(d(p), { from: down, seconds: 30 }).metrics.cache.hit ?? 0
+      expect(hit).toBeGreaterThan(0.5)
+      expect(hit).toBeLessThan(0.65) // 0.9 × (1 - 1/e)
+    })
+
+    it('removing a node loses its keys unless each node has a replica', () => {
+      const shrink = (replication: string) =>
+        run(d({ replicas: 3, replication }), { from: run(d({ replicas: 4, replication })), seconds: 0.1 }).metrics.cache.hit ?? 0
+      expect(shrink('none')).toBeCloseTo(0.9 * 0.75, 1)
+      expect(shrink('replica')).toBeCloseTo(0.9)
+    })
+
+    it('a replica per node doubles the cost', () => {
+      expect(run(d({ replication: 'replica' }), { seconds: 0.1 }).global.costHr - run(d({}), { seconds: 0.1 }).global.costHr)
+        .toBeCloseTo(registry.cache.cost)
+    })
+  })
+
+  it('per-request pricing adds to cost/hr at the current rate', () => {
+    registry.test_paid = { ...registry.kv, type: 'test_paid', cost: 0, requestCost: { read: 0.25, write: 1.25 } }
+    const s = run(design([node('c', 'client'), node('t', 'test_paid')], [['c', 't']]), { rps: 1000, readRatio: 0.8, seconds: 1 })
+    // (800 × 0.25 + 200 × 1.25) per million × 3600 s
+    expect(s.global.costHr - registry.client.cost).toBeCloseTo(1.62)
+  })
+
+  it('per-partition billing counts partitions, not replicas', () => {
+    registry.test_shards = { ...registry.stream, type: 'test_shards', cost: 0.01, costPer: 'partition' }
+    const s = run(design([node('t', 'test_shards', { partitions: 8 })], []), { seconds: 0.1 })
+    expect(s.global.costHr).toBeCloseTo(0.08)
+  })
+
+  it('partitioned store throttles the hot key above the per-partition limit', () => {
+    registry.test_dynamo = { ...registry.kv, type: 'test_dynamo', simBehavior: 'partitioned',
+      params: [...registry.kv.params, { key: 'partition_read_rps', label: 'r', default: 3000 }, { key: 'partition_write_rps', label: 'w', default: 1000 }] }
+    const d = design([node('c', 'client', { retries: 0 }), node('t', 'test_dynamo', { replicas: 10 })], [['c', 't']])
+    const spread = run(d, { rps: 10_000, readRatio: 0.9 })
+    const hot = run(d, { rps: 10_000, readRatio: 0.9, hotKey: 0.5 })
+    expect(spread.global.errorPct).toBeCloseTo(0)
+    // hot reads 4500 > 3000 and hot writes 500 < 1000: 1500 of 10k throttled
+    expect(hot.metrics.t.dropped).toBeCloseTo(1500)
+    expect(hot.global.errorPct).toBeCloseTo(15)
+  })
+
+  it('consensus store: writes cost replication_factor × work and add a quorum round trip', () => {
+    registry.test_crdb = { ...registry.sql_db, type: 'test_crdb', simBehavior: 'consensus',
+      params: [...registry.kv.params, { key: 'replication_factor', label: 'rf', default: 3 }, { key: 'regions', label: 'regions', default: 1 }] }
+    const d = (regions: number) => design([node('c', 'client'), node('t', 'test_crdb', { replicas: 3, capacity_rps: 10_000, regions })], [['c', 't']])
+    const one = run(d(1), { rps: 10_000, readRatio: 0.5 })
+    // 5k reads + 3 × 5k writes = 20k of 30k capacity
+    expect(one.metrics.t.lambda).toBeCloseTo(10_000)
+    expect(one.metrics.t.rho).toBeCloseTo(2 / 3)
+    const three = run(d(3), { rps: 10_000, readRatio: 0.5 })
+    expect(three.metrics.t.latencyMs - one.metrics.t.latencyMs).toBeCloseTo((CROSS_REGION_MS - 1) / 2)
   })
 })

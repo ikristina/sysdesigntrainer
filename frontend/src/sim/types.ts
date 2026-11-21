@@ -11,7 +11,7 @@ export type SimNode = { id: string; type: string; params: Record<string, ParamVa
 export type NodeState = Record<string, number>
 
 /** Global traffic controls. `multiplier` is >1 during a spike. */
-export type Traffic = { rps: number; readRatio: number; multiplier: number }
+export type Traffic = { rps: number; readRatio: number; multiplier: number; hotKey?: number }
 
 export type NodeMetrics = {
   lambda: number     // arrival rate λ (rps)
@@ -24,6 +24,7 @@ export type NodeMetrics = {
   latencyMs: number  // this node's own latency right now (base + queueing)
   note?: string      // short status shown on the block, e.g. "lag 2.1 s"
   lagS?: number      // SQL replication lag
+  hit?: number       // cache: effective hit ratio right now (0-1)
 }
 
 /** What one tick of a handler gets. */
@@ -35,6 +36,7 @@ export type HandlerInput = {
   prevPathFail: number              // this node's end-to-end failure share last tick (clients use it for retries)
   offered: number                   // rps this node originates (only clients get a non-zero value)
   readRatio: number
+  hotKey: number                    // share of requests (0-1) that go to the single hottest key
   dt: number                        // seconds
 }
 

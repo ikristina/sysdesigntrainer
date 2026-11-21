@@ -80,14 +80,18 @@ async def run(on: bool = True) -> str:
 
 
 @mcp.tool()
-async def set_traffic(rps: float | None = None, read_ratio: float | None = None) -> str:
-    """Set total client traffic (requests per second, 1 to 1,000,000) and/or the share of reads (0 to 1)."""
+async def set_traffic(rps: float | None = None, read_ratio: float | None = None, hot_key: float | None = None) -> str:
+    """Set total client traffic (requests per second, 1 to 1,000,000), the share of reads (0 to 1),
+    and/or hot_key: the share of all requests (0 to 1) that go to one single key (a celebrity
+    profile, a flash-sale item). Partitioned stores like DynamoDB throttle a hot key."""
     if rps is not None and not 1 <= rps <= 1_000_000:
         raise ToolError("rps must be between 1 and 1,000,000")
     if read_ratio is not None and not 0 <= read_ratio <= 1:
         raise ToolError("read_ratio must be between 0 and 1")
-    await link.send("set_traffic", rps=rps, read_ratio=read_ratio)
-    return f"traffic set: rps={rps}, read_ratio={read_ratio} (None = unchanged)"
+    if hot_key is not None and not 0 <= hot_key <= 1:
+        raise ToolError("hot_key must be between 0 and 1")
+    await link.send("set_traffic", rps=rps, read_ratio=read_ratio, hot_key=hot_key)
+    return f"traffic set: rps={rps}, read_ratio={read_ratio}, hot_key={hot_key} (None = unchanged)"
 
 
 @mcp.tool()
