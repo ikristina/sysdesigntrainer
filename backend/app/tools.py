@@ -88,18 +88,28 @@ async def run(on: bool = True) -> str:
 
 
 @mcp.tool()
-async def set_traffic(rps: float | None = None, read_ratio: float | None = None, hot_key: float | None = None) -> str:
+async def set_traffic(
+    rps: float | None = None, read_ratio: float | None = None, hot_key: float | None = None,
+    payload_kb: float | None = None, followers: float | None = None, following: float | None = None,
+) -> str:
     """Set total client traffic (requests per second, 1 to 1,000,000), the share of reads (0 to 1),
-    and/or hot_key: the share of all requests (0 to 1) that go to one single key (a celebrity
-    profile, a flash-sale item). Partitioned stores like DynamoDB throttle a hot key."""
-    if rps is not None and not 1 <= rps <= 1_000_000:
-        raise ToolError("rps must be between 1 and 1,000,000")
-    if read_ratio is not None and not 0 <= read_ratio <= 1:
-        raise ToolError("read_ratio must be between 0 and 1")
-    if hot_key is not None and not 0 <= hot_key <= 1:
-        raise ToolError("hot_key must be between 0 and 1")
-    await link.send("set_traffic", rps=rps, read_ratio=read_ratio, hot_key=hot_key)
-    return f"traffic set: rps={rps}, read_ratio={read_ratio}, hot_key={hot_key} (None = unchanged)"
+    and/or:
+    - hot_key: the share of all requests (0 to 1) that go to one single key (a celebrity
+      profile, a flash-sale item). Partitioned stores like DynamoDB throttle a hot key.
+    - payload_kb: response size per read in KB (0 to 100,000). Only per-GB prices use it (CloudFront).
+    - followers: copies each write fans out to on edges marked fanout "write" (0 to 10,000,000).
+    - following: fetches each read gathers on edges marked fanout "read" (0 to 100,000).
+    Omitted values stay as they are."""
+    checks = [
+        ("rps", rps, 1, 1_000_000), ("read_ratio", read_ratio, 0, 1), ("hot_key", hot_key, 0, 1),
+        ("payload_kb", payload_kb, 0, 100_000), ("followers", followers, 0, 10_000_000), ("following", following, 0, 100_000),
+    ]
+    for name, value, lo, hi in checks:
+        if value is not None and not lo <= value <= hi:
+            raise ToolError(f"{name} must be between {lo:,} and {hi:,}")
+    args = {name: value for name, value, _, _ in checks}
+    await link.send("set_traffic", **args)
+    return "traffic set: " + ", ".join(f"{k}={v}" for k, v in args.items()) + " (None = unchanged)"
 
 
 @mcp.tool()

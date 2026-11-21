@@ -3,8 +3,14 @@
 // Formats: docs/SPEC.md "Lessons" and "Explainers". content.test.ts checks every file.
 import type { Design } from '../design'
 import type { SimState } from '../sim/engine'
+import { TRAFFIC_DEFAULTS } from '../sim/types'
 
-export type Traffic = { rps?: number; read_ratio?: number; hot_key?: number }
+export type Traffic = { rps?: number; read_ratio?: number; hot_key?: number; payload_kb?: number; followers?: number; following?: number }
+/** Lesson-file traffic (snake_case) -> the sim store's traffic fields, defaults filled in. */
+export const simTraffic = (t: Traffic & { rps: number; read_ratio: number }) => ({
+  rps: t.rps, readRatio: t.read_ratio, hotKey: t.hot_key ?? TRAFFIC_DEFAULTS.hotKey, payloadKb: t.payload_kb ?? TRAFFIC_DEFAULTS.payloadKb,
+  followers: t.followers ?? TRAFFIC_DEFAULTS.followers, following: t.following ?? TRAFFIC_DEFAULTS.following,
+})
 export type Success = { p99_ms: number; error_pct: number; max_cost_hr: number; max_backlog?: number }
 export type Requirements = { requirements: string[]; traffic: Traffic & { rps: number; read_ratio: number }; success: Success }
 export type Variant = Requirements & { id: string; twist?: string }

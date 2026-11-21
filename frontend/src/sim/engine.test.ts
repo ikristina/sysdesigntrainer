@@ -184,6 +184,15 @@ describe('simulator', () => {
     expect(s.global.costHr - registry.client.cost).toBeCloseTo(1.62)
   })
 
+  it('per-GB transfer pricing uses read rps × payload size', () => {
+    registry.test_egress = { ...registry.kv, type: 'test_egress', cost: 0, transferCost: 0.1 }
+    const d = design([node('c', 'client'), node('t', 'test_egress')], [['c', 't']])
+    let s = initialSim()
+    s = step(d, s, { traffic: { rps: 1000, readRatio: 0.5, multiplier: 1, payloadKb: 20 }, killed: [] })
+    // 500 reads/s × 20 KB × 3600 s = 36 GB/hr, × $0.10; writes aren't charged
+    expect(s.global.costHr - registry.client.cost).toBeCloseTo(3.6)
+  })
+
   it('per-partition billing counts partitions, not replicas', () => {
     registry.test_shards = { ...registry.stream, type: 'test_shards', cost: 0.01, costPer: 'partition' }
     const s = run(design([node('t', 'test_shards', { partitions: 8 })], []), { seconds: 0.1 })

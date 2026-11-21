@@ -32,6 +32,7 @@ export type BlockDef = {
   shape?: Shape        // default 'box'
   costPer?: 'partition' // cost is per partition/shard (Kinesis) instead of per replica
   requestCost?: { read: number; write: number } // USD per million requests arriving at the block (SQS, DynamoDB, S3)
+  transferCost?: number // USD per GB of read responses it sends out (CDN egress), at the traffic's payload size
   product?: Product    // set on product presets (blocks/presets/)
 }
 

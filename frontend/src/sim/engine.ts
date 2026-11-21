@@ -6,7 +6,7 @@ import { registry } from '../blocks'
 import type { Design } from '../design'
 import { handlers } from './handlers'
 import { CROSS_AZ_MS, CROSS_REGION_MS, NONE, total } from './handlers/common'
-import type { Fanout, Flow, HandlerOutput, NodeMetrics, NodeState, SimNode, Traffic } from './types'
+import { TRAFFIC_DEFAULTS, type Fanout, type Flow, type HandlerOutput, type NodeMetrics, type NodeState, type SimNode, type Traffic } from './types'
 
 export { CROSS_AZ_MS, CROSS_REGION_MS }
 const SAMPLES_PER_TICK = 100
@@ -163,7 +163,7 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     t: prev.t + dt, seed: rand.seed, nodes: nextNodes, metrics, edges, cut: [...cut], samples,
     global: {
       offered, throughput: offered - failed, errorPct: offered > 0 ? (100 * failed) / offered : 0,
-      p50Ms: pct(0.5), p99Ms: pct(0.99), costHr: costPerHour(design) + requestCostPerHour(design, inbound),
+      p50Ms: pct(0.5), p99Ms: pct(0.99), costHr: costPerHour(design) + requestCostPerHour(design, inbound, traffic.payloadKb ?? TRAFFIC_DEFAULTS.payloadKb),
     },
   }
 }
@@ -183,12 +183,15 @@ export function costPerHour(design: Design) {
   return sum
 }
 
-/** $/hour for per-request pricing (SQS, DynamoDB on-demand, S3) at the current request rates. */
-function requestCostPerHour(design: Design, inbound: Map<string, Flow>) {
+/** $/hour for per-request pricing (SQS, DynamoDB on-demand, S3) and per-GB transfer (CloudFront)
+ *  at the current request rates. */
+function requestCostPerHour(design: Design, inbound: Map<string, Flow>, payloadKb: number) {
   let sum = 0
   for (const n of design.nodes) {
-    const price = registry[n.type]?.requestCost, f = inbound.get(n.id)
-    if (price && f) sum += ((f.read * price.read + f.write * price.write) * 3600) / 1e6
+    const def = registry[n.type], f = inbound.get(n.id)
+    if (!def || !f) continue
+    if (def.requestCost) sum += ((f.read * def.requestCost.read + f.write * def.requestCost.write) * 3600) / 1e6
+    if (def.transferCost) sum += ((f.read * payloadKb * 3600) / 1e6) * def.transferCost // KB/s -> GB/hr
   }
   return sum
 }

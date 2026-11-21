@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "client",
+      "type": "client",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "params": {}
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "position": {
+        "x": 220,
+        "y": 120
+      },
+      "params": {
+        "replicas": 25
+      }
+    },
+    {
+      "id": "events",
+      "type": "kafka",
+      "position": {
+        "x": 440,
+        "y": 120
+      },
+      "params": {
+        "partitions": 12
+      }
+    },
+    {
+      "id": "loader",
+      "type": "worker",
+      "position": {
+        "x": 660,
+        "y": 120
+      },
+      "params": {
+        "replicas": 12,
+        "capacity_rps": 500
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "client-api",
+      "source": "client",
+      "target": "api"
+    },
+    {
+      "id": "api-events",
+      "source": "api",
+      "target": "events"
+    },
+    {
+      "id": "events-loader",
+      "source": "events",
+      "target": "loader"
+    }
+  ]
+}

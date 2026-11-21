@@ -1,0 +1,66 @@
+{
+  "id": "redis-vs-valkey",
+  "title": "Session cache: Redis vs Valkey",
+  "mode": "compare",
+  "brief": "The same session cache as in Redis vs Memcached: 50k requests/s, 95% reads, 3 cache nodes with AOF persistence and a replica each. Side A runs Redis, side B runs Valkey, the open-source fork of Redis. Run the scenarios, then decide what actually separates them.",
+  "starter_graph": "graphs/session-cache.json",
+  "swap": {
+    "node": "cache",
+    "options": [
+      "redis",
+      "valkey"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "steady",
+      "label": "Steady 50k rps",
+      "about": "Nothing fails. Look at the cost and memory rows.",
+      "seconds": 30,
+      "traffic": {
+        "rps": 50000,
+        "read_ratio": 0.95
+      },
+      "events": []
+    },
+    {
+      "id": "restart",
+      "label": "Restart the cache",
+      "about": "At 10 s the cache restarts (down for 2 s). Both reload their keys from AOF.",
+      "seconds": 60,
+      "traffic": {
+        "rps": 50000,
+        "read_ratio": 0.95
+      },
+      "events": [
+        {
+          "at": 10,
+          "kill": [
+            "cache"
+          ]
+        },
+        {
+          "at": 12,
+          "restore": [
+            "cache"
+          ]
+        }
+      ]
+    }
+  ],
+  "questions": [
+    "The sim runs both the same way. Which row differs, and by how much per year for this cluster?",
+    "Redis moved from BSD to RSALv2/SSPLv1 in March 2024 (from 7.4) and added AGPLv3 as an option from Redis 8. Valkey continued from the BSD code as a Linux Foundation project. Does either license matter if you only use a managed service? If you embed or resell it?",
+    "Valkey speaks the same protocol. What would you test before switching a production cache?",
+    "What would keep you on Redis: newer Redis-only features, a support contract, something else?"
+  ],
+  "hints": [
+    "Compare the two columns row by row. Which ones are equal?",
+    "Only price differs here. Multiply the cost gap per hour by 8,760 hours.",
+    "Valkey saves about $0.044 per node-hour on ElastiCache: about $2,300 a year for 6 nodes (3 plus replicas). The rest is license and roadmap: who you buy from, which features you need, and how much testing a swap takes."
+  ],
+  "explainers": [
+    "caching-basics"
+  ],
+  "_notes": "Graph: session-cache.json (see redis-vs-memcached). Valkey preset: same cache handler and params as Redis; capacity kept equal (estimate); ElastiCache cache.r7g.large $0.1752 vs $0.219/node-hr. 3 nodes x 2 (replica): $1.31 vs $1.05/hr for the cache, about $2,300/yr. Sim: identical p99 (61 ms steady, 111 ms restart), errors (3.4% in the restart), recovery (2.5 s) and hit; only cost ($3.91 vs $3.65/hr total) and memory cost per GB ($0.034 vs $0.027/GB-hr) differ. License facts: redis.io/legal/licenses (March 2024 RSALv2/SSPLv1 from 7.4; 7.2.x stays BSD3; AGPLv3 option from Redis 8, redis.io/blog/agplv3), valkey.io/topics/history (fork of open-source Redis under BSD, Linux Foundation project, announced 8 days after the license change). Checked in frontend/src/lessons/content.test.ts."
+}

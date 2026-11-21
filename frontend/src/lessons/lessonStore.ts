@@ -4,7 +4,7 @@
 import { create } from 'zustand'
 import { TICK_S, useSim } from '../simStore'
 import { useDesign } from '../store'
-import { checks, graph, lessons, type Lesson, type Requirements, type StepName } from './content'
+import { checks, graph, lessons, simTraffic, type Lesson, type Requirements, type StepName } from './content'
 
 export const HOLD_S = 10 // checks must stay green this long to pass
 
@@ -53,9 +53,7 @@ export const stopLesson = () => useLesson.setState({ lesson: null, heldS: 0 })
 /** Point the traffic controls at the active requirements. */
 export function setLessonTraffic() {
   const { traffic } = active(useLesson.getState())
-  useSim.getState().setRps(traffic.rps)
-  useSim.getState().setReadRatio(traffic.read_ratio)
-  useSim.getState().setHotKey(traffic.hot_key ?? 0)
+  useSim.getState().setTraffic(simTraffic(traffic))
 }
 /** "▶ Run load test": the variant's traffic, from a clean sim. */
 export function runLoadTest() {
@@ -87,8 +85,8 @@ useSim.subscribe((sim, prev) => {
   const st = useLesson.getState()
   if (!st.lesson || sim.sim === prev.sim) return
   const req = active(st)
-  const atTraffic = sim.rps === req.traffic.rps && sim.readRatio === req.traffic.read_ratio
-    && sim.hotKey === (req.traffic.hot_key ?? 0) && sim.sim.t >= sim.spikeUntil
+  const atTraffic = Object.entries(simTraffic(req.traffic)).every(([k, v]) => sim[k as keyof typeof sim] === v)
+    && sim.sim.t >= sim.spikeUntil
   const ok = atTraffic && sim.sim.global.offered > 0 && checks(sim.sim, req.success).every((c) => c.ok)
   const heldS = ok ? st.heldS + TICK_S : 0
   const key = passKey(st.progress)

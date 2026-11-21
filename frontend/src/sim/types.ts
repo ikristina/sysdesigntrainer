@@ -10,8 +10,17 @@ export type SimNode = { id: string; type: string; params: Record<string, ParamVa
 /** Handler-private numbers that carry over between ticks (queue depth, lag, ...). */
 export type NodeState = Record<string, number>
 
-/** Global traffic controls. `multiplier` is >1 during a spike. */
-export type Traffic = { rps: number; readRatio: number; multiplier: number; hotKey?: number }
+/** Global traffic controls. `multiplier` is >1 during a spike. The optional ones default to TRAFFIC_DEFAULTS. */
+export type Traffic = {
+  rps: number; readRatio: number; multiplier: number
+  hotKey?: number     // share of requests (0-1) that hit the single hottest key
+  payloadKb?: number  // response size per read, KB (priced by blocks with transferCost)
+  followers?: number  // copies a write fans out to, on edges marked fanout 'write' (followers per poster)
+  following?: number  // fetches a read fans in from, on edges marked fanout 'read' (accounts a reader follows)
+}
+// ponytail: payload 10 KB and 100 followers/following are round placeholder numbers for the sandbox;
+// lessons set their own.
+export const TRAFFIC_DEFAULTS = { hotKey: 0, payloadKb: 10, followers: 100, following: 100 }
 
 export type NodeMetrics = {
   lambda: number     // arrival rate λ (rps)

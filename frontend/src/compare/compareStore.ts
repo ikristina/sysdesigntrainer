@@ -34,8 +34,8 @@ const verdictKey = (s: State) => `sysdesign.verdict.${s.lesson?.id ?? 'designs'}
 
 // Two saved designs: steady load and a spike, at the sandbox's current traffic.
 function genericScenarios(): Scenario[] {
-  const { rps, readRatio, hotKey } = useSim.getState()
-  const traffic = { rps, read_ratio: readRatio, hot_key: hotKey }
+  const s = useSim.getState()
+  const traffic = { rps: s.rps, read_ratio: s.readRatio, hot_key: s.hotKey, payload_kb: s.payloadKb, followers: s.followers, following: s.following }
   return [
     { id: 'steady', label: 'Steady load', about: 'The sandbox traffic for 30 s.', seconds: 30, traffic, events: [] },
     { id: 'spike', label: 'Spike ×3', about: 'Traffic triples for 10 s at 10 s, then drops back.', seconds: 40, traffic, events: [{ at: 10, spike: { multiplier: 3, seconds: 10 } }] },

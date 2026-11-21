@@ -32,6 +32,9 @@ const commands: Record<string, (a: Args) => void> = {
     if (typeof a.rps === 'number') sim().setRps(a.rps)
     if (typeof a.read_ratio === 'number') sim().setReadRatio(a.read_ratio)
     if (typeof a.hot_key === 'number') sim().setHotKey(a.hot_key)
+    if (typeof a.payload_kb === 'number') sim().setTraffic({ payloadKb: a.payload_kb })
+    if (typeof a.followers === 'number') sim().setTraffic({ followers: a.followers })
+    if (typeof a.following === 'number') sim().setTraffic({ following: a.following })
   },
   spike: (a) => sim().spike(a.multiplier as number, a.seconds as number),
   kill_node: (a) => sim().setFlag('killed', a.id as string, true),
@@ -108,7 +111,7 @@ function snapshot() {
     mode: useMode.getState().mode, explainer: explainerState(), lesson: lessonState(s.sim),
     ...JSON.parse(JSON.stringify({
       running: s.running, t: s.sim.t,
-      traffic: { rps: s.rps, readRatio: s.readRatio, hotKey: s.hotKey, spike: s.sim.t < s.spikeUntil ? s.spikeMultiplier : null },
+      traffic: { rps: s.rps, readRatio: s.readRatio, hotKey: s.hotKey, payloadKb: s.payloadKb, followers: s.followers, following: s.following, spike: s.sim.t < s.spikeUntil ? s.spikeMultiplier : null },
       killed: s.killed, partitioned: s.partitioned, cutEdges: s.sim.cut,
       global: s.sim.global, nodes: metrics, compare: compareState(),
     }, round)),

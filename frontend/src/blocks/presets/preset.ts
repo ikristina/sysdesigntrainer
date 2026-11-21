@@ -17,6 +17,7 @@ export type Preset = {
   cost: number                         // USD per replica-hour (or per partition, with costPer)
   costPer?: 'partition'
   requestCost?: { read: number; write: number }
+  transferCost?: number
 } & Omit<Product, 'base' | 'logo' | 'badge'>
 
 export function presetBlock(p: Preset): BlockDef {
@@ -24,7 +25,7 @@ export function presetBlock(p: Preset): BlockDef {
     .map((d) => (p.params && d.key in p.params ? { ...d, default: p.params[d.key] } : d))
   return {
     ...p.base, type: p.id, label: p.label, params, simBehavior: p.simBehavior ?? p.base.simBehavior,
-    cost: p.cost, costPer: p.costPer, requestCost: p.requestCost,
+    cost: p.cost, costPer: p.costPer, requestCost: p.requestCost, transferCost: p.transferCost,
     product: {
       base: p.base.type, logo: p.logo && { path: p.logo.path, hex: `#${p.logo.hex}` }, badge: p.badge,
       facts: p.facts, sources: p.sources, estimates: p.estimates, notes: p.notes, memoryGb: p.memoryGb,

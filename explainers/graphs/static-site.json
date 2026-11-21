@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "client",
+      "type": "client",
+      "position": {
+        "x": 0,
+        "y": 120
+      },
+      "params": {}
+    },
+    {
+      "id": "cdn",
+      "type": "cloudfront",
+      "position": {
+        "x": 220,
+        "y": 120
+      },
+      "params": {}
+    },
+    {
+      "id": "origin",
+      "type": "s3",
+      "position": {
+        "x": 440,
+        "y": 120
+      },
+      "params": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "client-cdn",
+      "source": "client",
+      "target": "cdn"
+    },
+    {
+      "id": "cdn-origin",
+      "source": "cdn",
+      "target": "origin"
+    }
+  ]
+}

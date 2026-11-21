@@ -4,7 +4,7 @@
 import { registry } from '../blocks'
 import { fromDesign, toDesign, type Design } from '../design'
 import { fmtCount, fmtMs, fmtPct, fmtRps } from '../display'
-import type { Scenario } from '../lessons/content'
+import { simTraffic, type Scenario } from '../lessons/content'
 import { initialSim, step, type SimState } from '../sim/engine'
 import type { Traffic } from '../lessons/content'
 
@@ -14,7 +14,7 @@ export type Run = {
   design: Design // with default params filled in
   sim: SimState
   killed: string[]
-  traffic: Required<Traffic>
+  traffic: Traffic & { rps: number; read_ratio: number }
   spikeUntil: number
   multiplier: number
   history: Sample[]
@@ -36,7 +36,7 @@ export function swapped(d: Design, node: string, type: string): Design {
 
 export const startRun = (design: Design, sc: Scenario): Run => ({
   design: withDefaults(design), sim: initialSim(), killed: [], spikeUntil: 0, multiplier: 1, history: [],
-  traffic: { rps: sc.traffic.rps, read_ratio: sc.traffic.read_ratio, hot_key: sc.traffic.hot_key ?? 0 },
+  traffic: sc.traffic,
 })
 
 /** One tick: apply the events due in [t, t + dt), step the sim, record a sample. */
@@ -52,7 +52,7 @@ export function tickRun(r: Run, sc: Scenario, watch?: string, dt = TICK_S): Run 
     if (e.set_params) design = setParams(design, e.set_params)
   }
   const sim = step(design, r.sim, {
-    traffic: { rps: traffic.rps, readRatio: traffic.read_ratio, hotKey: traffic.hot_key, multiplier: t < spikeUntil ? multiplier : 1 },
+    traffic: { ...simTraffic(traffic), multiplier: t < spikeUntil ? multiplier : 1 },
     killed,
   }, dt)
   const g = sim.global
@@ -87,7 +87,8 @@ export type Row = { label: string; values: [string, string]; raw: [number, numbe
  *  Recovery is measured from the first kill, spike or param change; a traffic change is a new
  *  normal, not a failure, so it doesn't count. */
 export function summarize([a, b]: [Run, Run], sc: Scenario): Row[] {
-  const disrupt = sc.events.filter((e) => e.kill || e.spike || e.set_params).map((e) => e.at)
+  // Events at 0 s set the scene; they aren't a disruption to recover from.
+  const disrupt = sc.events.filter((e) => e.at > 0 && (e.kill || e.spike || e.set_params)).map((e) => e.at)
   const te = disrupt.length ? Math.min(...disrupt) : null
   const rows: Row[] = []
   const add = (label: string, about: string, f: (r: Run) => number, fmt: (n: number) => string, better: 'high' | 'low', eps: number) => {

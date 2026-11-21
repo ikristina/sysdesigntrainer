@@ -5,6 +5,7 @@ import { createContext, useContext } from 'react'
 import { create, useStore, type StoreApi } from 'zustand'
 import { toDesign } from './design'
 import { initialSim, step, type SimState } from './sim/engine'
+import { TRAFFIC_DEFAULTS } from './sim/types'
 import { useDesign } from './store'
 
 export const TICK_S = 0.1 // 10 ticks per second of sim time, run in real time
@@ -16,6 +17,9 @@ type Sim = {
   rps: number
   readRatio: number
   hotKey: number      // share of requests that hit the single hottest key
+  payloadKb: number   // response size per read (CDN transfer pricing)
+  followers: number   // fan-out on write: copies per write (edges marked fanout 'write')
+  following: number   // fan-out on read: fetches per read (edges marked fanout 'read')
   spikeUntil: number // sim time when the current spike ends
   spikeMultiplier: number
   killed: string[]
@@ -30,6 +34,7 @@ type Sim = {
   setRps: (rps: number) => void
   setReadRatio: (r: number) => void
   setHotKey: (h: number) => void
+  setTraffic: (t: Partial<Pick<Sim, 'rps' | 'readRatio' | 'hotKey' | 'payloadKb' | 'followers' | 'following'>>) => void
   spike: (multiplier?: number, seconds?: number) => void
   setFlag: (list: 'killed' | 'partitioned', id: string, on: boolean) => void
   setHighlight: (ids: string[], message?: string) => void
@@ -41,7 +46,7 @@ export const useSim = create<Sim>((set, get) => ({
   running: false,
   rps: 1000,
   readRatio: 0.9,
-  hotKey: 0,
+  ...TRAFFIC_DEFAULTS,
   spikeUntil: 0,
   spikeMultiplier: SPIKE.multiplier,
   killed: [],
@@ -65,7 +70,7 @@ export const useSim = create<Sim>((set, get) => ({
   tick: () => set((s) => {
     const { nodes, edges } = useDesign.getState()
     const multiplier = s.sim.t < s.spikeUntil ? s.spikeMultiplier : 1
-    const traffic = { rps: s.rps, readRatio: s.readRatio, multiplier, hotKey: s.hotKey }
+    const traffic = { rps: s.rps, readRatio: s.readRatio, multiplier, hotKey: s.hotKey, payloadKb: s.payloadKb, followers: s.followers, following: s.following }
     const sim = step(toDesign(nodes, edges), s.sim, { traffic, killed: s.killed, partitioned: s.partitioned }, TICK_S)
     return { sim, history: [...s.history, sim.global.p99Ms].slice(-HISTORY_TICKS) }
   }),
@@ -73,6 +78,7 @@ export const useSim = create<Sim>((set, get) => ({
   setRps: (rps) => set({ rps }),
   setReadRatio: (readRatio) => set({ readRatio }),
   setHotKey: (hotKey) => set({ hotKey }),
+  setTraffic: (t) => set(t),
   spike: (multiplier = SPIKE.multiplier, seconds = SPIKE.seconds) =>
     set((s) => ({ spikeUntil: s.sim.t + seconds, spikeMultiplier: multiplier })),
   setFlag: (list, id, on) => set((s) => ({ [list]: on ? [...new Set([...s[list], id])] : s[list].filter((k) => k !== id) })),

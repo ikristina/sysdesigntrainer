@@ -12,6 +12,7 @@ describe('product presets', () => {
     if (p.cost !== 0 || !p.requestCost) changed.push('cost')
     if (p.requestCost) changed.push('requestCost')
     if (p.product!.memoryGb) changed.push('memoryGb')
+    if (p.transferCost) changed.push('transferCost')
     expect(changed.filter((k) => !covered(k))).toEqual([])
     for (const k of p.product!.estimates) expect(p.product!.notes).toContain(k)
   })

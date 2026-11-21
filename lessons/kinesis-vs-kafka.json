@@ -1,0 +1,85 @@
+{
+  "id": "kinesis-vs-kafka",
+  "title": "Clickstream: Kinesis vs Kafka",
+  "mode": "compare",
+  "brief": "An API publishes 5k click events/s into a stream with 12 partitions (shards); 12 loaders (500 events/s each) write them to the warehouse. Side A uses Kafka (3 MSK brokers), side B Kinesis. Decide which you'd run at today's traffic and at 4x.",
+  "starter_graph": "graphs/clickstream.json",
+  "swap": {
+    "node": "events",
+    "options": [
+      "kafka",
+      "kinesis"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "steady",
+      "label": "Steady 5k events/s",
+      "about": "Both keep up. Kinesis bills per shard-hour and per PUT; Kafka per broker-hour.",
+      "seconds": 30,
+      "traffic": {
+        "rps": 5000,
+        "read_ratio": 0
+      },
+      "events": []
+    },
+    {
+      "id": "burst",
+      "label": "Burst x3 for 10 s",
+      "about": "A campaign triples traffic to 15k/s for 10 s. A Kinesis shard takes 1,000 records/s; what happens to the rest?",
+      "seconds": 60,
+      "traffic": {
+        "rps": 5000,
+        "read_ratio": 0
+      },
+      "events": [
+        {
+          "at": 10,
+          "spike": {
+            "multiplier": 3,
+            "seconds": 10
+          }
+        }
+      ]
+    },
+    {
+      "id": "scale",
+      "label": "20k/s, re-sharded",
+      "about": "Traffic is 20k/s. Both sides get 24 partitions, 24 faster loaders and more API replicas up front. Which is cheaper now?",
+      "seconds": 30,
+      "traffic": {
+        "rps": 20000,
+        "read_ratio": 0
+      },
+      "events": [
+        {
+          "at": 0,
+          "set_params": {
+            "events": {
+              "partitions": 24
+            },
+            "loader": {
+              "replicas": 24,
+              "capacity_rps": 1000
+            },
+            "api": {
+              "replicas": 40
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "questions": [
+    "Why is Kinesis cheaper at 5k/s but not at 20k/s? Where is the crossover?",
+    "In the burst, Kinesis has the smaller backlog. Why is that not good news?",
+    "How would you make Kinesis survive the burst: more shards, on-demand mode, or retrying producers? What does each cost?",
+    "Kafka on MSK still needs broker sizing, upgrades and partition rebalancing. How much is that worth to you per month?"
+  ],
+  "hints": [
+    "In the burst, look at errors next to the backlog rows.",
+    "12 shards accept 12k records/s; the other 3k/s are rejected. Kafka takes them all and lets the backlog grow.",
+    "Kinesis: $0.015 per shard-hour plus $0.014 per million PUTs, so cost grows with traffic; Kafka's 3 brokers cost $0.63/hr flat until they fill up. Kinesis rejects writes above shards x 1,000/s, so size shards for the peak (or use on-demand mode) and retry on the producer."
+  ],
+  "_notes": "Graph: client -> api (25 x 1k) -> events (12 partitions) -> loader (12 x 500/s = 6k/s drain, $0.10 each). Kafka: 12 x 10k/s per partition (estimate), $0.63/hr flat. Kinesis: 1,000 records/s per shard (AWS limit), $0.015/shard-hr + $0.014 per million PUTs. Steady 5k: Kinesis $0.43 vs Kafka $0.63 for the stream (sim totals $4.13 vs $4.33). Burst x3 (15k for 10 s): Kinesis rejects above 12k/s (3.3% errors over the run, p99 668 ms), backlog peaks 60k; Kafka takes all 15k, backlog peaks 90k and drains at 1k/s (50k left at 60 s). Scale (20k, 24 shards/partitions, 24 x 1k loaders, api 40): Kinesis $1.37 vs Kafka $0.63 (totals $7.77 vs $7.03). Crossover with shards sized to traffic: Kinesis costs ~$0.065/hr per 1k events/s, so ~9.6k/s matches Kafka's $0.63. Not modeled: on-demand Kinesis, producer retries, Kafka broker limits beyond partitions. Checked in frontend/src/lessons/content.test.ts."
+}

@@ -51,6 +51,8 @@ def test_mirror_and_commands(client):
             call(client, "partition_region", {"id": "svc"})
         with pytest.raises(ToolError, match="rps"):
             call(client, "set_traffic", {"rps": 0})
+        with pytest.raises(ToolError, match="followers"):
+            call(client, "set_traffic", {"followers": -1})
 
 
 async def _wait_for_state():
