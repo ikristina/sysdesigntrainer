@@ -5,6 +5,10 @@
 import { create } from 'zustand'
 import { toDesign } from './design'
 import { healthOf } from './display'
+import { usePlayer } from './explainers/player'
+import { checks } from './lessons/content'
+import { active, goStep, HOLD_S, setCustom, setVariant, showHint, useLesson } from './lessons/lessonStore'
+import { useMode } from './mode'
 import { isDown, useSim } from './simStore'
 import { useDesign } from './store'
 
@@ -34,6 +38,38 @@ const commands: Record<string, (a: Args) => void> = {
   },
   partition_region: (a) => sim().setFlag('partitioned', a.id as string, true),
   highlight: (a) => sim().setHighlight(a.node_ids as string[], a.message as string),
+  // Lesson tools. The backend has already checked a lesson is open and the arguments are valid.
+  set_requirements: (a) => {
+    if (typeof a.variant_id === 'string') setVariant(a.variant_id)
+    const pick = (...keys: string[]) => Object.fromEntries(keys.filter((k) => a[k] != null).map((k) => [k, a[k]]))
+    const traffic = pick('rps', 'read_ratio')
+    const success = pick('p99_ms', 'error_pct', 'max_cost_hr')
+    const requirements = a.requirements as string[] | undefined
+    if (requirements || Object.keys(traffic).length || Object.keys(success).length) setCustom({ requirements: requirements ?? undefined, traffic, success })
+  },
+  advance_step: () => goStep(useLesson.getState().progress.step + 1),
+  give_hint: (a) => showHint(a.level as number),
+}
+
+function explainerState() {
+  const { explainer: e, index } = usePlayer.getState()
+  return e && { id: e.id, title: e.title, index, count: e.steps.length, caption: e.steps[index].caption }
+}
+
+// The open lesson, as get_lesson returns it. _hints (all hint texts) is for give_hint; get_lesson drops it.
+function lessonState(g: ReturnType<typeof sim>['sim']['global']) {
+  const st = useLesson.getState()
+  const { lesson: l, progress: p } = st
+  if (!l) return null
+  const req = active(st)
+  return {
+    id: l.id, title: l.title, mode: l.mode, brief: l.brief, explainers: l.explainers ?? [],
+    steps: l.steps, step: p.step, step_name: l.steps[p.step],
+    variants: l.variants, variant_id: p.variantId, custom: p.custom, active: req,
+    notes: p.notes, hints_shown: l.hints.slice(0, p.hints), hint_count: l.hints.length, _hints: l.hints,
+    checks: checks(g, req.success), held_s: Math.round(st.heldS * 10) / 10, hold_s: HOLD_S, passed: p.passed,
+    tutor_notes: l._notes ?? null,
+  }
 }
 
 // What Claude sees. Numbers rounded to 3 significant digits so get_metrics stays readable.
@@ -44,7 +80,8 @@ function snapshot() {
   const metrics = Object.fromEntries(Object.entries(s.sim.metrics).map(([id, m]) =>
     [id, { ...m, mu: Number.isFinite(m.mu) ? m.mu : 'unlimited', health: healthOf(m, isDown(s.killed, id)) }]))
   return {
-    design: toDesign(nodes, edges),
+    design: toDesign(nodes, edges), // design and lesson unrounded: their numbers are exact settings
+    mode: useMode.getState().mode, explainer: explainerState(), lesson: lessonState(s.sim.global),
     ...JSON.parse(JSON.stringify({
       running: s.running, t: s.sim.t,
       traffic: { rps: s.rps, readRatio: s.readRatio, spike: s.sim.t < s.spikeUntil ? s.spikeMultiplier : null },

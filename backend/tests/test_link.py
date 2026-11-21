@@ -59,6 +59,50 @@ async def _wait_for_state():
             await anyio.sleep(0.01)
 
 
+LESSON = {
+    "id": "demo", "variants": [{"id": "a"}, {"id": "b"}], "steps": ["requirements", "design"],
+    "step": 0, "step_name": "requirements", "_hints": ["q?", "direction", "answer"],
+}
+
+
+def test_lesson_tools(client):
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "state", "state": {**STATE, "lesson": None}})
+        client.portal.call(_wait_for, lambda: link.state.get("lesson", 1) is None)
+        with pytest.raises(ToolError, match="No lesson"):
+            call(client, "get_lesson")
+
+        ws.send_json({"type": "state", "state": {**STATE, "lesson": LESSON}})
+        client.portal.call(_wait_for, lambda: link.state.get("lesson"))
+        assert "_hints" not in call(client, "get_lesson").structured_content
+
+        assert call(client, "give_hint", {"level": 2}).structured_content["result"] == "direction"
+        assert ws.receive_json() == {"op": "give_hint", "args": {"level": 2}}
+        with pytest.raises(ToolError, match="level"):
+            call(client, "give_hint", {"level": 4})
+
+        call(client, "set_requirements", {"variant_id": "b", "rps": 500})
+        assert ws.receive_json()["args"] == {
+            "variant_id": "b", "requirements": None, "rps": 500, "read_ratio": None,
+            "p99_ms": None, "error_pct": None, "max_cost_hr": None,
+        }
+        with pytest.raises(ToolError, match="No variant"):
+            call(client, "set_requirements", {"variant_id": "zzz"})
+
+        call(client, "advance_step")
+        assert ws.receive_json() == {"op": "advance_step", "args": {}}
+        ws.send_json({"type": "state", "state": {**STATE, "lesson": {**LESSON, "step": 1, "step_name": "design"}}})
+        client.portal.call(_wait_for, lambda: link.state["lesson"]["step"] == 1)
+        with pytest.raises(ToolError, match="last step"):
+            call(client, "advance_step")
+
+
+async def _wait_for(ready):
+    with anyio.fail_after(2):
+        while not ready():
+            await anyio.sleep(0.01)
+
+
 def test_rejects_other_websites(client):
     with pytest.raises(WebSocketDisconnect):
         with client.websocket_connect("/ws", headers={"origin": "https://evil.example"}):

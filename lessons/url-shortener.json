@@ -1,0 +1,31 @@
+{
+  "id": "url-shortener",
+  "title": "URL Shortener",
+  "mode": "full",
+  "brief": "Build a URL shortener. POST /shorten takes a long URL and returns a short code; GET /<code> redirects to the long URL. Same product, two traffic shapes.",
+  "variants": [
+    {
+      "id": "read-heavy",
+      "requirements": ["99% reads (redirects), 1% writes", "10k rps peak", "p99 < 250 ms", "errors < 0.1%", "cost < $3/hr"],
+      "traffic": { "rps": 10000, "read_ratio": 0.99 },
+      "success": { "p99_ms": 250, "error_pct": 0.1, "max_cost_hr": 3 },
+      "twist": "A celebrity posts a short link: traffic ×5 for 60 s. Apply with spike(5, 60)."
+    },
+    {
+      "id": "write-heavy",
+      "requirements": ["A partner bulk-creates links: 60% writes", "10k rps peak", "p99 < 250 ms", "errors < 0.1%", "cost < $3.50/hr"],
+      "traffic": { "rps": 10000, "read_ratio": 0.4 },
+      "success": { "p99_ms": 250, "error_pct": 0.1, "max_cost_hr": 3.5 },
+      "twist": "The partner doubles their import rate: 20k rps at the same mix. Apply with set_traffic(rps=20000)."
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "At the variant's traffic, which block hits its limit first? Run it and check the saturation list.",
+    "Reads and writes scale differently. Caches and read replicas only take reads off the database.",
+    "Read-heavy: a cache in front of the database, and enough service replicas for 10k rps. Write-heavy: a store that spreads writes over nodes (NoSQL / KV) instead of one SQL primary."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "explainers": ["caching-basics", "replication-lag"],
+  "_notes": "Service 1k rps/replica at 20 ms; in the sim p99 is about 10x a block's own queueing latency, so the service needs rho ~0.6 (16 replicas, $1.60) for p99 < 250 ms (sim: 181 ms; 14 replicas gives 262 ms). SQL primary 5k rps ($0.50). Read-heavy: 9.9k reads overload one DB; a cache (hit 0.9 x read share 0.99 with invalidate) leaves ~1.1k reads + 100 writes. ~$2.25/hr. Write-heavy: 6k writes/s > one primary's 5k; cache and replicas don't help. KV 3 x 10k = 30k ops/s ($0.90): ~$2.50/hr. Over-provisioning (30 service replicas + 5 read replicas) breaks the cost limit. Checked in frontend/src/lessons/content.test.ts."
+}

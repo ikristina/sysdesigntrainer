@@ -5,7 +5,9 @@ import '@xyflow/react/style.css' // React Flow's base styles, before ours so our
 import './index.css'
 import App from './App.tsx'
 import { startLink } from './link'
+import { startModes } from './mode'
 
+startModes() // open the explainer or lesson named in the URL hash, if any
 startLink() // mirror state to the backend for Claude; harmless if no backend is running
 
 createRoot(document.getElementById('root')!).render(

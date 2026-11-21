@@ -3,11 +3,12 @@
 import { addEdge, type Connection, type Edge, type EdgeChangeset, type NodeChangeset } from '@xyflow/react'
 import { create } from 'zustand'
 import type { ParamValue } from './blocks/types'
-import { type FlowNode, fromDesign, loadLocal, makeNode, saveLocal, toDesign, isContainer } from './design'
+import { type FlowNode, fromDesign, loadLocal, makeNode, SANDBOX_KEY, saveLocal, toDesign, isContainer } from './design'
 
 type State = {
   nodes: FlowNode[]
   edges: Edge[]
+  storageKey: string | null // localStorage key autosave writes to; null = don't save (explainers)
   // React Flow reports drags, selections, deletions, resizes as "changes"; we apply them here.
   onNodesChange: (changes: NodeChangeset<FlowNode>) => void
   onEdgesChange: (changes: EdgeChangeset<Edge>) => void
@@ -15,6 +16,8 @@ type State = {
   addBlock: (type: string, position: { x: number; y: number }, parentId?: string) => void
   setParam: (id: string, key: string, value: ParamValue) => void
   loadDesign: (json: unknown) => void // throws on invalid input
+  // Switch to the design saved under `key` (or `initial` if nothing is saved there yet).
+  open: (key: string | null, initial?: unknown) => void
 }
 
 const CONTAINER_SIZE: Record<string, { w: number; h: number }> = {
@@ -24,11 +27,12 @@ const CONTAINER_SIZE: Record<string, { w: number; h: number }> = {
 
 const newId = (type: string) => `${type}_${Math.random().toString(36).slice(2, 6)}`
 
-const saved = loadLocal()
+const saved = loadLocal(SANDBOX_KEY)
 
 export const useDesign = create<State>((set) => ({
   nodes: saved?.nodes ?? [],
   edges: saved?.edges ?? [],
+  storageKey: SANDBOX_KEY,
 
   onNodesChange: (changes) => set((s) => ({ nodes: changes.applyTo(s.nodes) })),
   onEdgesChange: (changes) => set((s) => ({ edges: changes.applyTo(s.edges) })),
@@ -49,10 +53,15 @@ export const useDesign = create<State>((set) => ({
     })),
 
   loadDesign: (json) => set(fromDesign(json)),
+
+  open: (key, initial) => set({
+    storageKey: key,
+    ...((key && loadLocal(key)) || (initial ? fromDesign(initial) : { nodes: [], edges: [] })),
+  }),
 }))
 
-// Autosave: every change to nodes/edges is written to localStorage.
+// Autosave: every change to nodes/edges is written to localStorage (under storageKey).
 // ponytail: saves on every drag frame; debounce if large designs feel slow.
 useDesign.subscribe((s, prev) => {
-  if (s.nodes !== prev.nodes || s.edges !== prev.edges) saveLocal(toDesign(s.nodes, s.edges))
+  if (s.storageKey && (s.nodes !== prev.nodes || s.edges !== prev.edges)) saveLocal(s.storageKey, toDesign(s.nodes, s.edges))
 })

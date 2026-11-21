@@ -1,9 +1,15 @@
-// Page layout: header (traffic controls, save/load), palette | canvas (+ Claude terminal) | params + metrics.
+// Page layout: header (mode, traffic controls, save/load), left column | canvas (+ Claude terminal) | metrics + params.
+// The left column depends on the mode: palette (sandbox), lesson panel + palette, or explainer player.
 // Rendered inside <ReactFlowProvider> (see main.tsx) so it can use React Flow hooks like fitView.
 import { useReactFlow } from '@xyflow/react'
 import { useEffect, useRef, useState } from 'react'
 import { Canvas } from './canvas/Canvas'
 import { toDesign } from './design'
+import { ExplainerPanel } from './explainers/ExplainerPanel'
+import { usePlayer } from './explainers/player'
+import { explainers, lessons } from './lessons/content'
+import { LessonPanel, StepNav, SuccessPanel } from './lessons/LessonPanel'
+import { go, hashOf, parseHash, useMode } from './mode'
 import { MetricsPanel } from './panels/MetricsPanel'
 import { Palette } from './panels/Palette'
 import { ParamPanel } from './panels/ParamPanel'
@@ -22,6 +28,11 @@ export default function App() {
   useEffect(() => { ttydUp().then((up) => up && setTerminal(true)) }, []) // open it if ttyd is running
   const highlight = useSim((s) => s.highlight)
   const setHighlight = useSim((s) => s.setHighlight)
+  const mode = useMode((s) => s.mode)
+  const explainer = mode.kind === 'explainer'
+  const step = usePlayer((s) => s.index)
+  // New mode or explainer step = new graph: frame it. React Flow queues fitView until the nodes are measured.
+  useEffect(() => { fitView({ padding: '10%', duration: 300 }) }, [mode, step, fitView])
 
   // Download the current design as a .json file.
   const exportFile = () => {
@@ -51,22 +62,29 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="logo">sysdesign<span>/</span>trainer</div>
-        <span className="muted">sandbox · autosaved</span>
+        <select className="mode-select sk" aria-label="Mode" value={hashOf(mode)} onChange={(e) => go(parseHash(e.target.value))}>
+          <option value="#/">Sandbox (autosaved)</option>
+          <optgroup label="Lessons">{lessons.map((l) => <option key={l.id} value={`#/lesson/${l.id}`}>{l.title}</option>)}</optgroup>
+          <optgroup label="Explainers">{explainers.map((x) => <option key={x.id} value={`#/explainer/${x.id}`}>{x.title}</option>)}</optgroup>
+        </select>
         {error && <span className="field__error" role="alert">{error}</span>}
-        <TrafficBar />
+        {mode.kind === 'lesson' && <StepNav />}
+        {!explainer && <TrafficBar />}
         <div className="header__actions">
           <button className="btn sk" onClick={() => setTerminal(!terminal)} aria-pressed={terminal}>Claude</button>
           <button className="btn sk" onClick={exportFile}>Export JSON</button>
-          <button className="btn sk" onClick={() => fileInput.current?.click()}>Import JSON</button>
+          {!explainer && <button className="btn sk" onClick={() => fileInput.current?.click()}>Import JSON</button>}
           <input ref={fileInput} type="file" accept=".json,application/json" hidden
             onChange={(e) => importFile(e.target.files?.[0])} />
         </div>
       </header>
       <div className="body">
-        <Palette />
+        {explainer ? <ExplainerPanel />
+          : mode.kind === 'lesson' ? <div className="left"><LessonPanel /><Palette /></div>
+            : <Palette />}
         <div className="center">
           <main className="canvas">
-            <Canvas />
+            <Canvas readOnly={explainer} />
             {highlight.message && (
               <div className="canvas__note" role="status">
                 {highlight.message}
@@ -78,7 +96,8 @@ export default function App() {
         </div>
         <aside className="inspector">
           <MetricsPanel />
-          <ParamPanel />
+          {mode.kind === 'lesson' && <SuccessPanel />}
+          {!explainer && <ParamPanel />}
         </aside>
       </div>
     </div>

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "nodes": [
+    { "id": "client", "type": "client", "position": { "x": 0, "y": 120 }, "params": {} },
+    { "id": "lb", "type": "load_balancer", "position": { "x": 260, "y": 120 }, "params": {} },
+    { "id": "api1", "type": "service", "position": { "x": 520, "y": 0 }, "params": { "replicas": 1, "capacity_rps": 1000 } },
+    { "id": "api2", "type": "service", "position": { "x": 520, "y": 120 }, "params": { "replicas": 1, "capacity_rps": 1000 } },
+    { "id": "api3", "type": "service", "position": { "x": 520, "y": 240 }, "params": { "replicas": 1, "capacity_rps": 1000 } }
+  ],
+  "edges": [
+    { "id": "client-lb", "source": "client", "target": "lb" },
+    { "id": "lb-api1", "source": "lb", "target": "api1" },
+    { "id": "lb-api2", "source": "lb", "target": "api2" },
+    { "id": "lb-api3", "source": "lb", "target": "api3" }
+  ]
+}

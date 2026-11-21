@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "nodes": [
+    { "id": "client", "type": "client", "position": { "x": 0, "y": 120 }, "params": {} },
+    { "id": "api", "type": "service", "position": { "x": 260, "y": 120 }, "params": { "replicas": 8, "capacity_rps": 5000 } },
+    { "id": "db", "type": "sql_db", "position": { "x": 720, "y": 120 }, "params": {} }
+  ],
+  "edges": [
+    { "id": "client-api", "source": "client", "target": "api" },
+    { "id": "api-db", "source": "api", "target": "db" }
+  ]
+}

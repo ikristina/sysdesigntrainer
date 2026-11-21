@@ -51,7 +51,17 @@ index.html ── loads ──> src/main.tsx ── renders ──> <App/>
      │  every 1 s: design + metrics snapshot ─►                             ▲
      └─ ◄─ commands (set_traffic, kill_node, highlight...) applied to simStore
   <TerminalPanel/> under the canvas = <iframe> of ttyd :7681 ──────────────┘
+
+  mode.ts: URL hash #/  |  #/lesson/<id>  |  #/explainer/<id>
+     ├─ sandbox:   store.open('sysdesign.design')            (your autosaved design)
+     ├─ lesson:    lessons/lessonStore.ts ── store.open('sysdesign.lesson.<id>', starter graph)
+     │               left: <LessonPanel/> + <Palette/>, header: <StepNav/>, right: + <SuccessPanel/>
+     └─ explainer: explainers/player.ts ── store.open(null, step's graph)   (never saved)
+                     left: <ExplainerPanel/>, canvas read-only, no traffic bar
+  lesson + explainer JSON: repo-root lessons/ and explainers/, bundled in by Vite (import.meta.glob)
 ```
+
+The app has three **modes**, picked from the menu at the top left. Sandbox is the free canvas. A lesson and an explainer reuse the same canvas, stores and simulator; they only decide which design is loaded, what the left column shows, and what traffic is set. Section 9 explains them.
 
 There are two stores. `store.ts` holds the design (what you drew, saved). `simStore.ts` holds the run (traffic settings, killed nodes, latest metrics, not saved). The simulator itself (`sim/`) is plain TypeScript with no React, so it can be unit-tested like any pure function.
 
@@ -83,6 +93,9 @@ A backend analogy:
 | **WebSocket** | A connection that stays open so both sides can send messages at any time (HTTP is one request, one response). `new WebSocket(url)` with `onopen`/`onmessage`/`onclose` handlers. `link.ts` uses one to stream state to the backend and receive Claude's commands. | `link.ts` |
 | **`<iframe>`** | A web page inside a web page. The Claude panel is ttyd's page in an iframe. The browser keeps the two pages apart (different ports = different **origins**), so our code can't read or type into the terminal, which is fine: Claude talks to the app over MCP, not through the terminal. | `TerminalPanel.tsx` |
 | **`fetch(url, { mode: 'no-cors' })`** | `fetch` is the browser's HTTP client. `no-cors` lets us call another origin without permission to read the answer. We only want to know whether ttyd answers at all, before showing the iframe. | `link.ts` (`ttydUp`) |
+| **`import.meta.glob`** | A Vite feature: `import.meta.glob('../../../lessons/*.json', { eager: true })` imports every matching file at build time, as if you had written one `import` per file. Lessons and explainers are plain JSON files in the repo, and adding one needs no code change. They end up inside the built JavaScript, so the static build still needs no server. `server.fs.allow` in `vite.config.ts` lets the dev server read those folders, which sit outside `frontend/`. | `lessons/content.ts`, `vite.config.ts` |
+| **URL hash routing** | The part of the URL after `#` (`location.hash`) never goes to a server, and changing it doesn't reload the page. The browser fires a `hashchange` event instead. `mode.ts` keeps the mode there (`#/lesson/url-shortener`), so a reload keeps your place, Back/Forward switch modes, and you can bookmark a lesson. No router library. | `mode.ts` |
+| **`<select>` / `<optgroup>`, `<textarea>`** | Native form controls: the mode menu (grouped into Lessons and Explainers) and the per-step notes box. A **controlled** input gets `value` from the store and calls a store function in `onChange`, so the store stays the single source of truth. | `App.tsx`, `LessonPanel.tsx` |
 | **Google Fonts** | Kalam (hand-written headings), Inter (UI text), JetBrains Mono (code), loaded in `index.html`. | `index.html` |
 
 ## 4. Files
@@ -90,13 +103,14 @@ A backend analogy:
 ```
 frontend/
   index.html              the one HTML page: fonts, <div id="root">, loads main.tsx
-  vite.config.ts          Vite config (React plugin). Vitest reads it too.
+  vite.config.ts          Vite config (React plugin; fs.allow for ../lessons, ../explainers). Vitest reads it too.
   src/
-    main.tsx              entry point: starts the backend link, mounts <App/> inside <ReactFlowProvider>
-    App.tsx               layout + header (Claude / Export / Import buttons), Claude's highlight note
+    main.tsx              entry point: opens the mode in the URL hash, starts the backend link, mounts <App/>
+    App.tsx               layout + header (mode menu, Claude / Export / Import), left column per mode, highlight note
+    mode.ts               sandbox / lesson / explainer, kept in the URL hash; entering a mode resets the run
     link.ts               tutor layer: WebSocket to the backend, state snapshots out, MCP commands in
     index.css             all styles
-    store.ts              Zustand store: nodes, edges, actions, autosave
+    store.ts              Zustand store: nodes, edges, actions; open(key) swaps designs, autosave to that key
     simStore.ts           Zustand store for the run: traffic, killed/partitioned, highlight, tick loop, latest SimState
     display.ts            number formatting + green/amber/red health scale
     design.ts             saved-design JSON format: toDesign / fromDesign / localStorage helpers
@@ -127,11 +141,23 @@ frontend/
       MetricsPanel.tsx    right column, top: p99 chart, headline numbers, most saturated blocks
       TrafficBar.tsx      header: traffic and read/write sliders, Spike, Kill/Restore, Partition/Heal, Run/Pause, Reset
       TerminalPanel.tsx   under the canvas: ttyd iframe, or how to start it; link status line
+    lessons/
+      content.ts          loads lessons/*.json, explainers/*.json and graphs; types; checks(); step titles + prompts
+      content.test.ts     every file is valid, and the sim agrees with each explainer and lesson (see section 9)
+      lessonStore.ts      open lesson: variant, step, notes, hints shown, pass timer; saved per lesson
+      LessonPanel.tsx     <LessonPanel/> (left), <StepNav/> (header pills), <SuccessPanel/> (right)
+    explainers/
+      ops.ts              applyStep(): one explainer step's ops (graph, add, remove, set_params, traffic, kill, highlight)
+      player.ts           which explainer and step is showing; pushes each step into the stores
+      ExplainerPanel.tsx  left column: caption, Back / Next, step list, "Open in sandbox", related lessons
+lessons/                  (repo root) lesson JSON: url-shortener, p99-fix
+explainers/               (repo root) explainer JSON: load-balancing, caching-basics, replication-lag
+  graphs/                 starting designs (saved-design format) used by explainers and lesson starters
 backend/
   pyproject.toml          uv project (FastAPI, uvicorn, mcp)
   app/main.py             FastAPI app: GET /health, WebSocket /ws, mounts the MCP server at /mcp
   app/tools.py            the MCP tools Claude calls, and the mirror (last snapshot + open sockets)
-  tests/test_link.py      mirror, commands, origin check
+  tests/test_link.py      mirror, commands, lesson tools, origin check
 .mcp.json                 (repo root) tells `claude` the sysdesign server is at http://localhost:8000/mcp
 ```
 
@@ -175,6 +201,18 @@ They only change `simStore` (rps, read ratio, spike end time, killed and partiti
 2. `backend/app/tools.py` checks the id against the last snapshot and sends `{"op": "kill_node", "args": {"id": "cache_x1"}}` down the WebSocket.
 3. `link.ts` receives it and calls `useSim.getState().setFlag('killed', 'cache_x1', true)`, the same thing the Kill button does. It then sends a fresh snapshot right away.
 4. The next tick simulates without the cache. Claude calls `get_metrics` a few seconds later to see the result.
+
+**...pick a lesson from the mode menu**
+1. `go()` sets `location.hash = '#/lesson/p99-fix'`. The browser fires `hashchange`, and `mode.ts` calls `enter()`.
+2. `enter()` pauses and resets the sim, clears kills and highlights, and calls `startLesson('p99-fix')`.
+3. `startLesson` reads saved progress from `localStorage['sysdesign.progress.p99-fix']` (variant, step, notes, hints, passed), opens the lesson's own design (`sysdesign.lesson.p99-fix`, or the starter graph the first time), and sets the traffic sliders to the variant's traffic.
+4. `App` re-renders for the new mode: the lesson panel on the left, step pills in the header, success criteria on the right. Your sandbox design is untouched; switching back to Sandbox reopens it.
+
+**...press ▶ Run load test (lesson)**
+It sets the variant's traffic, resets the sim and plays. On every tick, `lessonStore.ts` checks three things: traffic is at the variant's numbers, no spike is running, and all success checks are green. If so, `heldS` grows by 0.1 s; any miss resets it to 0. At 10 s the variant is marked passed and saved. Changing the variant or the requirements restarts the timer; notes and steps don't.
+
+**...press Next in an explainer**
+`player.ts` applies the next step's ops to the current scene (`applyStep`) and pushes it into the stores: the design (never autosaved), traffic, killed list and highlight. The sim keeps running, so you see the change happen live. A step that loads a new `graph` resets the sim. Back, or clicking an earlier step, rebuilds the scene from step 1 (`sceneAt`) and resets the sim. `App` calls `fitView` after each step so the graph is framed.
 
 **...Export / Import**
 Export calls `toDesign(nodes, edges)`, then `JSON.stringify`, and downloads the result as `design.json`. Import reads the file, `fromDesign` validates it (version, known block types, edges point at existing nodes), and the canvas is replaced. A bad file shows a red message in the header and leaves the canvas unchanged.
@@ -248,9 +286,9 @@ Claude Code runs in a terminal under the canvas. It can't see the browser, so th
 
 | Piece | Where | What it does |
 |---|---|---|
-| `link.ts` | browser | Opens `ws://localhost:8000/ws`. Every second, and right after each command, it sends a snapshot: the design (saved format), traffic settings, running or paused, killed/partitioned lists, and metrics rounded to 3 significant digits so Claude can read them. It applies commands from the backend to `simStore`. If the socket closes, it retries every 3 s. |
+| `link.ts` | browser | Opens `ws://localhost:8000/ws`. Every second, and right after each command, it sends a snapshot: the design (saved format), traffic settings, running or paused, killed/partitioned lists, the mode, the explainer step or open lesson, and metrics rounded to 3 significant digits so Claude can read them. It applies commands from the backend to `simStore`. If the socket closes, it retries every 3 s. |
 | `/ws` | `backend/app/main.py` | Keeps the latest snapshot in memory (the **mirror**). It only accepts browser connections from `localhost` pages, because any website could otherwise open a WebSocket to localhost. |
-| MCP tools | `backend/app/tools.py` | `get_design`, `get_metrics` read the mirror. `run`, `set_traffic`, `spike`, `kill_node`, `restore_node`, `partition_region` and `highlight` validate their input, then send a command to the browser. With no tab open, every tool says so. |
+| MCP tools | `backend/app/tools.py` | `get_design`, `get_metrics` read the mirror. `run`, `set_traffic`, `spike`, `kill_node`, `restore_node`, `partition_region` and `highlight` validate their input, then send a command to the browser. Lesson tools: `get_lesson` (brief, requirements, step, notes, hints shown, live checks, pass timer, `tutor_notes`), `set_requirements` (switch variant, or change traffic / limits as a twist), `advance_step`, `give_hint(level)` (shows it in the app, returns the text). With no tab open, every tool says so; lesson tools also say so when no lesson is open. |
 | `/mcp` | backend | The MCP server (official Python SDK 2.x, `MCPServer`, streamable HTTP). The SDK rejects requests whose Host/Origin isn't localhost (DNS-rebinding protection). |
 | `.mcp.json` | repo root | Tells Claude Code about the server. Claude asks you to approve it the first time. |
 | `TerminalPanel.tsx` | browser | Shows ttyd in an iframe, or the commands to start it. Its status line shows whether `link.ts` is connected. The panel opens by itself when ttyd is running. |
@@ -270,7 +308,21 @@ async def main():
 asyncio.run(main())"
 ```
 
-## 9. The block registry
+## 9. Lessons and explainers
+
+Both are JSON files in the repo root. The formats are in `docs/SPEC.md` ("Lessons" and "Explainers"); the TypeScript types are at the top of `lessons/content.ts`.
+
+**Explainer** (`explainers/<id>.json`): a short guided tour, 4 to 7 steps. Each step has a `caption` and **ops** that change the live scene: `graph` (load a starting design from `explainers/graphs/`), `add` (a block, optionally `between: [a, b]` to splice it into that edge), `remove`, `set_params`, `traffic`, `kill`, `highlight` (this step only), `spike`. The canvas is read-only; you watch. On the last step, **Open in sandbox** copies the design into your sandbox (asking first if the sandbox isn't empty), and links point to related lessons.
+
+**Lesson** (`lessons/<id>.json`): a problem with requirement **variants** (traffic plus success criteria: p99, error %, cost per hour), a `twist` per variant, a three-level **hint ladder** (a question, a direction, a near-answer), and its `steps`. `mode: "full"` starts from an empty canvas and walks all 7 steps (requirements, estimation, API and data model, design, load test, twist, postmortem). `mode: "targeted"` starts from a broken `starter_graph` and skips the early steps. `_notes` holds the math behind the numbers: Claude reads it through `get_lesson`, the UI never shows it.
+
+**Passing** means all checks green for 10 s at the variant's traffic (section 5). Each step has a notes box; notes are saved and Claude reads them, which is how the estimation scratchpad works.
+
+**The numbers are tested, not guessed.** `content.test.ts` runs the simulator on each lesson: the starter (or a naive design) must fail, the intended design must pass, and an over-provisioned one must break the cost limit. For each explainer it checks the outcome every caption claims (for example "one server saturates at 1.5k rps"). If you change a block's defaults or the sim model, these tests tell you which lesson needs retuning.
+
+**Add one:** drop a JSON file in `lessons/` or `explainers/`. The mode menu picks it up after a reload. The `sysdesign-add-lesson` skill walks through writing a lesson.
+
+## 10. The block registry
 
 Each block is data, not code. See `blocks/service.ts`:
 
@@ -288,7 +340,7 @@ export const service: BlockDef = {
 
 To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `blocks/index.ts`. The `sysdesign-add-block` skill walks through it.
 
-## 10. Debugging in the browser
+## 11. Debugging in the browser
 
 - **DevTools:** press Cmd+Option+I in Chrome.
   - **Console** tab: errors and `console.log(...)` output.
@@ -300,7 +352,7 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - **Console shows "WebSocket connection to ws://localhost:8000/ws failed" every few seconds:** the backend isn't running. That's harmless in sandbox mode.
 - **Dev-only double renders:** `<StrictMode>` in `main.tsx` runs some code twice in development to surface bugs. This is expected.
 
-## 11. Glossary
+## 12. Glossary
 
 - **Component:** a function returning JSX. Name starts with a capital letter.
 - **Props:** a component's inputs, like function arguments.
@@ -319,7 +371,7 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - **MCP (Model Context Protocol):** how Claude Code discovers and calls tools that a server offers. Here, over HTTP at `/mcp`.
 - **Mirror:** the backend's copy of the browser's latest state.
 
-## 12. Known limits
+## 13. Known limits
 
 - Every block is a rough box. Per-category shapes (cylinder, cloud, diamond...) are Phase 5.
 - Ignored by the simulator for now: cache `ttl_s` and `eviction`, function `cold_start_ms`, LLM `tokens_per_s`. Traffic has no payload size or hot-key skew yet (they matter for Phase 5 presets).
@@ -328,7 +380,10 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - Clients each get an equal share of the global rps.
 - No "clear canvas" button. Select everything (drag a box with Shift held) and press Backspace, or delete the localStorage key.
 - Autosave writes on every drag frame. That's fine for designs this size; add a debounce if large designs feel slow.
-- The lesson tools from the spec (`get_lesson`, `set_requirements`, `advance_step`, `give_hint`) come with lessons in Phase 4.
+- Two lessons (URL shortener, p99 fix) and three explainers ship. The spec's other three lessons (chat, rate limiter, ticketing) aren't written yet.
+- Without Claude, a lesson's twist is text only: it tells you what changed, but the requirements stay the same until you or Claude change them (`set_requirements`). The estimation, API and postmortem steps are notes boxes with nothing checking them; Claude reviews them.
+- Explainer and lesson designs aren't validated against the registry at load time beyond what `content.test.ts` checks.
+- The backend mirror refreshes once a second, so an MCP call in the first second after switching modes can see the old mode.
 - Claude can't edit the design (add blocks, change params). The spec's tool list doesn't include it; ask if you want it.
 - The backend doesn't serve the built frontend yet. Use `npm run dev` (or any static server for `dist/`).
 - The terminal panel is a fixed 300 px tall. Reloading the app restarts Claude (ttyd starts a new `claude` per connection; see `docs/terminal-ttyd.md` for the tmux workaround).

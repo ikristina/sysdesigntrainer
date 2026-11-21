@@ -1,0 +1,20 @@
+{
+  "id": "caching-basics",
+  "title": "Why a cache helps reads (and not writes)",
+  "lessons": ["url-shortener", "p99-fix"],
+  "steps": [
+    { "caption": "An API and one SQL database. 1k rps, 90% reads: the database is barely busy.",
+      "graph": "graphs/api-and-db.json", "traffic": { "rps": 1000, "read_ratio": 0.9 } },
+    { "caption": "10k rps. The database can do 5k: it saturates first.",
+      "traffic": { "rps": 10000 }, "highlight": ["db"] },
+    { "caption": "Add a cache with a 90% hit ratio. 90% of reads never reach the database: it now sees 0.9k reads + 1k writes.",
+      "add": [{ "type": "cache", "id": "cache", "between": ["api", "db"], "params": { "hit_ratio": 0.9, "write_mode": "write-through" } }],
+      "highlight": ["cache"] },
+    { "caption": "Flip to write-heavy: 30% reads. Every write still goes to the database (7k/s). The cache can't help writes.",
+      "traffic": { "read_ratio": 0.3 }, "highlight": ["db"] },
+    { "caption": "Back to 90% reads, at 20k rps. With write-through, writes update the cache, so the hit ratio stays at 90%. The database sees 1.8k reads + 2k writes.",
+      "traffic": { "rps": 20000, "read_ratio": 0.9 }, "highlight": ["db"] },
+    { "caption": "Switch the cache to invalidate-on-write: every write evicts its key, so the next read misses. In this model the hit ratio falls to about 81% and the database tips over.",
+      "set_params": { "cache": { "write_mode": "invalidate" } }, "highlight": ["cache", "db"] }
+  ]
+}

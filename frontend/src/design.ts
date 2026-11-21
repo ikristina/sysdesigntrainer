@@ -72,15 +72,16 @@ export function fromDesign(input: unknown): { nodes: FlowNode[]; edges: Edge[] }
   }
 }
 
-const STORAGE_KEY = 'sysdesign.design'
+// Where the sandbox autosaves. Each lesson saves under its own key (see lessons/lessonStore.ts).
+export const SANDBOX_KEY = 'sysdesign.design'
 
-export function saveLocal(d: Design) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(d))
+export function saveLocal(key: string, d: Design) {
+  localStorage.setItem(key, JSON.stringify(d))
 }
 
-export function loadLocal(): ReturnType<typeof fromDesign> | null {
+export function loadLocal(key: string): ReturnType<typeof fromDesign> | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     return raw ? fromDesign(JSON.parse(raw)) : null
   } catch {
     return null // corrupt or old autosave: start with an empty canvas

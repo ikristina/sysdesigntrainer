@@ -1,0 +1,17 @@
+{
+  "id": "load-balancing",
+  "title": "Load balancing, and why you need N+1",
+  "lessons": ["url-shortener"],
+  "steps": [
+    { "caption": "One server that handles 1k rps, at 600 rps. Utilization ρ = 0.6: fine.",
+      "graph": "graphs/lb-one-server.json", "traffic": { "rps": 600, "read_ratio": 0.9 } },
+    { "caption": "1.5k rps. The server can only do 1k: the queue fills, requests time out, and client retries add even more load.",
+      "traffic": { "rps": 1500 }, "highlight": ["api"] },
+    { "caption": "Put a load balancer in front of three servers. Each gets a third: 500 rps, ρ 0.5.",
+      "graph": "graphs/lb-three-servers.json", "highlight": ["lb"] },
+    { "caption": "One server dies. Health checks take it out of rotation: the other two get 750 rps each and nobody notices.",
+      "kill": ["api3"], "highlight": ["api1", "api2"] },
+    { "caption": "Now traffic grows to 2.4k rps with one server still down. Two servers can't do it. Size for N+1: enough capacity with your biggest piece missing.",
+      "traffic": { "rps": 2400 }, "highlight": ["api1", "api2"] }
+  ]
+}

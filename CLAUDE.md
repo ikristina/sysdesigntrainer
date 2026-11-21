@@ -24,7 +24,8 @@ frontend/     React app (canvas, sim, panels)
   src/blocks/presets/  product presets (<product>.ts: Redis, Kafka, ...) over a generic block
   src/sim/             simulator engine, pure functions, no React
   src/sim/handlers/    per-behavior handlers: (node, inbound flows, dt) -> (outbound flows, metrics)
-  src/lessons/         lesson loader + UI
+  src/lessons/         lesson loader, lesson store + UI (also loads explainer files)
+  src/explainers/      explainer player + UI
 lessons/      lesson JSON files
 explainers/   explainer JSON files (+ graphs/ for saved starting graphs)
 docs/         SPEC.md and design notes

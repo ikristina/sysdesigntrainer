@@ -1,0 +1,17 @@
+{
+  "id": "replication-lag",
+  "title": "Read replicas and replication lag",
+  "lessons": ["url-shortener"],
+  "steps": [
+    { "caption": "One SQL primary handles every read and write. 3k rps at 90% reads: ρ 0.6.",
+      "graph": "graphs/api-and-db.json", "traffic": { "rps": 3000, "read_ratio": 0.9 } },
+    { "caption": "9k rps. The primary can do 5k: it saturates.",
+      "traffic": { "rps": 9000 }, "highlight": ["db"] },
+    { "caption": "Add 2 read replicas. Reads spread over 3 nodes; writes still go to the primary. The primary now sees 0.9k writes + 2.7k reads.",
+      "set_params": { "db": { "read_replicas": 2 } }, "highlight": ["db"] },
+    { "caption": "Writes rise to 50% (4.5k/s). Replicas can't take writes, so the primary saturates, and replicas fall behind: watch repl. lag grow.",
+      "traffic": { "read_ratio": 0.5 }, "highlight": ["db"] },
+    { "caption": "Drop to 4k rps. Lag shrinks only once the primary has headroom. Until then, a user can write and then read stale data from a replica.",
+      "traffic": { "rps": 4000 }, "highlight": ["db"] }
+  ]
+}

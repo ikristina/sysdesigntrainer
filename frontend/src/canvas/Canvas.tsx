@@ -1,5 +1,6 @@
 // The design canvas. React Flow does pan/zoom, dragging, selecting and connecting;
 // we feed it nodes/edges from the store and handle drops from the palette.
+// readOnly (explainers): no dragging, connecting, selecting, deleting or dropping.
 import {
   Background, BackgroundVariant, Controls, ReactFlow, useReactFlow, type XYPosition,
 } from '@xyflow/react'
@@ -16,7 +17,7 @@ const edgeTypes = { rough: RoughEdge }
 
 export const DRAG_MIME = 'application/x-sysdesign-block'
 
-export function Canvas() {
+export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
   const nodes = useDesign((s) => s.nodes)
   const edges = useDesign((s) => s.edges)
   const onNodesChange = useDesign((s) => s.onNodesChange)
@@ -80,9 +81,13 @@ export function Canvas() {
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
-      onDrop={onDrop}
-      onDragOver={onDragOver}
+      onDrop={readOnly ? undefined : onDrop}
+      onDragOver={readOnly ? undefined : onDragOver}
       onNodeDragStop={onNodeDragStop}
+      nodesDraggable={!readOnly}
+      nodesConnectable={!readOnly}
+      elementsSelectable={!readOnly}
+      deleteKeyCode={readOnly ? null : 'Backspace'}
       fitView={fitOnOpen}
     >
       <Background variant={BackgroundVariant.Dots} gap={22} color="#D9D4C7" bgColor="#FBFAF6" />

@@ -27,6 +27,12 @@ class Link:
                 return n
         raise ToolError(f"No node {node_id!r}. Call get_design for the ids.")
 
+    def lesson(self) -> dict[str, Any]:
+        lesson = self.snapshot().get("lesson")
+        if not lesson:
+            raise ToolError("No lesson is open. Ask the user to pick one from the mode menu in the app header.")
+        return lesson
+
     async def send(self, op: str, **args: Any) -> None:
         self.snapshot()
         # ponytail: every open tab gets the command and the last tab to report wins the mirror;
@@ -44,7 +50,9 @@ mcp = MCPServer(
         "The app simulates a system design under load (a queueing model, not real traffic). "
         "Read the design and live metrics with get_design and get_metrics; change load and inject "
         "failures with the other tools. Metrics refresh about once a second, so wait a few seconds "
-        "after a change before judging its effect. Node ids come from get_design."
+        "after a change before judging its effect. Node ids come from get_design. "
+        "When a lesson is open, get_lesson returns its brief, requirements, current step, the user's "
+        "notes and the live pass/fail checks; tutor_notes holds the intended math. Give hints in order."
     ),
 )
 
@@ -124,3 +132,60 @@ async def highlight(node_ids: list[str], message: str = "") -> str:
         link.node(i)
     await link.send("highlight", node_ids=node_ids, message=message)
     return "highlighted" if node_ids else "highlight cleared"
+
+
+@mcp.tool()
+def get_lesson() -> dict[str, Any]:
+    """The open lesson: brief, variants, active requirements (variant plus any custom changes), steps and
+    the current one, the user's notes per step, hints shown so far, live success checks, held_s (seconds
+    the checks have stayed green at the required traffic; hold_s to pass), passed variants, tutor_notes."""
+    return {k: v for k, v in link.lesson().items() if k != "_hints"}
+
+
+@mcp.tool()
+async def set_requirements(
+    variant_id: str | None = None,
+    requirements: list[str] | None = None,
+    rps: float | None = None,
+    read_ratio: float | None = None,
+    p99_ms: float | None = None,
+    error_pct: float | None = None,
+    max_cost_hr: float | None = None,
+) -> str:
+    """Change the lesson's requirements. variant_id switches to one of the lesson's variants (clearing
+    custom changes); the other fields change requirements on top of it (a twist). Traffic follows."""
+    lesson = link.lesson()
+    if variant_id is not None and variant_id not in [v["id"] for v in lesson["variants"]]:
+        raise ToolError(f"No variant {variant_id!r}. Variants: {[v['id'] for v in lesson['variants']]}")
+    if rps is not None and not 1 <= rps <= 1_000_000:
+        raise ToolError("rps must be between 1 and 1,000,000")
+    if read_ratio is not None and not 0 <= read_ratio <= 1:
+        raise ToolError("read_ratio must be between 0 and 1")
+    if any(x is not None and x <= 0 for x in (p99_ms, error_pct, max_cost_hr)):
+        raise ToolError("p99_ms, error_pct and max_cost_hr must be positive")
+    await link.send(
+        "set_requirements", variant_id=variant_id, requirements=requirements, rps=rps,
+        read_ratio=read_ratio, p99_ms=p99_ms, error_pct=error_pct, max_cost_hr=max_cost_hr,
+    )
+    return "requirements updated; the pass timer restarts. Call get_lesson to see them."
+
+
+@mcp.tool()
+async def advance_step() -> str:
+    """Move the lesson to its next step (requirements, estimation, ..., postmortem)."""
+    lesson = link.lesson()
+    if lesson["step"] >= len(lesson["steps"]) - 1:
+        raise ToolError(f"Already at the last step ({lesson['step_name']}).")
+    await link.send("advance_step")
+    return f"now at step {lesson['step'] + 2}: {lesson['steps'][lesson['step'] + 1]}"
+
+
+@mcp.tool()
+async def give_hint(level: int) -> str:
+    """Show hint `level` (1 = a question, 2 = a direction, 3 = a near-answer) in the app and return its text.
+    Earlier hints are shown too."""
+    hints = link.lesson()["_hints"]
+    if not 1 <= level <= len(hints):
+        raise ToolError(f"level must be 1-{len(hints)}")
+    await link.send("give_hint", level=level)
+    return hints[level - 1]
