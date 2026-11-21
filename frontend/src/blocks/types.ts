@@ -39,7 +39,7 @@ export type BlockDef = {
 export type Product = {
   base: string                         // the generic block type it's built on
   logo?: { path: string; hex: string } // Simple Icons SVG path (24 × 24) and brand color
-  badge?: string                       // text badge when there's no logo
+  badge?: string                       // initials (Mc, DDB, S3) when Simple Icons has no logo
   facts: string[]                      // what makes this product different, one line each
   sources: Record<string, string>      // param key (or 'cost' / 'requestCost') -> where the number comes from
   estimates: string[]                  // param keys whose value is an estimate (no source found)

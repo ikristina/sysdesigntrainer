@@ -34,19 +34,20 @@ export const blocks: BlockDef[] = [
 
 export const registry: Record<string, BlockDef> = Object.fromEntries(blocks.map((b) => [b.type, b]))
 
-// Palette order, headings and accent colors (tokens.css).
-export const categories: { id: Category; label: string; color: string }[] = [
-  { id: 'edge', label: 'Edge', color: 'var(--flow-client)' },
-  { id: 'traffic', label: 'Traffic', color: 'var(--flow-traffic)' },
-  { id: 'compute', label: 'Compute', color: 'var(--flow-compute)' },
-  { id: 'data', label: 'Data', color: 'var(--flow-sql)' },
-  { id: 'cache', label: 'Cache', color: 'var(--flow-cache)' },
-  { id: 'async', label: 'Async', color: 'var(--flow-async)' },
-  { id: 'ai', label: 'AI', color: 'var(--flow-ai)' },
-  { id: 'grouping', label: 'Groups', color: 'var(--ink-faint)' },
+// Palette order and headings.
+export const categories: { id: Category; label: string }[] = [
+  { id: 'edge', label: 'Edge' },
+  { id: 'traffic', label: 'Traffic' },
+  { id: 'compute', label: 'Compute' },
+  { id: 'data', label: 'Data' },
+  { id: 'cache', label: 'Cache' },
+  { id: 'async', label: 'Async' },
+  { id: 'ai', label: 'AI' },
+  { id: 'grouping', label: 'Groups' },
 ]
 
-export const categoryColor = (c: Category) => categories.find((x) => x.id === c)!.color
+/** Generic blocks that products are presets of (cache, sql_db, queue...): these get a "generic" tag. */
+export const hasPresets = (type: string) => blocks.some((b) => b.product?.base === type)
 
 /** A block's color family (docs/STYLE.md "Category fills"): fill var(--fill-<tone>), flow dots var(--flow-<tone>).
  *  Mostly the category, but the client stands apart from DNS/CDN, and SQL from the other data stores. */

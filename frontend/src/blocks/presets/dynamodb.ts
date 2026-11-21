@@ -5,7 +5,7 @@ import { awsPrices } from './urls'
 const partitionDocs = 'https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html'
 
 export const dynamodb = presetBlock({
-  id: 'dynamodb', base: kv, label: 'DynamoDB', badge: 'AWS', simBehavior: 'partitioned',
+  id: 'dynamodb', base: kv, label: 'DynamoDB', badge: 'DDB', simBehavior: 'partitioned',
   params: { capacity_rps: 40_000, base_latency_ms: 5 },
   dropParams: ['replicas'],
   addParams: [

@@ -5,7 +5,7 @@ import { awsPrices } from './urls'
 const perf = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance.html'
 
 export const s3 = presetBlock({
-  id: 's3', base: blob, label: 'S3', badge: 'AWS',
+  id: 's3', base: blob, label: 'S3', badge: 'S3',
   params: { capacity_rps: 11_000, base_latency_ms: 100 },
   cost: 0, requestCost: { read: 0.4, write: 5 },
   facts: [

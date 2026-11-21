@@ -150,8 +150,9 @@ body { margin: 0; background: var(--paper); }
 .explainer__steps button.is-current { color: var(--ink); font-weight: 700; }
 .explainer a, .lesson a { color: var(--violet); font-size: 13px; }
 .explainer a:hover, .lesson a:hover { color: var(--violet-hover); }
-.left { display: flex; flex-direction: column; border-right: 2px solid var(--ink); overflow-y: auto; width: 300px; }
-.left .palette { border-right: none; width: auto; overflow: visible; }
+/* .body > so this doesn't also hit React Flow's own .left class (its zoom controls panel). */
+.body > .left { display: flex; flex-direction: column; border-right: 2px solid var(--ink); overflow-y: auto; width: 300px; }
+.body > .left .palette { border-right: none; width: auto; overflow: visible; }
 .lesson { padding: 16px; border-bottom: 2px solid var(--ink); font-size: 13px; }
 .lesson p { margin: 0; }
 .lesson__brief { line-height: 1.4; }
@@ -175,8 +176,17 @@ body { margin: 0; background: var(--paper); }
 .shape--cylinder .block-node__label, .shape--bucket .block-node__label { padding-top: 19px; }
 
 /* Phase 5: product presets */
-.mark { display: inline-block; vertical-align: -2px; }
-.mark--badge { font: 800 9px/1 var(--font); padding: 2px 3px; border: 1px solid currentColor; border-radius: 3px; color: var(--ink-muted); vertical-align: 1px; }
+.mark { display: inline-block; vertical-align: -2px; margin-right: 5px; }
+.mark path { fill: var(--ink); }
+/* Brand color only on hover or select (docs/STYLE.md "Product logos"). */
+.tile:hover .mark path, .react-flow__node:hover .mark path, .react-flow__node.selected .mark path { fill: var(--brand); }
+.mark--badge { font-size: 9px; font-weight: 800; line-height: 1; padding: 2px 4px; border: 1px dashed var(--ink-muted); border-radius: 999px; color: var(--ink-muted); vertical-align: 1px; }
+/* Logo sticker: a white rough circle tilted -8° at a block's top-left corner. */
+.sticker { position: absolute; left: -12px; top: -13px; width: 30px; height: 30px; display: grid; place-items: center; transform: rotate(-8deg); pointer-events: none; z-index: 1; }
+.sticker svg { position: absolute; inset: 0; }
+.sticker .mark { position: relative; margin: 0; width: 16px; height: 16px; }
+.sticker--badge .mark--badge { position: relative; border: 0; padding: 0; margin: 0; color: var(--ink); font-size: 8px; letter-spacing: -0.3px; }
+.generic-tag { position: absolute; left: 10px; top: -9px; padding: 0 6px; font-size: 11px; font-weight: 600; color: var(--ink-muted); background: var(--panel); border: 1px solid var(--line-faint); border-radius: 6px; transform: rotate(-4deg); pointer-events: none; }
 .palette__items--products { margin-top: 6px; }
 .palette__items--products:empty { display: none; }
 .tile--product { font-size: 11px; padding: 3px 7px; }

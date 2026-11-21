@@ -6,7 +6,7 @@ const quotas = 'https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeve
 
 // Each message costs ~3 requests: send, receive, delete.
 export const sqs = presetBlock({
-  id: 'sqs', base: queue, label: 'SQS', badge: 'AWS',
+  id: 'sqs', base: queue, label: 'SQS', badge: 'SQS',
   params: { capacity_rps: 1_000_000 },
   cost: 0, requestCost: { read: 1.2, write: 1.2 },
   facts: [
@@ -23,7 +23,7 @@ export const sqs = presetBlock({
 })
 
 export const sqs_fifo = presetBlock({
-  id: 'sqs_fifo', base: queue, label: 'SQS FIFO', badge: 'AWS',
+  id: 'sqs_fifo', base: queue, label: 'SQS FIFO', badge: 'SQS',
   params: { capacity_rps: 3000 },
   cost: 0, requestCost: { read: 1.5, write: 1.5 },
   facts: [

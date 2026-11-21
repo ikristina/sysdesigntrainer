@@ -2,7 +2,7 @@
 // Uses the browser's built-in drag-and-drop: the tile puts the block type into the drag,
 // and Canvas's onDrop reads it back.
 import type { DragEvent } from 'react'
-import { blocks, categories } from '../blocks'
+import { blocks, categories, toneOf } from '../blocks'
 import { DRAG_MIME } from '../canvas/Canvas'
 import { Mark } from '../canvas/Mark'
 
@@ -23,12 +23,12 @@ export function Palette() {
                 <div
                   key={b.type}
                   className={`tile sk${product ? ' tile--product' : ''}`}
-                  style={{ boxShadow: `2px 2px 0 ${c.color}` }}
+                  style={{ background: toneOf(b) ? `var(--fill-${toneOf(b)})` : undefined }}
                   title={b.product ? `${b.label}: a preset of ${b.product.base}` : undefined}
                   draggable
                   onDragStart={(e) => onDragStart(e, b.type)}
                 >
-                  <Mark def={b} /> {b.label}
+                  <Mark def={b} />{b.label}
                 </div>
               ))}
             </div>

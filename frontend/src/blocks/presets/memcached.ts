@@ -3,7 +3,7 @@ import { presetBlock } from './preset'
 import { awsPrices, R7G_LARGE_GB, r7gLargeMemory } from './urls'
 
 export const memcached = presetBlock({
-  id: 'memcached', base: cache, label: 'Memcached', badge: 'MC',
+  id: 'memcached', base: cache, label: 'Memcached', badge: 'Mc',
   params: { capacity_rps: 200_000 },
   dropParams: ['persistence', 'replication'],
   cost: 0.219,

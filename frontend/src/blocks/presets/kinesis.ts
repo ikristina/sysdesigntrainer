@@ -3,7 +3,7 @@ import { presetBlock } from './preset'
 import { awsPrices } from './urls'
 
 export const kinesis = presetBlock({
-  id: 'kinesis', base: stream, label: 'Kinesis', badge: 'AWS',
+  id: 'kinesis', base: stream, label: 'Kinesis', badge: 'KDS',
   params: { capacity_rps: 1000 },
   cost: 0.015, costPer: 'partition', requestCost: { read: 0.014, write: 0.014 },
   facts: [

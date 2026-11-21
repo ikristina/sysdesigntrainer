@@ -101,7 +101,7 @@ A backend analogy:
 | **URL hash routing** | The part of the URL after `#` (`location.hash`) never goes to a server, and changing it doesn't reload the page. The browser fires a `hashchange` event instead. `mode.ts` keeps the mode there (`#/lesson/url-shortener`), so a reload keeps your place, Back/Forward switch modes, and you can bookmark a lesson. No router library. | `mode.ts` |
 | **`<select>` / `<optgroup>`, `<textarea>`** | Native form controls: the mode menu (grouped into Lessons and Explainers) and the per-step notes box. A **controlled** input gets `value` from the store and calls a store function in `onChange`, so the store stays the single source of truth. | `App.tsx`, `LessonPanel.tsx` |
 | **Zustand vanilla stores + React context** | `createStore(...)` (no `create`) makes a store that isn't tied to one hook, so we can make two of them: one per compare side. `<SimContext.Provider value={sideStore}>` hands a store to everything inside it; `useSimView(sel)` reads the context's store if there is one, else the main `useSim`. That's how `BlockNode` draws the main canvas and both compare canvases with the same code. | `simStore.ts`, `compare/compareStore.ts` |
-| **simple-icons** | npm package of brand SVG icons. `import { siRedis } from 'simple-icons'` gives `{ title, path, hex }`; only the icons imported end up in the bundle. `Mark.tsx` draws `path` in a 24×24 SVG. No AWS, Memcached or Valkey icons exist, so those blocks show a text badge. License note in the README. | `blocks/presets/*.ts`, `canvas/Mark.tsx` |
+| **simple-icons** | npm package of brand SVG icons. `import { siRedis } from 'simple-icons'` gives `{ title, path, hex }`; only the icons imported end up in the bundle. `Mark.tsx` draws `path` in a 24×24 SVG, filled with ink; on hover or select CSS switches the fill to the brand color, which `Mark` passes as the `--brand` CSS variable. No AWS, Memcached or Valkey icons exist, so those blocks show their initials (`badge`: Mc, VK, DDB, SQS, S3, CF, KDS) in a dashed circle. License note in the README. | `blocks/presets/*.ts`, `canvas/Mark.tsx` |
 | **Google Fonts** | Shantell Sans (one hand-written family for everything, weights 400/600/800), loaded in `index.html`. The terminal panel uses the system monospace font. | `index.html` |
 
 ## 4. Files
@@ -143,7 +143,7 @@ frontend/
       alerts.ts           alert-light rules over live sim state (Primary saturated, Replica lag, Retry storm, Cache cold, Region down)
       AlertLights.tsx     the row of alert pills along the canvas bottom
       HighlightNote.tsx   Claude's highlight message: violet note + rough arrow pinned above the first highlighted block
-      Mark.tsx            the block's logo (simple-icons SVG), text badge, or emoji
+      Mark.tsx            a product's logo (simple-icons SVG, ink; brand color on hover/select) or initials badge; generic blocks have none
       nodeTypes.ts        nodeTypes / edgeTypes maps, shared by the main and compare canvases
       ContainerNode.tsx   how a region/AZ looks (dashed rough frame, resize handles)
       RoughEdge.tsx       how a connection looks (rough curve + arrowhead, flow dots, coral when failing, a tag like "writes × followers")
@@ -158,7 +158,7 @@ frontend/
         index.ts          simBehavior name -> handler
         client.ts service.ts balancer.ts cache.ts sql.ts queue.ts stream.ts partitioned.ts consensus.ts
     panels/
-      Palette.tsx         left panel: draggable tiles grouped by category (generic tiles, then products)
+      Palette.tsx         left panel: draggable tiles grouped by category (generic tiles, then products), in the block's pastel fill
       ParamPanel.tsx      right column, bottom: param inputs with min/max validation; price, facts, sources.
                           With a connection selected: its Carries and Fan-out selects (EdgePanel)
       MetricsPanel.tsx    right column, top: readout cards (p99, errors, traffic), p99 chart, other numbers, most saturated blocks
@@ -417,6 +417,8 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 **Product presets** (`blocks/presets/`) are a generic block with a product's numbers. `presetBlock({ base: cache, label: 'Redis', logo: siRedis, params: { capacity_rps: 100000 }, cost: 0.219, sources: {...}, estimates: [...] })` copies the base block, overrides those defaults, and attaches the product info the param panel shows (facts, sources, notes). A preset can also drop or add params and pick another `simBehavior` (DynamoDB uses `partitioned`, CockroachDB `consensus`). Rule: every default a preset changes, and its price, has either a `sources` entry (a URL, with the date read for prices) or is listed in `estimates` and explained in `notes`. `presets.test.ts` enforces it.
 
 **Shapes:** a block's `shape` (`blocks/types.ts`) picks its outline in `canvas/shapes.ts`, following docs/STYLE.md: box by default (client, service, worker, cache), λ mark for functions, a sparkle for LLM and embedding, cylinder for databases, pipe for queues, pipe with lanes for streams, diamond for the load balancer, bucket for blob storage, cloud for the CDN. Presets inherit their base block's shape. Regions draw as a dashed cloud-like frame, AZs as a dashed box.
+
+**Logos on the canvas:** a product block (Redis, Postgres...) has its mark on a round white rough-drawn sticker, tilted -8°, at the top-left corner (the gauge has the top-right). A generic block that products are presets of (Cache, SQL DB, Queue...; `hasPresets` in `blocks/index.ts`) shows a small "generic" tag there instead. Other blocks (Client, Service, Load balancer...) have neither; their shape and color say what they are.
 
 **Tones:** `toneOf(def)` in `blocks/index.ts` picks a block's color family: the fill is `var(--fill-<tone>)` and the flow color `var(--flow-<tone>)`, both in `tokens.css`. It is mostly the category, except the client (lilac) is split from DNS/CDN (butter), and SQL databases (mint, any preset whose base is `sql_db`) from the other data stores (green). Regions and AZs have none. `registry.test.ts` checks that every block has a shape that draws and that both tokens exist. It reads `tokens.css` with a `?raw` import; Vitest normally blanks CSS imports, so `vite.config.ts` has `test.css.include` for that one file.
 

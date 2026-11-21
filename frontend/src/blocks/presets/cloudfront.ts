@@ -2,7 +2,7 @@ import { cdn } from '../cdn'
 import { presetBlock } from './preset'
 
 export const cloudfront = presetBlock({
-  id: 'cloudfront', base: cdn, label: 'CloudFront', badge: 'AWS',
+  id: 'cloudfront', base: cdn, label: 'CloudFront', badge: 'CF',
   cost: 0, requestCost: { read: 1, write: 1 }, transferCost: 0.085,
   facts: [
     'Pay per request ($0.01 per 10k HTTPS in the US) plus per GB transferred',
