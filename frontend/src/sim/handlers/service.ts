@@ -1,7 +1,7 @@
-// Generic server: a queue in front of replicas × capacity_rps (as parallel servers, see latencyOf). Each request calls every child.
+// Generic server: a queue in front of replicas × capacity_rps (each replica its own servers, see latencyOf). Each request calls every child.
 // Used by services, workers, functions, AI services, the NoSQL-style stores and DNS.
 import type { Handler } from '../types'
-import { asFlow, DEFAULT_TIMEOUT_MS, latencyOf, mixOf, muOf, num, queueStep, total } from './common'
+import { asFlow, DEFAULT_TIMEOUT_MS, latencyOf, mixOf, muOf, perReplica, num, queueStep, total } from './common'
 
 export const service: Handler = ({ node, inbound, children, state, dt }) => {
   const lambda = total(inbound)
@@ -16,6 +16,6 @@ export const service: Handler = ({ node, inbound, children, state, dt }) => {
     fanout: 'all',
     state: { queue: q.queue, mix },
     metrics: { lambda, mu, rho, queue: q.queue, served: q.out, dropped: q.dropped, baseMs,
-      latencyMs: latencyOf(baseMs, rho, q.waitMs, mu) },
+      latencyMs: latencyOf(baseMs, rho, q.waitMs, perReplica(node)) },
   }
 }

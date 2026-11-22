@@ -41,8 +41,8 @@ export const initialSim = (): SimState => ({
 })
 
 const behavior = (type: string) => registry[type]?.simBehavior
-// times: calls per request that wait one after another (a sequential fan-out edge); 1 otherwise.
-type Link = { target: string; w: number; edgeMs: number; cut: boolean; times: number }
+// sequentialCalls: calls per request that wait one after another (a sequential fan-out edge); 1 otherwise.
+type Link = { target: string; w: number; edgeMs: number; cut: boolean; sequentialCalls: number }
 
 export function step(design: Design, prev: SimState, { traffic, killed, partitioned = [] }: SimInputs, dt = 0.1): SimState {
   const byId = new Map(design.nodes.map((n) => [n.id, n]))
@@ -123,15 +123,15 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     const r = results.get(id)!, m = r.metrics, node = nodes.get(id)!
     const own = m.lambda > 0 ? Math.min(1, m.dropped / m.lambda) : node.killed ? 1 : 0
     const ls: Link[] = r.fanout === 'async' ? [] : kids.get(id)!.map((e, i) => ({
-      target: e.target, edgeMs: edgeMs(id, e.target), cut: cut.has(e.id), times: sequentialTimes(e, traffic),
+      target: e.target, edgeMs: edgeMs(id, e.target), cut: cut.has(e.id), sequentialCalls: sequentialCalls(e, traffic),
       w: m.served > 0 ? Math.min(1, total(routed.get(id)![i]) / m.served) : 0,
     }))
     links.set(id, ls)
     let downMs = 0, downFail = 0, survive = 1
     for (const l of ls) {
       const c = l.cut ? { pathMs: 0, pathFail: 1 } : metrics[l.target]
-      const fail = 1 - (1 - c.pathFail) ** l.times
-      downMs += l.w * (c.pathMs + l.edgeMs) * l.times
+      const fail = 1 - (1 - c.pathFail) ** l.sequentialCalls
+      downMs += l.w * (c.pathMs + l.edgeMs) * l.sequentialCalls
       downFail += l.w * fail
       survive *= 1 - l.w * fail
     }
@@ -145,12 +145,12 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
   // Sample end-to-end latencies for p50/p99.
   const rand = rng(prev.seed)
   const fanout = (id: string): Fanout => results.get(id)!.fanout
-  // One call down a link, or `times` calls in a row (up to 20 samples, scaled, to bound the work).
+  // One call down a link, or `sequentialCalls` calls in a row (up to 20 samples, scaled, to bound the work).
   const calls = (l: Link, depth: number) => {
-    const k = Math.min(l.times, 20)
+    const k = Math.min(l.sequentialCalls, 20)
     let sum = 0
     for (let i = 0; i < k; i++) sum += l.edgeMs + sample(l.target, depth + 1)
-    return (sum * l.times) / k
+    return (sum * l.sequentialCalls) / k
   }
   const sample = (id: string, depth: number): number => {
     const m = metrics[id]
@@ -194,13 +194,14 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
   }
 }
 
-const sequentialTimes = (e: SavedEdge, t: Traffic) => !e.sequential ? 1
-  : Math.max(1, e.fanout === 'write' ? (t.followers ?? TRAFFIC_DEFAULTS.followers) : e.fanout === 'read' ? (t.following ?? TRAFFIC_DEFAULTS.following) : 1)
+/** How many copies a fan-out edge makes of each write (followers) or read (following); 1 if it doesn't fan out. */
+const fanFactor = (e: SavedEdge, t: Traffic) =>
+  e.fanout === 'write' ? (t.followers ?? TRAFFIC_DEFAULTS.followers) : e.fanout === 'read' ? (t.following ?? TRAFFIC_DEFAULTS.following) : 1
+const sequentialCalls = (e: SavedEdge, t: Traffic) => (e.sequential ? Math.max(1, fanFactor(e, t)) : 1)
 const route = (f: Flow, e: SavedEdge): Flow =>
   e.carries === 'read' ? { read: f.read, write: 0 } : e.carries === 'write' ? { read: 0, write: f.write } : f
 const fan = (f: Flow, e: SavedEdge, t: Traffic): Flow =>
-  e.fanout === 'write' ? { ...f, write: f.write * (t.followers ?? TRAFFIC_DEFAULTS.followers) }
-    : e.fanout === 'read' ? { ...f, read: f.read * (t.following ?? TRAFFIC_DEFAULTS.following) } : f
+  e.fanout === 'write' ? { ...f, write: f.write * fanFactor(e, t) } : e.fanout === 'read' ? { ...f, read: f.read * fanFactor(e, t) } : f
 
 /** $/hour for running the blocks: cost × replicas (SQL: primary + read replicas; × 2 with a
  *  replica per node; per partition for blocks billed per shard). Request pricing is separate. */

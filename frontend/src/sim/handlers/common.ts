@@ -1,6 +1,7 @@
 // Small helpers shared by the handlers.
 import type { ParamValue } from '../../blocks/types'
 import type { Flow, NodeState, SimNode } from '../types'
+import { fmtCount } from '../../display'
 
 // Extra latency on an edge between two regions / two AZs. Estimates: ~70 ms is a typical
 // US east-west round trip; cross-AZ is about 1 ms.
@@ -21,17 +22,22 @@ export const muOf = (n: SimNode) =>
 
 /**
  * Latency of a block running at utilization ρ: base + the M/M/c wait + time spent in an overflow queue.
- * A block is c parallel servers, c = μ × base latency (Little's law): a service doing 1,000 rps per
- * replica at 20 ms has 20 requests in flight per replica. Many servers barely queue until they're
- * nearly full (like a real fleet); one server (c = 1) queues early: base / (1 - ρ).
+ * `mu` is the rate of ONE replica: a load balancer gives each replica its own queue, so replicas
+ * don't share a wait line. A replica is c parallel servers, c = μ × base latency (Little's law): a
+ * service doing 1,000 rps per replica at 20 ms has 20 requests in flight. Many servers barely queue
+ * until they're nearly full (like a real fleet); one server (c = 1) queues early.
+ * Each server takes c / μ per request (= base, up to rounding c to a whole number), so the c servers
+ * add up to exactly μ. When μ × base < 1, c is 1 and that service time is 1/μ, longer than base.
  * ρ is capped at 0.99 here; at ρ ≥ 1 the overflow queue (queueStep's waitMs) takes over.
  */
 export function latencyOf(baseMs: number, rho: number, waitMs: number, mu: number) {
-  const servers = Number.isFinite(mu) ? Math.round((mu * baseMs) / 1000) : Infinity
-  if (baseMs <= 0 || rho <= 0 || !Number.isFinite(servers)) return baseMs + waitMs
-  const c = Math.max(1, servers), r = Math.min(rho, 0.99)
-  return baseMs + erlangC(c, c * r) * baseMs / (c * (1 - r)) + waitMs
+  if (baseMs <= 0 || rho <= 0 || !Number.isFinite(mu) || mu <= 0) return baseMs + waitMs
+  const c = Math.max(1, Math.round((mu * baseMs) / 1000)), serviceMs = (c / mu) * 1000, r = Math.min(rho, 0.99)
+  return baseMs + erlangC(c, c * r) * serviceMs / (c * (1 - r)) + waitMs
 }
+
+/** Rate of one replica: μ / replicas. */
+export const perReplica = (n: SimNode) => muOf(n) / Math.max(1, num(n.params.replicas, 1))
 
 /** Erlang C: chance a request has to wait, for c servers and offered load a = λ × service time. */
 export function erlangC(c: number, a: number) {
@@ -67,3 +73,7 @@ export function mixOf(inbound: Flow, state: NodeState) {
 }
 
 export const asFlow = (rate: number, mix: number): Flow => ({ read: rate * mix, write: rate * (1 - mix) })
+
+/** Note under a queue or stream: its backlog, and messages put back for redelivery. */
+export const backlogNote = (backlog: string | false, redelivered: number) =>
+  [backlog, redelivered >= 1 && `↻ ${fmtCount(redelivered)}/s`].filter(Boolean).join(' · ') || undefined

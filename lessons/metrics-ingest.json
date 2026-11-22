@@ -37,7 +37,7 @@
   "hints": [
     "If the store slows down or dies, what happens to an agent sending points right now?",
     "Put a log (a stream) between intake and the store, with aggregator consumers writing in the background; one consumer per partition reads. For dashboards: does every query have to read 20 raw series?",
-    "Ingest: LB -> about 25 intake services -> Kafka (about 24 partitions) -> 24 aggregator services -> wide-column (3 replicas). Incident: add a cache (hit 0.9, standing in for rollups) on the read path, with the fan-out read edge from the cache to the store."
+    "Ingest: intake writes into a log, and consumers move the data into the store; match consumers to partitions. Incident: dashboards shouldn't each read 20 raw series. What could hold pre-computed answers, and where does the fan-out read edge go then?"
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
   "_notes": "Intake 25 services (rho 0.8, $2.50) + LB. Writing straight to wide-column (3 x 10k) passes steady (p99 ~35 ms, $3.73) but a store kill fails 100% of requests. Kafka ($0.63, 10k/partition) -> aggregator services (1k/s each) -> store: 24 partitions + 24 consumers: p99 ~38 ms, $6.76, and a store kill leaves intake green: batches pile up as lag (and get redelivered), then drain after the restore. 4 partitions with 24 consumers: only 4 read, backlog explodes. Incident (fan-out 20 on reads): no cache needs ~14-16 store replicas ($10-11). Cache 0.9 with the fan-out edge after it: store rho 0.87 on 3 replicas, p99 ~40 ms, $6.11. Aggregation that shrinks write volume isn't modeled; consumers forward every batch. Discuss rollups, downsampling and cardinality limits. Checked in frontend/src/lessons/content.test.ts."

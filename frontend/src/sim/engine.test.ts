@@ -29,12 +29,17 @@ describe('simulator', () => {
     expect(s.global.throughput).toBeCloseTo(1000)
   })
 
-  it('M/M/c: one server queues early (base / (1 - ρ)); many servers wait only near full', () => {
+  it('M/M/c: one server queues early (base / (1 - ρ)); many servers wait only near full; replicas queue separately', () => {
     const one = run(simple({ replicas: 1, capacity_rps: 50 }, { retries: 0 }), { rps: 40 }) // 50 rps × 20 ms = 1 server
     expect(one.metrics.s.latencyMs).toBeCloseTo(20 / (1 - 0.8), 0)
-    const many = (rps: number) => run(simple({ replicas: 10 }, { retries: 0 }), { rps }).metrics.s.latencyMs // 200 servers
-    expect(many(8000)).toBeLessThan(21)
+    // 10 replicas × 20 servers each. Each replica has its own queue, so they don't pool into 200.
+    const many = (rps: number) => run(simple({ replicas: 10 }, { retries: 0 }), { rps }).metrics.s.latencyMs
+    expect(many(5000)).toBeLessThan(21)
     expect(many(9900)).toBeGreaterThan(22)
+    expect(many(8000)).toBeGreaterThan(run(simple({ replicas: 1, capacity_rps: 10000 }, { retries: 0 }), { rps: 8000 }).metrics.s.latencyMs)
+    // μ × base < 1: one server that takes 1/μ = 200 ms per request, not the 20 ms base.
+    const slow = run(simple({ replicas: 1, capacity_rps: 5 }, { retries: 0 }), { rps: 4 })
+    expect(slow.metrics.s.latencyMs).toBeCloseTo(20 + (0.8 * 200) / 0.2, 0)
   })
 
   it('erlangC matches known values', () => {
@@ -159,6 +164,13 @@ describe('simulator', () => {
     expect(s.metrics.q.queue).toBeGreaterThan(1500)                      // the shortfall shows up as backlog
     expect(s.metrics.slow.served).toBeCloseTo(100, -1)                   // real throughput = the slowest step
     expect(s.global.errorPct).toBeCloseTo(0)                             // producers never see it
+    // ...unless redeliveries eat the queue's own intake limit: then new sends get turned away.
+    const capped = design([node('c', 'client', { retries: 0 }), node('q', 'queue', { capacity_rps: 350 }), node('w', 'worker', { replicas: 2, timeout_ms: 2000 }),
+      node('slow', 'service', { replicas: 1, capacity_rps: 100, base_latency_ms: 10, timeout_ms: 100 })],
+    [['c', 'q'], ['q', 'w'], ['w', 'slow']])
+    const t = run(capped, { rps: 300, seconds: 10 })
+    expect(t.metrics.q.rho).toBeGreaterThan(1)
+    expect(t.global.errorPct).toBeGreaterThan(1)
   })
 
   it('stream: every consumer group reads every message; partitions cap parallelism', () => {

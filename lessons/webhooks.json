@@ -34,7 +34,7 @@
   "hints": [
     "Should the API that emits an event wait for the merchant to answer?",
     "Put a queue between the API and delivery workers, then size the workers to drain faster than events arrive. At 12k/s: what is your queue's intake limit, and what does a per-message price come to per hour?",
-    "Steady: service -> queue -> about 11 workers -> merchants. Black Friday: about 15 services -> Kafka with about 66 partitions -> 66 workers (one reader per partition; key by merchant for ordering). SQS also works but costs about $50/hr in requests."
+    "Steady: workers must drain a little faster than events arrive; count each delivery's time against capacity_rps. Black Friday: compare a queue with a per-message price to a log with partitions. How many readers does a log allow, and how do you keep one merchant's events in order?"
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
   "_notes": "Workers 200/s, $0.10. Steady: sync (service -> merchants) gives p99 ~520 ms and 0.8% errors. Queue ($0.05, 3k/s) + 9 workers: rho 1.1, backlog fills; 11 workers: p99 ~36 ms, $1.55; 20 workers ($2.45) break the budget. Black Friday: one queue rejects above 3k/s (79% errors). SQS: $60/hr in requests. Kafka ($0.63) with 12 partitions and 65 workers: only 12 read, backlog explodes. Kafka 66 partitions + 66 workers + 15 services: p99 ~36 ms, $8.83; a generic Stream with 66 partitions is cheaper. The sim doesn't model failed deliveries staying in the queue or per-merchant isolation; cover retries, backoff with jitter, DLQ and signing in the postmortem. Checked in frontend/src/lessons/content.test.ts."

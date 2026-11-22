@@ -35,7 +35,7 @@
   "hints": [
     "Where does the counter live, and how far is it from each edge?",
     "One central counter is exact, but two of three regions pay a cross-region round trip on every request. A counter in each region is fast, but each one sees only its own traffic.",
-    "Exact: 3 edge service replicas per region, all calling one cache in us. Fast: a cache in each region next to its edge (3 replicas each), synced in the background."
+    "Exact: every region has to check the same counter. Where does it live, and what does that cost the far regions in latency? Fast: each region checks its own counter. What do you give up in accuracy, and how would the counters catch up with each other?"
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
   "_notes": "Each region: client -> edge service. 2k rps per region. Central counter (one cache in us): eu and ap pay 70 ms. Edge 3 replicas: p99 ~96 ms, $1.05; more replicas don't remove the 70 ms. Local counters (a cache per region): edge 3: p99 ~26 ms, $1.35 (over exact's $1.20). So exact forces central (it's cheapest), fast forces local (latency). Exactness isn't simulated: a local design under 'exact' only fails on cost. Ask why it's wrong anyway. Token bucket vs sliding window is worth a minute. Checked in frontend/src/lessons/content.test.ts."

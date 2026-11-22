@@ -26,7 +26,7 @@ export const sql: Handler = ({ node, inbound, children, state, dt }) => {
 
   const lambda = total(inbound)
   const latP = latencyOf(baseMs, rhoP, prim.waitMs, perNode)
-  const latR = latencyOf(baseMs, rhoR, repl.waitMs, replicas * perNode)
+  const latR = latencyOf(baseMs, rhoR, repl.waitMs, perNode) // each read replica has its own queue
   const lagS = replicas > 0
     ? Math.max(0, (state.lagS ?? 0) + dt * (rhoP > LAG_FROM_RHO ? rhoP - LAG_FROM_RHO : -LAG_RECOVERY))
     : 0

@@ -2,7 +2,7 @@
   "id": "agent-backend",
   "title": "AI agent backend: one task, many LLM calls",
   "mode": "full",
-  "brief": "Design the backend for an AI agent. Each user task runs a loop: the LLM picks a tool, the tool runs, the result goes back to the LLM, about 6 LLM calls per task, one after another. LLM: 5 calls/s per replica, about 2 s each, $3/hr. Mark the edge into the LLM as fan-out on read, one after another (the lesson sets following = 6): each task becomes 6 calls in a row. A task takes well over 10 s: every timeout on its path must be longer than that.",
+  "brief": "Design the backend for an AI agent. Each user task runs a loop: the LLM picks a tool, the tool runs, the result goes back to the LLM, about 6 LLM calls per task, one after another. LLM: 5 calls/s per replica, about 2 s each, $3/hr. A task takes well over 10 s: every timeout on its path must be longer than that.",
   "variants": [
     {
       "id": "assistant",
@@ -11,10 +11,10 @@
         "6 LLM calls per task, in sequence (fan-out read edge, 'one after another', following = 6)",
         "task p99 < 20 s",
         "errors < 0.5%",
-        "cost < $25/hr"
+        "cost < $28/hr"
       ],
       "traffic": { "rps": 5, "read_ratio": 1, "following": 6 },
-      "success": { "p99_ms": 20000, "error_pct": 0.5, "max_cost_hr": 25, "needs_fanout": true },
+      "success": { "p99_ms": 20000, "error_pct": 0.5, "max_cost_hr": 28, "needs_fanout": true },
       "twist": "A prompt change makes agents loop: 15 calls per task. Apply with set_traffic(following=15). What happens to task time and cost? How would you cap steps or tokens per task, and where is that enforced?"
     },
     {
@@ -36,8 +36,8 @@
   "hints": [
     "How many LLM calls does one task make, how long does it take end to end, and how many calls per second does that add up to?",
     "Mark the edge into the LLM as fan-out on read, one after another, so each task is 6 calls in a row. Set every timeout on the path above the task's length. Background: does the user's request need to wait for the task at all?",
-    "Assistant: client and service timeouts 60 s, service -> LLM (fan-out read, one after another), about 7 replicas. Background: service -> queue -> worker (timeout_ms about 120000) -> LLM with the same edge, about 28 replicas."
+    "Assistant: 5 tasks x 6 calls is the LLM's real rate; size the pool for that at about 80% busy, and make each timeout longer than a whole task. Background: put something between the request and the agent loop so the request returns at once, and give whatever runs the loop a timeout longer than a task."
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
-  "_notes": "Sequential fan-out read with following 6: 5 tasks/s = 30 LLM calls/s, task p99 ~13.8 s (6 x ~2.2 s). Assistant: 7 replicas (rho 0.87): $21.20; 6 sit past rho 1 and collapse; 9 ($27.20) break the budget; without a fan-out edge the 'needs_fanout' check fails. Background: 120 calls/s. Queue -> 1 worker (timeout 120 s) -> LLM. 28 replicas (rho 0.94): submit p99 ~36 ms, $84.35; 24 fall behind; 30 ($90.35) break the budget. Sync (service -> LLM) has task-length p99. Watch out: with the worker's default 30 s timeout, slow tasks under load time out, get redelivered and add load; give workers a timeout longer than a task. Tool calls aren't modeled; add a Service for tools if the user wants. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "Sequential fan-out read with following 6: 5 tasks/s = 30 LLM calls/s, a task is 6 LLM calls in a row. Each LLM replica queues on its own (c = 10). Assistant: 7 replicas (rho 0.86) collapse under the task's 6x tail; 8 (rho 0.75): task p99 ~16.5 s, $24.20; 9: ~14.5 s, $27.20; 10 ($30.20) break the budget; without a fan-out edge the 'needs_fanout' check fails. Background: 120 calls/s. Queue -> 1 worker (timeout 120 s) -> LLM. 26-29 replicas: submit p99 ~36 ms, $78-87; 22 fall behind; 30 ($90.35) break the budget. Sync (service -> LLM) has task-length p99. Watch out: with the worker's default 30 s timeout, slow tasks under load time out, get redelivered and add load; give workers a timeout longer than a task. Tool calls aren't modeled; add a Service for tools if the user wants. Checked in frontend/src/lessons/content.test.ts."
 }

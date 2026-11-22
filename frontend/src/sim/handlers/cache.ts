@@ -7,7 +7,7 @@
 //   node, a lost node fails over and nothing is lost.
 // It warms back up as misses refill it.
 import type { Handler } from '../types'
-import { DEFAULT_TIMEOUT_MS, latencyOf, mixOf, muOf, num, queueStep, total } from './common'
+import { DEFAULT_TIMEOUT_MS, latencyOf, mixOf, muOf, perReplica, num, queueStep, total } from './common'
 
 // ponytail: warm-up is a fixed 30 s time constant (estimate); a real one depends on the key
 // count and the miss rate. Add a keyspace param if a lesson needs the real shape.
@@ -38,6 +38,6 @@ export const cache: Handler = ({ node, inbound, children, state, dt }) => {
     fanout: 'all',
     state: { queue: q.queue, mix, warm, replicas },
     metrics: { lambda, mu, rho, queue: q.queue, served: q.out, dropped: q.dropped, baseMs,
-      latencyMs: latencyOf(baseMs, rho, q.waitMs, mu), hit, stale: reads * hit, note: `hit ${Math.round(hit * 100)}%` },
+      latencyMs: latencyOf(baseMs, rho, q.waitMs, perReplica(node)), hit, stale: reads * hit, note: `hit ${Math.round(hit * 100)}%` },
   }
 }

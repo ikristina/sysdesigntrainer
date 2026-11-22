@@ -6,13 +6,14 @@
 // backlog shows the real shortfall, and the queue ends up draining at the rate work completes.
 import type { Handler } from '../types'
 import { fmtCount } from '../../display'
-import { asFlow, mixOf, muOf, num, total } from './common'
+import { asFlow, backlogNote, mixOf, muOf, num, total } from './common'
 
 export const queue: Handler = ({ node, inbound, children, childFail, state, dt }) => {
   const lambda = total(inbound)
   const cap = node.killed ? 0 : num(node.params.capacity_rps, Infinity)
-  const accepted = Math.min(lambda, cap)
-  const redelivered = children.reduce((a, _, i) => a + (state[`sent:${i}`] ?? 0) * (childFail[i] ?? 0), 0)
+  // Redelivered messages use the queue's capacity too (they're received again), ahead of new sends.
+  const redelivered = children.reduce((a, c, i) => a + (state[`sent:${c.id}`] ?? 0) * (childFail[i] ?? 0), 0)
+  const accepted = Math.min(lambda, Math.max(0, cap - redelivered))
   const drain = node.killed ? [] : children.map(muOf)
   const drainTotal = drain.reduce((a, b) => a + b, 0)
   const available = (state.queue ?? 0) + (accepted + redelivered) * dt
@@ -24,9 +25,9 @@ export const queue: Handler = ({ node, inbound, children, childFail, state, dt }
   return {
     out: sent.map((r) => asFlow(r, mix)),
     fanout: 'async',
-    state: { queue: backlog, mix, ...Object.fromEntries(sent.map((r, i) => [`sent:${i}`, r])) },
-    metrics: { lambda, mu: cap, rho: cap > 0 ? lambda / cap : 0, queue: backlog, served: accepted,
+    state: { queue: backlog, mix, ...Object.fromEntries(sent.map((r, i) => [`sent:${children[i].id}`, r])) },
+    metrics: { lambda, mu: cap, rho: cap > 0 ? (lambda + redelivered) / cap : 0, queue: backlog, served: accepted,
       dropped: lambda - accepted, baseMs, latencyMs: baseMs, redelivered,
-      note: [backlog >= 1 && `${fmtCount(backlog)} waiting`, redelivered >= 1 && `↻ ${fmtCount(redelivered)}/s`].filter(Boolean).join(' · ') || undefined },
+      note: backlogNote(backlog >= 1 && `${fmtCount(backlog)} waiting`, redelivered) },
   }
 }

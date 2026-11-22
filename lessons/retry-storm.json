@@ -35,7 +35,7 @@
   "hints": [
     "During the spike some requests fail. What does each client do when a request fails, and what does that do to the load?",
     "With 3 retries, a server that fails everything gets up to 4x the traffic, so it can't drain even after users go back to normal. Try backoff alone first: does it help? Then cap how many retries clients may send, or turn the excess away early and cheaply.",
-    "New app: set the client's retry_budget to 10% (20% isn't enough here; backoff on top is fine, backoff alone doesn't recover). Old clients: put an API gateway in front of the load balancer with rate_limit_rps about 4500, so the services never queue past their timeout."
+    "New app: try both retry budgets with the spike. Only one of them lets the service drain afterwards. Old clients: you can't change them, so turn the excess away before the service queues past its timeout. What limit keeps the service just under full?"
   ],
   "steps": ["requirements", "load_test", "design", "twist", "postmortem"],
   "explainers": ["load-balancing"],

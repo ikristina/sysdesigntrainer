@@ -34,7 +34,7 @@
   "hints": [
     "Which requests must reach the database, and which could be answered from a copy?",
     "A CDN answers most page reads at the edge, and a cache takes the reads that get through. Buy attempts still hit one primary at about 5k/s. If they come in at 3x that, who gets turned away, and where?",
-    "Onsale: client -> CDN -> LB -> about 10 services -> cache (hit 0.9) -> SQL DB. Drop: client -> CDN -> API gateway (rate_limit_rps about 4000-4500) -> LB -> about 6 services -> SQL DB."
+    "Onsale: put two layers in front of the database that answer reads, one at the edge and one in front of the DB, and size the services for what gets past them. Drop: the primary takes about 5k writes/s. Cap buy attempts below that before they reach the services."
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
   "_notes": "Onsale: no CDN needs ~60 services and the DB still collapses. CDN (0.9) alone: DB gets 4.75k reads + 2.5k writes (rho 1.45), fails. CDN + cache 0.9 + 10 services: DB rho 0.89 (mostly the 2.5k writes), p99 ~53 ms, $1.78. CDN + 2 read replicas passes ($2.63, over budget). Drop: CDN + 20 services: 15k writes collapse the DB. CDN -> gateway 4000 -> 6 services: p99 ~60 ms, 21% errors, $1.28; a 6000 limit overloads the DB (rho 1.2). CockroachDB with 18 nodes takes it all but costs $5.44. The sim has no hot-row lock on the one product; in Postgres every buyer updates the same inventory row. Ask how they'd avoid that (pre-split stock into buckets, Redis DECR, reservations with expiry). Checked in frontend/src/lessons/content.test.ts."

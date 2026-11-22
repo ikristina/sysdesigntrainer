@@ -30,7 +30,7 @@
   "hints": [
     "Look at the stream's partitions and the consumer count. How many consumers are actually reading?",
     "In a consumer group, each partition is read by one consumer at a time, so consumers beyond the partition count sit idle. Besides more consumers, what raises throughput per consumer?",
-    "Steady: raise the stream to 12 partitions (12 consumers x 200/s drain 2.4k/s). Growth: batch writes (capacity_rps 500) with about 14 partitions and 14 consumers; 30 unbatched consumers cost too much."
+    "Steady: work out the partition count where the consumers stop sitting idle. Growth: more partitions and consumers alone break the budget. What makes each consumer handle more messages per second?"
   ],
   "steps": ["requirements", "design", "load_test", "twist", "postmortem"],
   "_notes": "Starter: client -> 8 services -> stream (6 partitions, $0.20) -> 12 workers (200/s) -> KV: $3.10. Only 6 read: drain 1.2k/s against 2k/s in, lag grows 800/s (12k after 15 s). 24 workers: still 6 readers, $4.30. 12 partitions: drain 2.4k/s, no lag, $3.10. Growth 6k/s: 30 partitions + 30 workers (unbatched) pass at $4.90 (over budget). Batched (500/s) 14 partitions + 14 workers: $3.30; 12 + 12 sits at exactly rho 1. Rebalance pauses and per-key ordering aren't modeled; discuss them in the twist. Checked in frontend/src/lessons/content.test.ts."

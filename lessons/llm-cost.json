@@ -37,7 +37,7 @@
   "hints": [
     "How busy is each GPU right now? How many of these requests needed a GPU at all?",
     "16 replicas take 80/s and you send 40: first right-size the pool. Then: repeated prompts can come from a cache, and if nobody waits, bigger batches trade latency for throughput.",
-    "Repeats: cache (hit 0.7) in front of the LLM, 3 replicas. Batch: service -> queue -> worker -> LLM set to capacity_rps 10 and base_latency_ms 4000, 5 replicas; the service only enqueues."
+    "Repeats: decide where a cache goes so repeats never reach a GPU, then right-size the pool for what's left. Batch: if nobody waits, a worker fed from a queue can use the bigger, slower batch setting. How many replicas keep up with 40/s at that rate?"
   ],
   "steps": ["requirements", "design", "load_test", "twist", "postmortem"],
   "_notes": "Starter: client (timeout 60 s) -> LB -> 2 services (timeout 60 s) -> LLM x16: rho 0.5, p99 ~2.5 s, $48.23. Just right-sizing to 9 replicas (rho 0.89) gives $27.23: half the bill, still over both budgets. Repeats: cache 0.7 -> LLM sees 12/s. 3 replicas: p99 ~2.6 s, $9.38; 4 ($12.38) break the budget. Batch: queue -> 1 worker -> LLM (10/s, 4 s). 5 replicas (rho 0.8): accept p99 ~37 ms, $15.38; 3 fall behind; 6 ($18.38) break the budget. The same batched replicas behind a waiting user give p99 ~5 s. Also worth raising: a smaller model, shorter prompts, prompt caching. Cost per token isn't modeled; the sim prices GPU-hours. Checked in frontend/src/lessons/content.test.ts."

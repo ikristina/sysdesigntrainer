@@ -36,7 +36,7 @@
   "hints": [
     "Does the uploader need the summary before the upload returns?",
     "Accept the upload, store it, and hand the summary to a queue; size the GPUs for the calls per second that come out of it. A document split into chunks is several calls, not one.",
-    "Bulk: service -> blob + queue -> worker -> LLM (5 replicas). Long docs: same, with the worker -> LLM edge set to fan-out on write (8 calls per document): about 17-18 replicas."
+    "Bulk: the request only stores the file and enqueues; size the GPU pool from documents/s and add a little headroom. Long docs: the rate that reaches the GPUs is documents/s x chunks per document. Which edge has to fan out for the sim to see that?"
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
   "_notes": "Bulk: sync (service -> LLM) gives upload p99 ~2.5 s and timeout errors. Async: service -> blob + queue -> worker -> LLM. 5 replicas (rho 0.8): p99 ~95 ms, $15.50; 3 fall behind (backlog over 100 within 30 s); 9 ($27.50) break the budget. Long docs: 80 LLM calls/s. 17 replicas (rho 0.94): $51.50; 18: $54.50; 15 can't keep up; 20 ($60.50) break the budget. Sync with the same fan-out collapses (98% errors). Failed summaries are redelivered from the queue (at least once), so an LLM outage shows up as backlog and the queue's redelivery rate, not as lost work. Checked in frontend/src/lessons/content.test.ts."

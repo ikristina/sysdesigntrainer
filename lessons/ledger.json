@@ -35,7 +35,7 @@
   "hints": [
     "Why can't a cache or a read replica serve balance reads here?",
     "Every write goes to one SQL primary, and it tops out around 5k/s. To get past that with exact reads, either split accounts across several primaries or use a database where every node takes writes.",
-    "Startup: LB -> 4 services -> one SQL DB. Scale: about 20 services -> a load balancer used as a shard router -> 4 SQL DBs (one per account range), or CockroachDB with about 14 nodes (each write lands on 3 replicas)."
+    "Startup: does anything need more than one primary yet? Scale: work out how many primaries 16k writes/s needs at about 5k each, and what routes each account to its primary. Or price a multi-writer database, remembering each write is stored more than once."
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
   "_notes": "SQL DB: 5k/s, $0.50. Startup: LB + 4 services + SQL: p99 ~31 ms, $0.93. Cache or 1 read replica fails 'no stale reads'. DynamoDB passes latency but request pricing makes it $4.75/hr. Scale: one primary at 16k collapses. A load balancer as a shard router splits evenly: 3 shards (rho 1.07) collapse, 4 shards (rho 0.8): p99 ~33 ms, $4.06. CockroachDB: (6.4k reads + 9.6k x 3 writes) / 3k per node: 14 nodes (rho 0.84) p99 ~32 ms, $4.61; 18 nodes ($5.34) break the budget. Even splitting assumes no hot account; a platform fee account takes a share of every transfer in real life. Ask about it. Checked in frontend/src/lessons/content.test.ts."
