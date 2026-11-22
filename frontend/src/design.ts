@@ -21,6 +21,7 @@ export type SavedNode = {
 export type EdgeRoute = {
   carries?: 'read' | 'write'  // only reads or only writes take this edge
   fanout?: 'write' | 'read'   // each write is sent `followers` times / each read fetches `following` times
+  sequential?: boolean        // with fanout: the N calls run one after another (latency × N), e.g. an agent's LLM loop
 }
 export type SavedEdge = { id: string; source: string; target: string } & EdgeRoute
 export type Design = {
@@ -29,7 +30,7 @@ export type Design = {
   edges: SavedEdge[]
 }
 const routeOf = (r: EdgeRoute | undefined): EdgeRoute => ({
-  ...(r?.carries && { carries: r.carries }), ...(r?.fanout && { fanout: r.fanout }),
+  ...(r?.carries && { carries: r.carries }), ...(r?.fanout && { fanout: r.fanout }), ...(r?.fanout && r.sequential && { sequential: true }),
 })
 
 export const isContainer = (type: string) => registry[type]?.category === 'grouping'
@@ -76,6 +77,7 @@ export function fromDesign(input: unknown): { nodes: FlowNode[]; edges: Edge[] }
     if (!ids.has(e.source) || !ids.has(e.target)) throw new Error(`Edge ${e.id} points at a missing node`)
     if (e.carries && !['read', 'write'].includes(e.carries)) throw new Error(`Edge ${e.id}: carries must be "read" or "write"`)
     if (e.fanout && !['read', 'write'].includes(e.fanout)) throw new Error(`Edge ${e.id}: fanout must be "read" or "write"`)
+    if (e.sequential !== undefined && typeof e.sequential !== 'boolean') throw new Error(`Edge ${e.id}: sequential must be true or false`)
   }
   return {
     nodes: d.nodes.map(makeNode),

@@ -41,6 +41,34 @@ describe('simulator', () => {
     expect(storm.metrics.s.lambda).toBeGreaterThan(calm.metrics.s.lambda * 1.3)
   })
 
+  it('a retry budget caps retries at a share of requests; the rest fail at once', () => {
+    const storm = run(simple({}, { retries: 3 }), { rps: 3000, seconds: 10 })
+    const budget = run(design([node('c', 'client', { retries: 3, retry_budget: '10%' }), node('s', 'service')], [['c', 's']]), { rps: 3000, seconds: 10 })
+    expect(budget.metrics.c.lambda).toBeLessThanOrEqual(3000 * 1.1 + 1)
+    expect(budget.metrics.c.lambda).toBeLessThan(storm.metrics.c.lambda)
+  })
+
+  it('backoff spreads retries over later ticks instead of sending them at once', () => {
+    const d = (backoff: string) => design([node('c', 'client', { retries: 3, backoff }), node('s', 'service')], [['c', 's']])
+    // One second of total failure, then the service is back: retries keep arriving only with backoff.
+    const kill = (b: string) => run(d(b), { rps: 1000, seconds: 1, killed: ['s'] })
+    const after = (b: string) => run(d(b), { rps: 1000, seconds: 0.5, from: kill(b) })
+    expect(kill('exponential').metrics.c.lambda).toBeLessThan(kill('none').metrics.c.lambda)
+    expect(after('exponential').metrics.c.lambda).toBeGreaterThan(1000 * 1.05) // late retries still landing
+    expect(after('none').metrics.c.lambda).toBeCloseTo(1000, -1)
+  })
+
+  it('a sequential fan-out edge waits for each call in turn: latency × N', () => {
+    const d = (sequential: boolean) => ({ version: 1 as const,
+      nodes: [node('c', 'client', { timeout_ms: 10000 }), node('api', 'service', { replicas: 10, timeout_ms: 10000 }), node('llm', 'service', { replicas: 50, base_latency_ms: 100 })],
+      edges: [{ id: 'c-api', source: 'c', target: 'api' }, { id: 'api-llm', source: 'api', target: 'llm', fanout: 'read' as const, sequential }] })
+    const go = (seq: boolean) => { let s = initialSim(); for (let i = 0; i < 30; i++) s = step(d(seq), s, { traffic: { rps: 100, readRatio: 1, multiplier: 1, following: 6 }, killed: [] }); return s }
+    const par = go(false), seq = go(true)
+    expect(seq.metrics.llm.lambda).toBeCloseTo(par.metrics.llm.lambda) // same load either way
+    expect(seq.metrics.api.pathMs - seq.metrics.api.latencyMs).toBeCloseTo(6 * (par.metrics.api.pathMs - par.metrics.api.latencyMs))
+    expect(seq.global.p50Ms).toBeGreaterThan(4 * par.global.p50Ms)
+  })
+
   it('cache absorbs reads but not writes', () => {
     const d = design([node('c', 'client'), node('api', 'service', { replicas: 10 }),
       node('cache', 'cache', { hit_ratio: 0.9, write_mode: 'write-through' }), node('db', 'sql_db')],

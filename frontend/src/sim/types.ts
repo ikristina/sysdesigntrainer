@@ -63,7 +63,8 @@ export type HandlerOutput = {
   fanout: Fanout
   state: NodeState
   metrics: NodeMetrics
-  source?: { offered: number; retries: number } // set by clients, used for user-facing error %
+  source?: { offered: number; retries: number; retryShare: number } // set by clients, used for user-facing error %
+                                    // retryShare: share of wanted retries the client's retry budget allowed (1 = all)
 }
 
 export type Handler = (input: HandlerInput) => HandlerOutput

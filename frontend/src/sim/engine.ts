@@ -41,7 +41,8 @@ export const initialSim = (): SimState => ({
 })
 
 const behavior = (type: string) => registry[type]?.simBehavior
-type Link = { target: string; w: number; edgeMs: number; cut: boolean }
+// times: calls per request that wait one after another (a sequential fan-out edge); 1 otherwise.
+type Link = { target: string; w: number; edgeMs: number; cut: boolean; times: number }
 
 export function step(design: Design, prev: SimState, { traffic, killed, partitioned = [] }: SimInputs, dt = 0.1): SimState {
   const byId = new Map(design.nodes.map((n) => [n.id, n]))
@@ -100,7 +101,8 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     })
     // An edge can carry only reads or only writes, and can fan out: each write becomes `followers`
     // copies, or each read gathers from `following` sources.
-    // ponytail: the fan-out's N calls count as one call for latency (as if sent in parallel).
+    // A parallel fan-out's N calls count as one call for latency; a sequential one (edge.sequential)
+    // waits for each in turn: N × the latency, and it fails if any of the N calls fails.
     const sent = children.map((e, i) => route(r.out[i], e))
     routed.set(id, sent)
     children.forEach((e, i) => {
@@ -120,16 +122,17 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     const r = results.get(id)!, m = r.metrics, node = nodes.get(id)!
     const own = m.lambda > 0 ? Math.min(1, m.dropped / m.lambda) : node.killed ? 1 : 0
     const ls: Link[] = r.fanout === 'async' ? [] : kids.get(id)!.map((e, i) => ({
-      target: e.target, edgeMs: edgeMs(id, e.target), cut: cut.has(e.id),
+      target: e.target, edgeMs: edgeMs(id, e.target), cut: cut.has(e.id), times: sequentialTimes(e, traffic),
       w: m.served > 0 ? Math.min(1, total(routed.get(id)![i]) / m.served) : 0,
     }))
     links.set(id, ls)
     let downMs = 0, downFail = 0, survive = 1
     for (const l of ls) {
       const c = l.cut ? { pathMs: 0, pathFail: 1 } : metrics[l.target]
-      downMs += l.w * (c.pathMs + l.edgeMs)
-      downFail += l.w * c.pathFail
-      survive *= 1 - l.w * c.pathFail
+      const fail = 1 - (1 - c.pathFail) ** l.times
+      downMs += l.w * (c.pathMs + l.edgeMs) * l.times
+      downFail += l.w * fail
+      survive *= 1 - l.w * fail
     }
     if (r.fanout === 'all') downFail = 1 - survive
     // A node gives up on downstream calls slower than its timeout (exponential tail estimate).
@@ -141,6 +144,13 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
   // Sample end-to-end latencies for p50/p99.
   const rand = rng(prev.seed)
   const fanout = (id: string): Fanout => results.get(id)!.fanout
+  // One call down a link, or `times` calls in a row (up to 20 samples, scaled, to bound the work).
+  const calls = (l: Link, depth: number) => {
+    const k = Math.min(l.times, 20)
+    let sum = 0
+    for (let i = 0; i < k; i++) sum += l.edgeMs + sample(l.target, depth + 1)
+    return (sum * l.times) / k
+  }
   const sample = (id: string, depth: number): number => {
     const m = metrics[id]
     // Base latency jitters ±25%; the queueing part is exponential. Estimate of the shape.
@@ -148,9 +158,9 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     if (depth > 30) return t
     if (fanout(id) === 'one') {
       let u = rand.next()
-      for (const l of links.get(id)!) if ((u -= l.w) < 0) { if (!l.cut) t += l.edgeMs + sample(l.target, depth + 1); break }
+      for (const l of links.get(id)!) if ((u -= l.w) < 0) { if (!l.cut) t += calls(l, depth); break }
     } else {
-      for (const l of links.get(id)!) if (rand.next() < l.w && !l.cut) t += l.edgeMs + sample(l.target, depth + 1)
+      for (const l of links.get(id)!) if (rand.next() < l.w && !l.cut) t += calls(l, depth)
     }
     return t
   }
@@ -160,7 +170,9 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     const src = results.get(id)!.source!
     offered += src.offered
     userReads += results.get(id)!.metrics.served * traffic.readRatio
-    failed += src.offered * metrics[id].pathFail ** (src.retries + 1)
+    // A failed request is retried (if the budget allows it) and fails for good only if every retry fails too.
+    const p = metrics[id].pathFail
+    failed += src.offered * p * ((1 - src.retryShare) + src.retryShare * p ** src.retries)
   }
   for (const id of sources) {
     const n = offered > 0 ? Math.round((SAMPLES_PER_TICK * results.get(id)!.source!.offered) / offered) : 0
@@ -181,6 +193,8 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
   }
 }
 
+const sequentialTimes = (e: SavedEdge, t: Traffic) => !e.sequential ? 1
+  : Math.max(1, e.fanout === 'write' ? (t.followers ?? TRAFFIC_DEFAULTS.followers) : e.fanout === 'read' ? (t.following ?? TRAFFIC_DEFAULTS.following) : 1)
 const route = (f: Flow, e: SavedEdge): Flow =>
   e.carries === 'read' ? { read: f.read, write: 0 } : e.carries === 'write' ? { read: 0, write: f.write } : f
 const fan = (f: Flow, e: SavedEdge, t: Traffic): Flow =>

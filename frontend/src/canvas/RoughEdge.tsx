@@ -33,7 +33,7 @@ export function RoughEdge(p: EdgeProps) {
   }, [id, d, x, y, stroke])
 
   const r = (p.data ?? {}) as EdgeRoute
-  const fanTag = r.fanout === 'write' ? 'writes × followers' : r.fanout === 'read' ? 'reads × following' : ''
+  const fanTag = (r.fanout === 'write' ? 'writes × followers' : r.fanout === 'read' ? 'reads × following' : '') + (r.fanout && r.sequential ? ', in turn' : '')
   const tag = r.carries && r.carries !== r.fanout ? [`${r.carries}s only`, fanTag].filter(Boolean).join(' · ') : fanTag
   // Buckets, so the animation doesn't restart on every small change. Each gap + 2 divides 48,
   // the distance one animation cycle moves (index.css @keyframes dash), so the loop is seamless.

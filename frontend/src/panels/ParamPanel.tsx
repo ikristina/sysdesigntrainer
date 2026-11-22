@@ -129,6 +129,12 @@ function EdgePanel({ edge }: { edge: Edge }) {
           <option value="read">on read: each read × following</option>
         </select>
       </label>
+      {r.fanout && (
+        <label className="field field--check">
+          <input type="checkbox" checked={!!r.sequential} onChange={(e) => setRoute(edge.id, { sequential: e.target.checked || undefined })} />
+          <span>One after another: each call waits for the last (latency × N, like an agent loop)</span>
+        </label>
+      )}
       <p className="muted">Followers and following are set under More ▾ in the header. Fan-out on write copies each post into every
         follower's feed; fan-out on read gathers posts from everyone a reader follows.</p>
     </section>
