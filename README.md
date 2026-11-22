@@ -28,7 +28,7 @@ The sandbox (the canvas and simulator) needs **only Node**. The backend, ttyd an
 ## Setup (once)
 
 ```bash
-git clone <this repo> && cd SDTutor
+git clone git@github.com:ikristina/sysdesigntrainer.git && cd sysdesigntrainer
 
 # frontend: download the JavaScript libraries into frontend/node_modules/
 cd frontend && npm install && cd ..
