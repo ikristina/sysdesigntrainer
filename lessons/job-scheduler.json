@@ -8,26 +8,26 @@
       "id": "steady",
       "requirements": [
         "2k rps: 1k new jobs/s (writes), 1k status polls/s (reads)",
-        "API p99 < 300 ms",
+        "API p99 < 100 ms: the API never waits for a job to run",
         "errors < 0.1%",
         "jobs keep up: backlog under 1,000",
         "cost < $2/hr"
       ],
       "traffic": { "rps": 2000, "read_ratio": 0.5 },
-      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 2, "max_backlog": 1000 },
+      "success": { "p99_ms": 100, "error_pct": 0.1, "max_cost_hr": 2, "max_backlog": 1000 },
       "twist": "A worker crashes mid-job: kill_node on the workers for 10 s, then restore_node. Which jobs run twice, and why is that OK? (Leases or visibility timeouts, idempotent handlers.)"
     },
     {
       "id": "platform",
       "requirements": [
         "16k rps: 8k new jobs/s, 8k status polls/s",
-        "API p99 < 400 ms",
+        "API p99 < 100 ms",
         "errors < 0.1%",
         "backlog under 2,000",
         "cost < $10/hr"
       ],
       "traffic": { "rps": 16000, "read_ratio": 0.5 },
-      "success": { "p99_ms": 400, "error_pct": 0.1, "max_cost_hr": 10, "max_backlog": 2000 },
+      "success": { "p99_ms": 100, "error_pct": 0.1, "max_cost_hr": 10, "max_backlog": 2000 },
       "twist": "Midnight: every daily cron fires at once. Apply with spike(multiplier=3, seconds=20). Does the backlog drain afterwards, and how long do jobs wait?"
     }
   ],
@@ -38,5 +38,5 @@
     "Steady: LB -> 3 services -> SQL DB, plus service -> queue (writes) -> 6 workers, which update the SQL DB. Platform: about 22 services, Kafka with about 45 partitions -> 45 workers, and a NoSQL/KV store (3 replicas) for jobs and status."
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
-  "_notes": "Steady: running jobs inline (service -> worker) collapses the services. Queue ($0.05, 3k/s) -> 6 workers -> SQL: p99 ~240 ms, $1.48; 12 workers ($2.08) break the budget. Platform: one queue rejects above 3k/s; SQL can't take 8k job writes + 8k worker updates (collapses even behind Kafka). SQS + KV passes but costs $42/hr. Kafka 45 partitions + 45 workers + KV 3: p99 ~320 ms, $8.26; KV with 2 replicas collapses. Durability and dedup aren't modeled: discuss the outbox pattern (job row and queue message in one transaction), leases, and why exactly-once is really at-least-once + idempotency. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "Steady: running jobs inline (service -> worker) puts the 100 ms job on the request path: p99 ~150 ms. Queue ($0.05, 3k/s) -> 6 workers -> SQL: p99 ~42 ms, $1.48; 12 workers ($2.08) break the budget. Platform: one queue rejects above 3k/s; SQL can't take 8k job writes + 8k worker updates (collapses even behind Kafka). SQS + KV passes but costs $42/hr. Kafka 45 partitions + 45 workers + KV 3: p99 ~42 ms, $8.26; KV with 2 replicas collapses. Durability and dedup aren't modeled: discuss the outbox pattern (job row and queue message in one transaction), leases, and why exactly-once is really at-least-once + idempotency. Checked in frontend/src/lessons/content.test.ts."
 }

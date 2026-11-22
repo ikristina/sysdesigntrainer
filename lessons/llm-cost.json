@@ -2,42 +2,43 @@
   "id": "llm-cost",
   "title": "The LLM bill is too high",
   "mode": "targeted",
-  "brief": "A 'summarize this product page' feature runs on 16 GPU replicas: $48/hr, and p99 is about 11 s. Finance wants the bill cut by more than half, without making users wait longer. Find where the money goes, then cut it.",
+  "brief": "A 'summarize this product page' feature runs on 16 GPU replicas: $48/hr for 40 requests/s. Finance wants the bill cut by more than half, without making users wait longer. Find where the money goes, then cut it.",
   "variants": [
     {
       "id": "repeats",
       "requirements": [
         "40 requests/s",
         "70% are for the same popular products: an answer cache can hit at most 0.7",
-        "p99 < 10 s",
+        "p99 < 5 s",
         "errors < 0.5%",
-        "cost < $20/hr"
+        "cost < $12/hr"
       ],
       "traffic": { "rps": 40, "read_ratio": 1 },
-      "success": { "p99_ms": 10000, "error_pct": 0.5, "max_cost_hr": 20 },
+      "success": { "p99_ms": 5000, "error_pct": 0.5, "max_cost_hr": 12 },
       "twist": "Product pages change hourly, so the cache TTL drops and the hit ratio falls to 0.4 (set hit_ratio 0.4). What does that cost?"
     },
     {
-      "id": "async-ok",
+      "id": "batch-ok",
       "requirements": [
         "40 requests/s, all unique: no cache helps",
         "Summaries can arrive a few minutes later by notification: the request only has to be accepted",
+        "A replica fed from a queue can batch: about 10 summaries/s at about 4 s each (set capacity_rps 10, base_latency_ms 4000). Only worth it if nobody waits",
         "accept p99 < 300 ms",
         "errors < 0.1%",
         "summaries keep up: backlog under 50",
-        "cost < $30/hr"
+        "cost < $18/hr"
       ],
       "traffic": { "rps": 40, "read_ratio": 1 },
-      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 30, "max_backlog": 50 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 18, "max_backlog": 50 },
       "twist": "Launch day doubles requests for a while: spike(multiplier=2, seconds=30). Let the backlog grow, or add GPUs? What's the cost of each?"
     }
   ],
   "starter_graph": "graphs/llm-feature.json",
   "hints": [
-    "Why does a GPU pool serving waiting users have to sit mostly idle? Which requests didn't need a GPU at all?",
-    "Repeated prompts can be answered from a cache. If nobody waits for the answer, a queue lets the GPUs run near 80% busy instead of about 45%.",
-    "Repeats: cache (hit 0.7) in front of the LLM, about 6 replicas. Async: service -> queue -> worker -> LLM with about 9 replicas; the service only enqueues."
+    "How busy is each GPU right now? How many of these requests needed a GPU at all?",
+    "16 replicas take 80/s and you send 40: first right-size the pool. Then: repeated prompts can come from a cache, and if nobody waits, bigger batches trade latency for throughput.",
+    "Repeats: cache (hit 0.7) in front of the LLM, 3 replicas. Batch: service -> queue -> worker -> LLM set to capacity_rps 10 and base_latency_ms 4000, 5 replicas; the service only enqueues."
   ],
   "steps": ["requirements", "design", "load_test", "twist", "postmortem"],
-  "_notes": "Starter: client (timeout 60 s) -> LB -> 2 services (timeout 60 s) -> LLM x16: rho 0.5, p99 ~11.3 s, $48.23. Repeats: cache 0.7 -> LLM sees 12/s. 5 replicas: p99 ~8.4 s, $15.38; 6: ~6.7 s, $18.38; 7 ($21.38) breaks the budget. Async: service -> queue -> 1 worker -> LLM. 9 replicas (rho 0.89): p99 38 ms, $27.38; 7 replicas fall behind (backlog grows ~5/s); 10 ($30.38) break the budget. Also worth raising: smaller model, shorter prompts, batching. Cost per token isn't modeled; the sim prices GPU-hours. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "Starter: client (timeout 60 s) -> LB -> 2 services (timeout 60 s) -> LLM x16: rho 0.5, p99 ~2.5 s, $48.23. Just right-sizing to 9 replicas (rho 0.89) gives $27.23: half the bill, still over both budgets. Repeats: cache 0.7 -> LLM sees 12/s. 3 replicas: p99 ~2.6 s, $9.38; 4 ($12.38) break the budget. Batch: queue -> 1 worker -> LLM (10/s, 4 s). 5 replicas (rho 0.8): accept p99 ~37 ms, $15.38; 3 fall behind; 6 ($18.38) break the budget. The same batched replicas behind a waiting user give p99 ~5 s. Also worth raising: a smaller model, shorter prompts, prompt caching. Cost per token isn't modeled; the sim prices GPU-hours. Checked in frontend/src/lessons/content.test.ts."
 }

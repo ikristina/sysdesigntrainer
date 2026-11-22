@@ -11,10 +11,10 @@
         "A customer's limit must be exact across regions: billing depends on it",
         "p99 < 200 ms",
         "errors < 0.1%",
-        "cost < $1.50/hr"
+        "cost < $1.20/hr"
       ],
       "traffic": { "rps": 6000, "read_ratio": 0.9 },
-      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 1.5 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 1.2 },
       "twist": "The eu region is cut off: partition_region('eu'). Your counter is on the other side. Fail open (let traffic through) or fail closed (reject)? Which one would a payments API pick, and which a CDN?"
     },
     {
@@ -22,12 +22,12 @@
       "requirements": [
         "6k rps across the 3 regions",
         "Limits may overshoot a little: each region counts on its own and syncs in the background",
-        "p99 < 120 ms",
+        "p99 < 60 ms",
         "errors < 0.1%",
-        "cost < $2.50/hr"
+        "cost < $2/hr"
       ],
       "traffic": { "rps": 6000, "read_ratio": 0.9 },
-      "success": { "p99_ms": 120, "error_pct": 0.1, "max_cost_hr": 2.5 },
+      "success": { "p99_ms": 60, "error_pct": 0.1, "max_cost_hr": 2 },
       "twist": "A customer spreads a burst across all 3 regions to get 3x their limit. How far can they overshoot, and how would you bound it (split the limit per region, sync more often)?"
     }
   ],
@@ -35,8 +35,8 @@
   "hints": [
     "Where does the counter live, and how far is it from each edge?",
     "One central counter is exact, but two of three regions pay a cross-region round trip on every request. A counter in each region is fast, but each one sees only its own traffic.",
-    "Exact: 4 edge service replicas per region, all calling one cache in us. Fast: a cache in each region next to its edge (4 replicas each), synced in the background."
+    "Exact: 3 edge service replicas per region, all calling one cache in us. Fast: a cache in each region next to its edge (3 replicas each), synced in the background."
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
-  "_notes": "Each region: client -> edge service. 2k rps per region. Central counter (one cache in us): eu and ap pay 70 ms. Edge 4 replicas: p99 ~180 ms, $1.35; edge 6: ~135 ms; edge 8: ~120 ms but $2.55. Local counters (a cache per region): edge 3: p99 ~206 ms (fails exact's 200 ms), edge 4: ~113 ms, $1.65 (over exact's budget). So exact forces central, fast forces local. Exactness isn't simulated: a local design under 'exact' only fails on cost. Ask why it's wrong anyway. Token bucket vs sliding window is worth a minute. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "Each region: client -> edge service. 2k rps per region. Central counter (one cache in us): eu and ap pay 70 ms. Edge 3 replicas: p99 ~96 ms, $1.05; more replicas don't remove the 70 ms. Local counters (a cache per region): edge 3: p99 ~26 ms, $1.35 (over exact's $1.20). So exact forces central (it's cheapest), fast forces local (latency). Exactness isn't simulated: a local design under 'exact' only fails on cost. Ask why it's wrong anyway. Token bucket vs sliding window is worth a minute. Checked in frontend/src/lessons/content.test.ts."
 }

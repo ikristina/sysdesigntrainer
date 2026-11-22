@@ -35,6 +35,7 @@ export type NodeMetrics = {
   lagS?: number      // SQL replication lag
   hit?: number       // cache: effective hit ratio right now (0-1)
   stale?: number     // reads/s answered from a copy that may lag the primary (cache hits, read replicas)
+  redelivered?: number // queue/stream: messages/s that consumers failed on and that went back to be read again
 }
 
 /** What one tick of a handler gets. */
@@ -44,6 +45,7 @@ export type HandlerInput = {
   children: SimNode[]               // downstream nodes, one per outgoing edge
   state: NodeState
   prevPathFail: number              // this node's end-to-end failure share last tick (clients use it for retries)
+  childFail: number[]               // each child's end-to-end failure share last tick (queues redeliver what failed)
   offered: number                   // rps this node originates (only clients get a non-zero value)
   readRatio: number
   hotKey: number                    // share of requests (0-1) that go to the single hottest key

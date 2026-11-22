@@ -1,13 +1,13 @@
 {
   "id": "doc-pipeline",
-  "title": "Document AI pipeline: keep GPUs busy, keep uploads fast",
+  "title": "Document AI pipeline: queue it, then chunk it",
   "mode": "full",
-  "brief": "Users upload documents; each one gets an LLM summary and goes into search. The file goes to blob storage. The LLM handles 5 summaries/s per replica (about 2 s each, $3/hr). Uploads must stay fast and summaries must not pile up.",
+  "brief": "Users upload documents; each one gets an LLM summary and goes into search. The file goes to blob storage. The LLM handles 5 calls/s per replica (about 2 s each, $3/hr). Uploads must stay fast and summaries must not pile up.",
   "variants": [
     {
       "id": "bulk",
       "requirements": [
-        "20 uploads/s (writes)",
+        "20 uploads/s (writes), one LLM call per document",
         "upload p99 < 300 ms",
         "errors < 0.1%",
         "summaries keep up: backlog under 100",
@@ -15,28 +15,29 @@
       ],
       "traffic": { "rps": 20, "read_ratio": 0 },
       "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 25, "max_backlog": 100 },
-      "twist": "The LLM provider is down for 30 s: kill_node on the LLM block, then restore_node. Do uploads keep working? Watch the backlog build and drain."
+      "twist": "The LLM provider is down for 30 s: kill_node on the LLM block, then restore_node. Do uploads keep working? Watch the backlog build, get redelivered, and drain."
     },
     {
-      "id": "ask-your-docs",
+      "id": "long-docs",
       "requirements": [
-        "40 rps: 30 uploads/s (writes) and 10 questions/s about the docs (reads)",
-        "Questions are answered live by an LLM: the user waits for the answer",
-        "p99 < 10 s, errors < 0.5%",
-        "summaries keep up: backlog under 500",
-        "cost < $40/hr"
+        "10 uploads/s of long PDFs: each is split into 8 chunks that are summarized separately, then combined",
+        "Mark the worker's edge into the LLM as fan-out on write (the lesson sets followers = 8): one document becomes 8 calls",
+        "upload p99 < 300 ms",
+        "errors < 0.1%",
+        "backlog under 100",
+        "cost < $55/hr"
       ],
-      "traffic": { "rps": 40, "read_ratio": 0.25 },
-      "success": { "p99_ms": 10000, "error_pct": 0.5, "max_cost_hr": 40, "max_backlog": 500 },
-      "twist": "A customer bulk-imports their archive: set_traffic(rps=100, read_ratio=0.1). Do questions stay fast while uploads flood in?"
+      "traffic": { "rps": 10, "read_ratio": 0, "followers": 8 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 55, "max_backlog": 100, "needs_fanout": true },
+      "twist": "Customers start uploading 200-page contracts: 16 chunks per document. Apply with set_traffic(followers=16). Scale the GPUs, use bigger chunks (fewer calls, longer each), or summarize only what gets searched?"
     }
   ],
   "starter_graph": null,
   "hints": [
     "Does the uploader need the summary before the upload returns?",
-    "Accept the upload, store it, and hand the summary to a queue. A GPU nobody waits on can run about 80% busy, one a user waits on about 45%. In the second variant, should questions and uploads share one path and one GPU pool?",
-    "Bulk: service -> blob + queue -> worker -> LLM (5 replicas). Ask-your-docs: use edge 'carries': reads go service -> a chat LLM pool (about 5 replicas, timeouts 60 s), writes go to blob and to queue -> worker -> a batch LLM pool (about 7 replicas)."
+    "Accept the upload, store it, and hand the summary to a queue; size the GPUs for the calls per second that come out of it. A document split into chunks is several calls, not one.",
+    "Bulk: service -> blob + queue -> worker -> LLM (5 replicas). Long docs: same, with the worker -> LLM edge set to fan-out on write (8 calls per document): about 17-18 replicas."
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
-  "_notes": "Bulk: sync (service -> LLM, 10 replicas) gives p99 31 s and 78% errors (service timeout). Async: service -> blob + queue -> worker -> LLM. 5 replicas (rho 0.8): p99 96 ms, $15.50; 3 replicas fall behind (backlog grows ~5/s, over 100 within 30 s); 9 replicas ($27.50) break the budget. Ask-your-docs: one sync pool for everything needs 18-20+ replicas and still fails (errors from timeouts at rho 0.75+), $60. Two lanes: chat 5 (rho 0.4) + batch 7 (rho 0.86): p99 6.4 s, $36.50; chat 6 + batch 8 ($42.50) breaks the budget. Watch out: queueing the questions too also passes the sim (p99 96 ms), but breaks the 'user waits for the answer' requirement. The sim can't tell; check the design. Workers drain the queue at their own rate (200/s each); if the LLM behind them is slower, the backlog moves into the LLM block's queue, which also counts toward backlog. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "Bulk: sync (service -> LLM) gives upload p99 ~2.5 s and timeout errors. Async: service -> blob + queue -> worker -> LLM. 5 replicas (rho 0.8): p99 ~95 ms, $15.50; 3 fall behind (backlog over 100 within 30 s); 9 ($27.50) break the budget. Long docs: 80 LLM calls/s. 17 replicas (rho 0.94): $51.50; 18: $54.50; 15 can't keep up; 20 ($60.50) break the budget. Sync with the same fan-out collapses (98% errors). Failed summaries are redelivered from the queue (at least once), so an LLM outage shows up as backlog and the queue's redelivery rate, not as lost work. Checked in frontend/src/lessons/content.test.ts."
 }

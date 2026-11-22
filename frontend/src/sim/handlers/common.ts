@@ -19,9 +19,29 @@ export const NONE: Flow = { read: 0, write: 0 }
 export const muOf = (n: SimNode) =>
   n.killed ? 0 : num(n.params.replicas, 1) * num(n.params.capacity_rps, Infinity)
 
-/** M/M/1-style latency: base / (1 - ρ), with ρ capped at 0.99, plus time spent queued. */
-export const latencyOf = (baseMs: number, rho: number, waitMs: number) =>
-  baseMs / (1 - Math.min(rho, 0.99)) + waitMs
+/**
+ * Latency of a block running at utilization ρ: base + the M/M/c wait + time spent in an overflow queue.
+ * A block is c parallel servers, c = μ × base latency (Little's law): a service doing 1,000 rps per
+ * replica at 20 ms has 20 requests in flight per replica. Many servers barely queue until they're
+ * nearly full (like a real fleet); one server (c = 1) queues early: base / (1 - ρ).
+ * ρ is capped at 0.99 here; at ρ ≥ 1 the overflow queue (queueStep's waitMs) takes over.
+ */
+export function latencyOf(baseMs: number, rho: number, waitMs: number, mu: number) {
+  const servers = Number.isFinite(mu) ? Math.round((mu * baseMs) / 1000) : Infinity
+  if (baseMs <= 0 || rho <= 0 || !Number.isFinite(servers)) return baseMs + waitMs
+  const c = Math.max(1, servers), r = Math.min(rho, 0.99)
+  return baseMs + erlangC(c, c * r) * baseMs / (c * (1 - r)) + waitMs
+}
+
+/** Erlang C: chance a request has to wait, for c servers and offered load a = λ × service time. */
+export function erlangC(c: number, a: number) {
+  // Erlang B by the stable recurrence, then convert. ponytail: past 10k servers the wait is ~0 below ρ 0.99.
+  if (c > 10_000) return 0
+  let b = 1
+  for (let k = 1; k <= c; k++) b = (a * b) / (k + a * b)
+  const rho = a / c
+  return b / (1 - rho * (1 - b))
+}
 
 /**
  * One tick of a FIFO queue in front of a server with rate μ.

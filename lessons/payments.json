@@ -7,15 +7,15 @@
     {
       "id": "checkout",
       "requirements": [
-        "2k rps: 1.5k charges/s (writes), 500 status lookups/s (reads)",
+        "4k rps: 2k charges/s (writes), 2k status lookups/s (reads)",
         "The shopper waits for approved or declined",
-        "p99 < 1.5 s",
+        "p99 < 1 s",
         "errors < 0.1%",
         "no stale reads",
         "cost < $1.50/hr"
       ],
-      "traffic": { "rps": 2000, "read_ratio": 0.25 },
-      "success": { "p99_ms": 1500, "error_pct": 0.1, "max_cost_hr": 1.5, "max_stale_pct": 0 },
+      "traffic": { "rps": 4000, "read_ratio": 0.5 },
+      "success": { "p99_ms": 1000, "error_pct": 0.1, "max_cost_hr": 1.5, "max_stale_pct": 0 },
       "twist": "Clients retry timeouts. Set the client's retries to 3, then kill_node('card') for 5 s and restore_node('card'). Without idempotency keys, how many shoppers were charged twice? Where would you store the key, and for how long?"
     },
     {
@@ -23,23 +23,23 @@
       "requirements": [
         "4k rps: 2.8k charges/s, 1.2k status lookups/s",
         "Checkout may return 202 'processing'; the result reaches the shopper by webhook",
-        "p99 < 500 ms",
+        "p99 < 250 ms: faster than the card network itself answers",
         "errors < 0.1%",
         "no stale reads",
         "authorizations keep up: backlog under 1,000",
         "cost < $3/hr"
       ],
       "traffic": { "rps": 4000, "read_ratio": 0.3 },
-      "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 3, "max_backlog": 1000, "max_stale_pct": 0 },
-      "twist": "The card network is down for 60 s: kill_node('card'), then restore_node('card'). Charges wait in the queue. What does the shopper see, and what happens to a charge that's retried after it already succeeded?"
+      "success": { "p99_ms": 250, "error_pct": 0.1, "max_cost_hr": 3, "max_backlog": 1000, "max_stale_pct": 0 },
+      "twist": "The card network is down for 60 s: kill_node('card'), then restore_node('card'). Charges are redelivered from the queue. What does the shopper see, and what happens to a charge that's retried after it already succeeded?"
     }
   ],
   "starter_graph": null,
   "hints": [
     "Which requests need the card network, and which don't? Can a status lookup come from a cache here?",
-    "Send only writes to the card network (edge 'carries'), and serve reads from the primary. At 2.8k charges/s the card network is 80% busy, so anyone waiting on it waits seconds. Does the shopper have to wait?",
-    "Checkout: LB -> about 3 services (timeout_ms about 5000) -> SQL DB, plus service -> card carrying writes. Big sale: service -> SQL DB, and service -> queue (writes) -> about 15 workers -> card; return 202 and send the result by webhook."
+    "Send only writes to the card network (edge 'carries'), and serve reads from the primary. The card takes about 200 ms: if checkout must answer faster than that, who has to wait?",
+    "Checkout: LB -> about 5 services (timeout_ms about 5000) -> SQL DB, plus service -> card carrying writes. Big sale: service -> SQL DB, and service -> queue (writes) -> about 15 workers -> card; return 202 and send the result by webhook."
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
-  "_notes": "Card: 1 x 3500/s, 200 ms. Checkout: 3 services (timeout 5 s) -> SQL + card (writes only): card rho 0.43, p99 ~925 ms, $0.93. Sending reads to the card too: rho 0.57 + retries collapse it. A cache fails 'no stale reads'. Async with 8 workers passes p99 but costs $1.78 (over budget), and the shopper wanted an answer now. With the default 1 s service timeout, errors sit near 0.1% (timeouts on the card's tail): a good prompt to discuss timeouts. Big sale: sync, even with 8 services (timeout 5 s), collapses: the card at rho 0.8 averages ~1 s, slow requests time out, retries push the card and the DB past capacity (sim: 98% errors). Async: service -> SQL + queue (writes, 3k/s cap) -> 15 workers -> card: p99 ~250 ms, $2.78. This is the 202 Accepted pattern from a River queue: the job row and the charge commit together, then a worker authorizes. Idempotency itself isn't simulated; discuss keys, unique constraints and retries in the twist. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "Card: 1 x 3500/s, 200 ms. Checkout: 5 services (timeout 5 s) -> SQL + card (writes only): card rho 0.57, p99 ~275 ms, $1.13. Sending reads to the card too: 4k/s on a 3.5k card collapses (89% errors). A cache fails 'no stale reads'. Async with 11 workers passes p99 but costs $2.38 (over budget), and the shopper wanted an answer now. Big sale: sync waits on the card every time: p99 ~277 ms even with headroom (8 services), over 250 ms. Async: service -> SQL + queue (writes, 3k/s cap) -> 15 workers -> card: p99 ~43 ms, $2.78; 25 workers ($3.78) break the budget. This is the 202 Accepted pattern from a River queue: the job row and the charge commit together, then a worker authorizes. Idempotency itself isn't simulated; discuss keys, unique constraints and retries in the twist. Checked in frontend/src/lessons/content.test.ts."
 }

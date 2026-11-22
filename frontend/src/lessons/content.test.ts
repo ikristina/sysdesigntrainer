@@ -189,7 +189,7 @@ describe('lessons match the simulator', () => {
       [['client', 'gw'], ['gw', 'lb'], ['lb', 'api'], ['api', 'store']])
     expect(passes(limited(5000), v)).toBe(true)
     expect(passes(limited(4000), v)).toBe(false) // rejects more than 70%
-    expect(passes(limited(6000), v)).toBe(false) // p99 too high
+    expect(passes(limited(8500), v)).toBe(false) // more than 8 replicas can take
     const scaled = { ...start, nodes: start.nodes.map((x) => (x.id === 'api' ? { ...x, params: { ...x.params, replicas: 25 } } : x)) }
     expect(passes(scaled, v)).toBe(false) // over budget
 
@@ -225,9 +225,8 @@ describe('classic-design lessons match the simulator', () => {
   type E = [string, string] | [string, string, EdgeRoute]
   // Run phases of [seconds, traffic multiplier, killed] back to back, then score the variant on the last state.
   const after = (d: Design, v: Variant, phases: [number, number, string[]][]) => {
-    let s: SimState | undefined
+    let s = initialSim()
     const full = withDefaults(d), t = simTraffic(v.traffic)
-    s = s ?? initialSim()
     for (const [sec, multiplier, killed] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier }, killed })
     return checks(s, v.success).every((c) => c.ok)
   }
@@ -236,19 +235,21 @@ describe('classic-design lessons match the simulator', () => {
   const S = (replicas = 2, p = {}) => n('api', 'service', { replicas, ...long, ...p })
   const L = (replicas: number, id = 'llm', p = {}) => n(id, 'llm', { replicas, ...p })
 
-  it('llm-gateway: default timeouts kill LLM calls; a 0.3 cache + 13 replicas fits; routing easy prompts to a small model fits', () => {
+  it('llm-gateway: default timeouts kill LLM calls; a 0.3 cache trims the pool; easy prompts go to a small model', () => {
     const steady = variant('llm-gateway', 'steady')
-    expect(passes(chain(n('c', 'client'), n('api', 'service'), L(20)), steady)).toBe(false) // 1-2 s timeouts
-    expect(passes(chain(C(), S(), L(18)), steady)).toBe(false) // no cache: over budget
-    expect(passes(chain(C(), S(), n('k', 'cache', { hit_ratio: 0.3 }), L(13)), steady)).toBe(true)
-    expect(passes(chain(C(), S(), n('k', 'cache', { hit_ratio: 0.3 }), L(16)), steady)).toBe(false)
+    expect(passes(chain(n('c', 'client'), n('api', 'service'), L(12)), steady)).toBe(false) // 1-2 s timeouts
+    expect(passes(chain(C(), S(), L(8)), steady)).toBe(false) // rho 1
+    expect(passes(chain(C(), S(), L(9)), steady)).toBe(false) // no cache: over budget
+    expect(passes(chain(C(), S(), n('k', 'cache', { hit_ratio: 0.3 }), L(6)), steady)).toBe(true)
+    expect(passes(chain(C(), S(), n('k', 'cache', { hit_ratio: 0.3 }), L(8)), steady)).toBe(false)
 
     const routing = variant('llm-gateway', 'routing')
     const routed = (big: number, small: number) => graphOf([C(), S(), L(big, 'big'), L(small, 'small', { capacity_rps: 40, base_latency_ms: 300 })],
       [['c', 'api'], ['api', 'big', { carries: 'write' }], ['api', 'small', { carries: 'read' }]])
-    expect(passes(chain(C(), S(), L(45)), routing)).toBe(false)
-    expect(passes(routed(18, 3), routing)).toBe(true)
-    expect(passes(routed(22, 4), routing)).toBe(false)
+    expect(passes(chain(C(), S(), L(22)), routing)).toBe(false)
+    expect(passes(routed(8, 2), routing)).toBe(false)
+    expect(passes(routed(9, 2), routing)).toBe(true)
+    expect(passes(routed(11, 3), routing)).toBe(false)
   })
 
   it('rag-search: the LLM pool decides; trending needs an answer cache in front of the pipeline', () => {
@@ -256,47 +257,48 @@ describe('classic-design lessons match the simulator', () => {
       [C(), S(), ...(hit ? [n('k', 'cache', { hit_ratio: hit })] : []), n('rag', 'service', long), n('emb', 'embedding', { replicas: emb }), n('vdb', 'vector_db'), L(llm)],
       [['c', 'api'], ...(hit ? [['api', 'k'], ['k', 'rag']] as E[] : [['api', 'rag']] as E[]), ['rag', 'emb'], ['rag', 'vdb'], ['rag', 'llm']])
     const tail = variant('rag-search', 'long-tail')
-    expect(passes(rag(1), tail)).toBe(false)
-    expect(passes(rag(10), tail)).toBe(true)
-    expect(passes(rag(12), tail)).toBe(false)
+    expect(passes(rag(4), tail)).toBe(false)
+    expect(passes(rag(5), tail)).toBe(true)
+    expect(passes(rag(6), tail)).toBe(false)
     const trending = variant('rag-search', 'trending')
-    expect(passes(rag(40, 2), trending)).toBe(false)
-    expect(passes(rag(26, 1, 0.7), trending)).toBe(true)
-    expect(passes(rag(30, 1, 0.7), trending)).toBe(false)
+    expect(passes(rag(45, 2), trending)).toBe(false)
+    expect(passes(rag(12, 1, 0.7), trending)).toBe(false)
+    expect(passes(rag(13, 1, 0.7), trending)).toBe(true)
+    expect(passes(rag(16, 1, 0.7), trending)).toBe(false)
   })
 
-  it('doc-pipeline: sync summaries fail; a queue lets GPUs run hot; questions get their own lane', () => {
-    const docs = (llm: number, queued = true) => graphOf(
+  it('doc-pipeline: sync summaries fail; queue the work; long docs fan out into chunks', () => {
+    const docs = (llm: number, queued = true, fan = false) => graphOf(
       [n('c', 'client'), n('api', 'service'), n('blob', 'blob'), ...(queued ? [n('q', 'queue'), n('w', 'worker')] : []), L(llm)],
-      [['c', 'api'], ['api', 'blob'], ...(queued ? [['api', 'q'], ['q', 'w'], ['w', 'llm']] as E[] : [['api', 'llm']] as E[])])
+      [['c', 'api'], ['api', 'blob'], ...(queued ? [['api', 'q'], ['q', 'w'], ['w', 'llm', fan ? { fanout: 'write' } : {}]] as E[] : [['api', 'llm', fan ? { fanout: 'write' } : {}]] as E[])])
     const bulk = variant('doc-pipeline', 'bulk')
     expect(passes(docs(10, false), bulk)).toBe(false)
     expect(after(docs(3), bulk, [[30, 1, []]])).toBe(false) // falls behind
     expect(passes(docs(5), bulk)).toBe(true)
     expect(passes(docs(9), bulk)).toBe(false)
 
-    const ask = variant('doc-pipeline', 'ask-your-docs')
-    const lanes = (chat: number, batch: number) => graphOf([C(), S(), n('blob', 'blob'), n('q', 'queue'), n('w', 'worker'), L(chat, 'chat'), L(batch)],
-      [['c', 'api'], ['api', 'blob', { carries: 'write' }], ['api', 'chat', { carries: 'read' }], ['api', 'q', { carries: 'write' }], ['q', 'w'], ['w', 'llm']])
-    expect(passes(chain(C(), S(), L(20)), ask)).toBe(false) // one sync pool
-    expect(passes(lanes(5, 7), ask)).toBe(true)
-    expect(passes(lanes(6, 8), ask)).toBe(false)
+    const longDocs = variant('doc-pipeline', 'long-docs')
+    expect(passes(docs(17), longDocs)).toBe(false) // no fan-out edge
+    expect(passes(docs(18, false, true), longDocs)).toBe(false)
+    expect(after(docs(15, true, true), longDocs, [[30, 1, []]])).toBe(false)
+    expect(passes(docs(17, true, true), longDocs)).toBe(true)
+    expect(passes(docs(20, true, true), longDocs)).toBe(false)
   })
 
-  it('agent-backend: 6 calls per task; interactive sizes for p99, background runs GPUs near 80%', () => {
-    const sync = (llm: number) => graphOf([C(), S(), L(llm)], [['c', 'api'], ['api', 'llm', { fanout: 'read' }]])
-    const bg = (llm: number) => graphOf([n('c', 'client'), n('api', 'service'), n('q', 'queue'), n('w', 'worker', { replicas: 1 }), L(llm)],
-      [['c', 'api'], ['api', 'q'], ['q', 'w'], ['w', 'llm', { fanout: 'read' }]])
+  it('agent-backend: 6 calls in a row per task; interactive sizes the pool, background queues it', () => {
+    const sync = (llm: number) => graphOf([C(), S(), L(llm)], [['c', 'api'], ['api', 'llm', { fanout: 'read', sequential: true }]])
+    const bg = (llm: number) => graphOf([n('c', 'client'), n('api', 'service'), n('q', 'queue'), n('w', 'worker', { replicas: 1, timeout_ms: 120000 }), L(llm)],
+      [['c', 'api'], ['api', 'q'], ['q', 'w'], ['w', 'llm', { fanout: 'read', sequential: true }]])
     const a = variant('agent-backend', 'assistant')
-    expect(passes(chain(C(), S(), L(13)), a)).toBe(false) // no fan-out edge
-    expect(passes(sync(10), a)).toBe(false)
-    expect(passes(sync(13), a)).toBe(true)
-    expect(passes(sync(16), a)).toBe(false)
+    expect(passes(chain(C(), S(), L(7)), a)).toBe(false) // no fan-out edge
+    expect(passes(sync(6), a)).toBe(false)
+    expect(passes(sync(7), a)).toBe(true)
+    expect(passes(sync(9), a)).toBe(false)
     const b = variant('agent-backend', 'background')
-    expect(passes(sync(50), b)).toBe(false)
-    expect(passes(bg(22), b)).toBe(false) // falls behind
-    expect(passes(bg(26), b)).toBe(true)
-    expect(passes(bg(32), b)).toBe(false)
+    expect(passes(sync(28), b)).toBe(false)
+    expect(after(bg(22), b, [[30, 1, []]])).toBe(false) // falls behind
+    expect(passes(bg(28), b)).toBe(true)
+    expect(passes(bg(30), b)).toBe(false)
   })
 
   const card = () => n('card', 'service', { replicas: 1, capacity_rps: 3500, base_latency_ms: 200, timeout_ms: 30000 })
@@ -309,12 +311,12 @@ describe('classic-design lessons match the simulator', () => {
     const queued = (api: number, w: number) => graphOf([...lbApi(api), n('db', 'sql_db'), n('q', 'queue'), n('w', 'worker', { replicas: w }), card()],
       [...fe, ['api', 'db'], ['api', 'q', { carries: 'write' }], ['q', 'w'], ['w', 'card']])
     const checkout = variant('payments', 'checkout')
-    expect(passes(sync(3), checkout)).toBe(true)
-    expect(passes(sync(3, [['api', 'db'], ['api', 'card']]), checkout)).toBe(false) // reads hit the card too
-    expect(passes(sync(3, [['api', 'k'], ['k', 'db'], ['api', 'card', { carries: 'write' }]], [n('k', 'cache')]), checkout)).toBe(false) // stale
-    expect(passes(queued(3, 8), checkout)).toBe(false) // over budget
+    expect(passes(sync(5), checkout)).toBe(true)
+    expect(passes(sync(6, [['api', 'db'], ['api', 'card']]), checkout)).toBe(false) // reads hit the card too
+    expect(passes(sync(5, [['api', 'k'], ['k', 'db'], ['api', 'card', { carries: 'write' }]], [n('k', 'cache')]), checkout)).toBe(false) // stale
+    expect(passes(queued(6, 11), checkout)).toBe(false) // over budget
     const sale = variant('payments', 'big-sale')
-    expect(passes(sync(8), sale)).toBe(false) // waits on a card network at rho 0.8
+    expect(passes(sync(8), sale)).toBe(false) // waits on the card's 200 ms
     expect(passes(queued(6, 15), sale)).toBe(true)
     expect(passes(queued(6, 25), sale)).toBe(false)
   })
@@ -332,8 +334,7 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(q(n('q', 'queue'), 65, 15), bf)).toBe(false)
     expect(passes(q(n('q', 'sqs'), 65, 15), bf)).toBe(false) // request pricing
     expect(passes(q(n('q', 'kafka', { partitions: 12 }), 65, 15), bf)).toBe(false) // 12 readers
-    expect(passes(q(n('q', 'kafka', { partitions: 66 }), 66, 15), bf)).toBe(false) // intake p99 ~410 ms
-    expect(passes(q(n('q', 'kafka', { partitions: 66 }), 66, 20), bf)).toBe(true)
+    expect(passes(q(n('q', 'kafka', { partitions: 66 }), 66, 15), bf)).toBe(true)
   })
 
   it('ledger: one primary until it runs out of writes, then shards or CockroachDB', () => {
@@ -348,7 +349,7 @@ describe('classic-design lessons match the simulator', () => {
     const shards = (k: number) => graphOf([...lbApi(20), n('router', 'load_balancer'), ...Array.from({ length: k }, (_, i) => n(`s${i}`, 'sql_db'))],
       [...fe, ['api', 'router'], ...Array.from({ length: k }, (_, i) => ['router', `s${i}`] as E)])
     expect(passes(one(20, n('db', 'sql_db')), scale)).toBe(false)
-    expect(passes(shards(3), scale)).toBe(false)
+    expect(passes(shards(3), scale)).toBe(false) // 16k / 3 is over 5k each
     expect(passes(shards(4), scale)).toBe(true)
     expect(passes(one(20, n('db', 'cockroachdb', { replicas: 14 })), scale)).toBe(true)
     expect(passes(one(20, n('db', 'cockroachdb', { replicas: 18 })), scale)).toBe(false)
@@ -381,7 +382,13 @@ describe('classic-design lessons match the simulator', () => {
     expect(after(direct, ingest, [[10, 1, []], [5, 1, ['db']]])).toBe(false) // ...but not the twist
     expect(passes(streamed(4), ingest)).toBe(false) // 4 readers
     expect(passes(streamed(24), ingest)).toBe(true)
-    expect(after(streamed(24), ingest, [[10, 1, []], [5, 1, ['db']]])).toBe(true)
+    // Store down: intake stays green (lag builds and is redelivered), then drains after the restore.
+    let s = initialSim()
+    const full = withDefaults(streamed(24)), t = simTraffic(ingest.traffic)
+    for (const [sec, killed] of [[10, []], [5, ['db']]] as [number, string[]][]) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed })
+    expect(s.global.errorPct).toBeLessThan(0.1)
+    expect(s.metrics.s.queue).toBeGreaterThan(20000)
+    expect(after(streamed(24), ingest, [[10, 1, []], [5, 1, ['db']], [40, 1, []]])).toBe(true)
     const incident = variant('metrics-ingest', 'incident')
     expect(passes(streamed(24, 0, 14, true), incident)).toBe(false)
     expect(passes(streamed(24, 0, 16, true), incident)).toBe(false) // over budget
@@ -418,13 +425,12 @@ describe('classic-design lessons match the simulator', () => {
       return graphOf(nodes, edges)
     }
     const exact = variant('edge-rate-limiter', 'exact')
-    expect(passes(limiter(false, 4), exact)).toBe(true)
-    expect(passes(limiter(true, 3), exact)).toBe(false)
-    expect(passes(limiter(true, 4), exact)).toBe(false) // over budget
+    expect(passes(limiter(false, 3), exact)).toBe(true)
+    expect(passes(limiter(true, 3), exact)).toBe(false) // a counter per region costs more
     const fast = variant('edge-rate-limiter', 'fast')
-    expect(passes(limiter(false, 6), fast)).toBe(false) // 70 ms away
+    expect(passes(limiter(false, 3), fast)).toBe(false) // 70 ms away
     expect(passes(limiter(false, 8), fast)).toBe(false)
-    expect(passes(limiter(true, 4), fast)).toBe(true)
+    expect(passes(limiter(true, 3), fast)).toBe(true)
   })
 
   it('flash-sale: CDN + cache absorb the onsale reads; the drop needs a gate in front of the database', () => {
@@ -438,7 +444,7 @@ describe('classic-design lessons match the simulator', () => {
     const gated = (limit: number) => site([n('cdn', 'cdn'), n('gw', 'api_gateway', { rate_limit_rps: limit })], 6, [n('db', 'sql_db')])
     expect(passes(site([n('cdn', 'cdn')], 20, [n('db', 'sql_db')]), drop)).toBe(false)
     expect(passes(gated(4000), drop)).toBe(true)
-    expect(passes(gated(5000), drop)).toBe(false)
+    expect(passes(gated(6000), drop)).toBe(false)
     expect(passes(site([n('cdn', 'cdn')], 20, [n('db', 'cockroachdb', { replicas: 18 })]), drop)).toBe(false) // over budget
   })
 
@@ -463,20 +469,21 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(redis, likes)).toBe(true)
   })
 
-  it('retry-storm: a 5 s spike sticks with retries; no retries or a gateway recover, brute force breaks the budget', () => {
+  it('retry-storm: a 5 s spike sticks with retries; a retry budget or a gateway recovers, backoff alone does not', () => {
     const start = graph(lesson('retry-storm').starter_graph!)
-    const spikeThenNormal: [number, number, string[]][] = [[5, 1, []], [5, 2, []], [15, 1, []]]
+    const spikeThenNormal: [number, number, string[]][] = [[5, 1, []], [5, 2, []], [30, 1, []]]
     const a = variant('retry-storm', 'new-app')
     expect(passes(start, a)).toBe(true) // fine until the spike
     expect(after(start, a, spikeThenNormal)).toBe(false)
-    expect(after(withParams(start, { client: { retries: 1 } }), a, spikeThenNormal)).toBe(false)
-    expect(after(withParams(start, { client: { retries: 0 } }), a, spikeThenNormal)).toBe(true)
-    expect(after(withParams(start, { api: { replicas: 10 } }), a, spikeThenNormal)).toBe(false) // over budget
+    expect(after(withParams(start, { client: { backoff: 'exponential' } }), a, spikeThenNormal)).toBe(false)
+    expect(after(withParams(start, { client: { retry_budget: '20%' } }), a, spikeThenNormal)).toBe(false)
+    expect(after(withParams(start, { client: { retry_budget: '10%' } }), a, spikeThenNormal)).toBe(true)
+    expect(after(withParams(start, { client: { retry_budget: '10%', backoff: 'exponential' } }), a, spikeThenNormal)).toBe(true)
+    expect(after(withParams(start, { api: { replicas: 6 } }), a, spikeThenNormal)).toBe(false) // recovers, over budget
     const b = variant('retry-storm', 'old-clients')
     const gated = insert(start, n('gw', 'api_gateway', { rate_limit_rps: 4500 }), 'lb')
     expect(after(gated, b, spikeThenNormal)).toBe(true)
-    expect(after(withParams(start, { api: { replicas: 6 } }), b, spikeThenNormal)).toBe(false)
-    expect(after(withParams(start, { api: { replicas: 10 } }), b, spikeThenNormal)).toBe(false) // over budget
+    expect(after(withParams(start, { api: { replicas: 6 } }), b, spikeThenNormal)).toBe(false) // recovers, over budget
   })
 
   it('consumer-lag: consumers past the partition count sit idle; more partitions (and batching) fix it', () => {
@@ -491,19 +498,22 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(withParams(start, { orders: { partitions: 14 }, consumers: { replicas: 14, capacity_rps: 500 } }), growth)).toBe(true)
   })
 
-  it('llm-cost: the starter is over budget; a cache or a queue cuts it', () => {
+  it('llm-cost: the starter is over budget; right-sizing is not enough; a cache or batching from a queue is', () => {
     const start = graph(lesson('llm-cost').starter_graph!)
     const repeats = variant('llm-cost', 'repeats')
     expect(passes(start, repeats)).toBe(false)
+    expect(passes(withParams(start, { llm: { replicas: 9 } }), repeats)).toBe(false) // right-sized, still over
     const cached = (r: number) => withParams(insert(start, n('k', 'cache', { hit_ratio: 0.7 }), 'llm'), { llm: { replicas: r } })
-    expect(passes(cached(6), repeats)).toBe(true)
-    expect(passes(cached(7), repeats)).toBe(false)
-    const async_ = variant('llm-cost', 'async-ok')
-    const queued = (r: number) => withParams(insert(insert(start, n('q', 'queue'), 'llm'), n('w', 'worker', { replicas: 1 }), 'llm'), { llm: { replicas: r }, api: { timeout_ms: 1000 } })
-    expect(passes(start, async_)).toBe(false)
-    expect(passes(queued(7), async_)).toBe(false) // falls behind
-    expect(passes(queued(9), async_)).toBe(true)
-    expect(passes(queued(10), async_)).toBe(false)
+    expect(passes(cached(3), repeats)).toBe(true)
+    expect(passes(cached(4), repeats)).toBe(false)
+    const batch = variant('llm-cost', 'batch-ok')
+    const batched = { capacity_rps: 10, base_latency_ms: 4000 }
+    const queued = (r: number) => withParams(insert(insert(start, n('q', 'queue'), 'llm'), n('w', 'worker', { replicas: 1 }), 'llm'), { llm: { replicas: r, ...batched }, api: { timeout_ms: 1000 } })
+    expect(passes(start, batch)).toBe(false)
+    expect(passes(withParams(start, { llm: { replicas: 5, ...batched } }), batch)).toBe(false) // batched but users wait
+    expect(after(queued(3), batch, [[30, 1, []]])).toBe(false) // falls behind
+    expect(passes(queued(5), batch)).toBe(true)
+    expect(passes(queued(6), batch)).toBe(false)
   })
 })
 

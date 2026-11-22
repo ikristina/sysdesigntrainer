@@ -265,7 +265,7 @@ Export calls `toDesign(nodes, edges)`, then `JSON.stringify`, and downloads the 
 
 **...click a connection**
 1. React Flow marks the edge `selected` (no node is selected now), so `ParamPanel` shows `EdgePanel` instead of block params.
-2. Changing **Carries** or **Fan-out** calls `store.setRoute(edgeId, { carries | fanout })`, which merges it into the edge's `data`.
+2. Changing **Carries**, **Fan-out** or **One after another** calls `store.setRoute(edgeId, { carries | fanout | sequential })`, which merges it into the edge's `data`.
 3. `RoughEdge` reads `data` and draws a tag in the middle of the curve. The sim reads the same fields from the saved design on the next tick.
 
 ## 6. Saved-design format
@@ -302,23 +302,24 @@ It's a queueing model, not real traffic: numbers per second flow through the gra
 The core formulas (in `handlers/common.ts`):
 
 - Service rate `μ = replicas × capacity_rps`. Arrival rate `λ` = sum of inbound flows. Utilization `ρ = λ / μ`.
-- Latency = `base_latency / (1 - ρ)` (ρ capped at 0.99), plus time spent waiting in the queue.
+- Each block is an M/M/c queue: by Little's law it has `c = μ × base_latency` requests in flight at once (servers). Latency = `base + ErlangC(c, cρ) × base / (c(1 - ρ))` (ρ capped at 0.99), plus time waiting in the overflow queue. One server (c = 1) gives the classic `base / (1 - ρ)`; a pool of many servers stays near `base` until it is nearly full, then climbs steeply.
 - When `λ > μ`, the queue grows by `(λ - μ) × dt`. Once waiting would exceed the block's timeout, the overflow fails (errors).
 - A block with `timeout_ms` also gives up on downstream calls slower than that timeout. Those count as failures for it, even though the downstream keeps working.
 - Clients retry: if a share `f` failed last tick, a client with `r` retries sends `1 + f + … + f^r` times its traffic. That's how an overload becomes a retry storm, and why it can stay broken after the spike ends.
+- `retry_budget` (10% / 20%) caps retries at that share of the offered traffic (gRPC-style); errors count retries only for the share the budget allowed. `backoff: exponential` spreads retry k over a random 0 to 2^(k-1) s (full jitter): it smooths the spike but sends the same number of retries, so it alone doesn't end a storm.
 
 What each behavior does:
 
 | `simBehavior` | Blocks | Behavior |
 |---|---|---|
-| `client` | Client | Sends its share of the global rps (split evenly between clients), plus retries. |
+| `client` | Client | Sends its share of the global rps (split evenly between clients), plus retries (limited by `retry_budget`, spread by `backoff`). |
 | `service` / `kv` / `passthrough` | Service, Worker, Function, LLM, Embeddings, NoSQL-style stores, Blob, DNS | One queue in front of `μ`; each request calls **every** child. |
 | `balancer` | Load balancer | Like a service, then splits evenly across the children that are alive. |
 | `gateway` | API gateway | Drops traffic above `rate_limit_rps`, then balances. |
 | `cache` | Cache, CDN | Serves `hit_ratio` of reads; misses and writes go downstream. With `invalidate`, writes lower the effective hit ratio. |
 | `sql` | SQL DB | Writes go to the primary only; reads spread over primary + read replicas. The connection pool caps throughput at `pool_size / base latency`. Replication lag grows while the primary is above ρ 0.8. |
-| `queue` | Queue | Accepts up to its capacity; children are competing consumers. The producer only waits for the enqueue, so its latency stays low while the backlog grows. |
-| `stream` | Stream | Each child is a consumer group that reads **every** message. A group can use at most `partitions` of its replicas. |
+| `queue` | Queue | Accepts up to its capacity; children are competing consumers. The producer only waits for the enqueue, so its latency stays low while the backlog grows. At least once: messages a consumer failed (its `pathFail` last tick) go back on the queue (`redelivered` metric, shown as ↻ N/s), so a broken consumer shows up as backlog, not lost work. |
+| `stream` | Stream | Each child is a consumer group that reads **every** message. A group can use at most `partitions` of its replicas. Failed messages are redelivered per group, like the queue. |
 | `partitioned` | DynamoDB preset | Like `kv`, but the hot-key share of reads and writes all lands on one partition. Above `partition_read_rps` / `partition_write_rps` that share is throttled (errors). |
 | `consensus` | CockroachDB preset | Like a service, but every write is done `replication_factor` times (each replica applies it) and waits for a quorum: +1 ms within a region, +70 ms when `regions` ≥ 3. |
 
@@ -328,7 +329,7 @@ What each behavior does:
 
 **Read and write paths:** by default a request goes down every edge. An edge with `carries: "read"` passes only the reads, `carries: "write"` only the writes, so a service can send writes to one store and reads to another.
 
-**Fan-out:** an edge with `fanout: "write"` turns each write into `followers` writes (a post copied into every follower's feed). `fanout: "read"` turns each read into `following` reads (a feed gathered from everyone you follow). Followers and following are traffic settings (More ▾ in the header, `set_traffic`, lesson `traffic`). `fanoutRps` in the global metrics is the extra rps fan-out created. The backward pass weighs latency by the flow before fan-out, so the N calls count as one call (as if they ran in parallel).
+**Fan-out:** an edge with `fanout: "write"` turns each write into `followers` writes (a post copied into every follower's feed). `fanout: "read"` turns each read into `following` reads (a feed gathered from everyone you follow). Followers and following are traffic settings (More ▾ in the header, `set_traffic`, lesson `traffic`). `fanoutRps` in the global metrics is the extra rps fan-out created. The backward pass weighs latency by the flow before fan-out, so the N calls count as one call (as if they ran in parallel). Tick **One after another** on a fan-out edge (`sequential: true`) to make the N calls run in turn, like an agent loop: latency × N and the chance that one fails compounds (`1 - (1 - fail)^N`).
 
 **Stale reads:** caches and SQL read replicas copy writes asynchronously, so the sim counts every read they answer as possibly stale (the `stale` metric on that block). `stalePct` = all stale reads ÷ the reads users sent, capped at 100%. KV, partitioned and consensus stores count as always current.
 
@@ -481,7 +482,7 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - No "clear canvas" button. Select everything (drag a box with Shift held) and press Backspace, or delete the localStorage key.
 - Autosave writes on every drag frame. That's fine for designs this size; add a debounce if large designs feel slow.
 - Six lessons (URL shortener, welcome emails, p99 fix, rate limiter, news feed, chat), five compare lessons and three explainers ship. A compare lesson needs a scenario where the two products behave differently in the sim; products that differ only in price (Redis vs Valkey, CloudFront vs Cloudflare) have no lesson, their prices and facts are in the param panel.
-- Fan-out: the N calls count as one for latency, and `followers` / `following` are one average for everyone (no celebrity tail). On a load balancer, `carries` filters after the even split.
+- Fan-out: unless the edge is sequential, the N calls count as one for latency, and `followers` / `following` are one average for everyone (no celebrity tail). On a load balancer, `carries` filters after the even split.
 - Stale reads are a share, not a time: every cache hit and replica read counts, however fresh the copy is, and KV stores never count. Read-your-own-writes can't be modeled because the sim doesn't tell users apart.
 - The sim can't tell one client's requests from another's in the error check, so in the rate-limiter lesson a global limit and a per-client limit score the same.
 - Without Claude, a lesson's twist is text only: it tells you what changed, but the requirements stay the same until you or Claude change them (`set_requirements`). The estimation, API and postmortem steps are notes boxes with nothing checking them; Claude reviews them.

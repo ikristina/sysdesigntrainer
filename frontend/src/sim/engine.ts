@@ -97,6 +97,7 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     const r = handlers[behavior(node.type)]({
       node, inbound: inbound.get(id) ?? NONE, children: children.map((e) => cut.has(e.id) ? { ...nodes.get(e.target)!, killed: true } : nodes.get(e.target)!),
       state: prev.nodes[id] ?? {}, prevPathFail: prev.metrics[id]?.pathFail ?? 0,
+      childFail: children.map((e) => (cut.has(e.id) ? 1 : prev.metrics[e.target]?.pathFail ?? 0)),
       offered: sources.includes(id) ? share : 0, readRatio: traffic.readRatio, hotKey: traffic.hotKey ?? 0, dt,
     })
     // An edge can carry only reads or only writes, and can fan out: each write becomes `followers`

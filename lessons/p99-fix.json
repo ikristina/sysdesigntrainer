@@ -2,14 +2,14 @@
   "id": "p99-fix",
   "title": "p99 is seconds: fix it",
   "mode": "targeted",
-  "brief": "Users say product pages are slow, and some fail. The design below serves 4k rps. Find out why p99 is in seconds, then fix it.",
+  "brief": "Users say product pages are slow, and some fail. The design below serves about 4.4k rps. Find out why p99 is in seconds, then fix it.",
   "variants": [
     {
       "id": "cheap-fix",
-      "requirements": ["4k rps, 95% reads", "p99 < 300 ms", "errors < 0.1%", "cost < $1.20/hr (about what it costs now)"],
-      "traffic": { "rps": 4000, "read_ratio": 0.95 },
+      "requirements": ["4.4k rps, 95% reads", "p99 < 300 ms", "errors < 0.1%", "cost < $1.20/hr (about what it costs now)"],
+      "traffic": { "rps": 4400, "read_ratio": 0.95 },
       "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 1.2 },
-      "twist": "Marketing launch: 2x traffic. Apply with set_traffic(rps=8000)."
+      "twist": "Marketing launch: 2x traffic. Apply with set_traffic(rps=8800)."
     },
     {
       "id": "growth",
@@ -27,5 +27,5 @@
   ],
   "steps": ["requirements", "design", "load_test", "twist", "postmortem"],
   "explainers": ["caching-basics"],
-  "_notes": "Starter: 6 x 1k service ($0.60), SQL pool 20 at 5 ms = 4k rps cap, LB $0.03: $1.13/hr. At 4k rps the DB sits at rho 1, queues to its 1 s timeout, and retries make it worse (sim: p99 ~16 s, 80% errors). Cheap fix: pool_size >= 30 (free; sim p99 249 ms). A read replica ($0.50) breaks $1.20. Growth: 12k rps needs ~19 service replicas ($1.90), a cache (reads to DB ~1.7k + 600 writes), pool >= 30: ~$2.60/hr, sim p99 ~180 ms. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "Starter: 6 x 1k service ($0.60), SQL pool 20 at 5 ms = 4k rps cap, LB $0.03: $1.13/hr. At 4.4k rps the DB is at rho 1.1: it queues to its 1 s timeout, and retries make it worse (p99 in seconds, heavy errors). Cheap fix: pool_size >= 30 (free; the 6 services at rho 0.73 are fine). A read replica ($0.50) breaks $1.20. Growth: 12k rps needs ~14+ service replicas, a cache (reads to DB ~1.1k + 600 writes) and a bigger pool: 19 replicas + cache + pool 40 is ~$2.60/hr. Checked in frontend/src/lessons/content.test.ts."
 }

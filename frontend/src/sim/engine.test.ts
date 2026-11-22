@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { defaultParams, registry } from '../blocks'
 import type { Design, SavedNode } from '../design'
 import { CROSS_REGION_MS, initialSim, step } from './engine'
+import { erlangC } from './handlers/common'
 
 const node = (id: string, type: string, params: Record<string, number | string> = {}, parentId?: string): SavedNode =>
   ({ id, type, position: { x: 0, y: 0 }, parentId, params: { ...defaultParams(type), ...params } })
@@ -17,15 +18,29 @@ const simple = (svc: Record<string, number> = {}, client: Record<string, number>
   design([node('c', 'client', client), node('s', 'service', svc)], [['c', 's']])
 
 describe('simulator', () => {
-  it('under capacity: ρ = λ/μ, no errors, latency near base / (1 - ρ)', () => {
+  it('under capacity: ρ = λ/μ, no errors, many parallel servers barely queue', () => {
     const s = run(simple(), { rps: 1000 })
     expect(s.metrics.s.rho).toBeCloseTo(0.5)
     expect(s.metrics.s.queue).toBe(0)
     expect(s.global.errorPct).toBeCloseTo(0)
-    expect(s.metrics.s.latencyMs).toBeCloseTo(40)
-    expect(s.global.p50Ms).toBeGreaterThan(20)
+    expect(s.metrics.s.latencyMs).toBeCloseTo(20, 0) // 2 × 1000 rps × 20 ms = 40 servers: no wait at ρ 0.5
+    expect(s.global.p50Ms).toBeGreaterThan(15)
     expect(s.global.p50Ms).toBeLessThan(80)
     expect(s.global.throughput).toBeCloseTo(1000)
+  })
+
+  it('M/M/c: one server queues early (base / (1 - ρ)); many servers wait only near full', () => {
+    const one = run(simple({ replicas: 1, capacity_rps: 50 }, { retries: 0 }), { rps: 40 }) // 50 rps × 20 ms = 1 server
+    expect(one.metrics.s.latencyMs).toBeCloseTo(20 / (1 - 0.8), 0)
+    const many = (rps: number) => run(simple({ replicas: 10 }, { retries: 0 }), { rps }).metrics.s.latencyMs // 200 servers
+    expect(many(8000)).toBeLessThan(21)
+    expect(many(9900)).toBeGreaterThan(22)
+  })
+
+  it('erlangC matches known values', () => {
+    expect(erlangC(1, 0.8)).toBeCloseTo(0.8)        // M/M/1: P(wait) = ρ
+    expect(erlangC(2, 1)).toBeCloseTo(1 / 3)        // c = 2, a = 1
+    expect(erlangC(10, 8)).toBeCloseTo(0.409, 2)    // standard table value
   })
 
   it('overloaded: the queue grows, then requests past the timeout fail', () => {
@@ -132,6 +147,18 @@ describe('simulator', () => {
     expect(s.metrics.q.queue).toBeCloseTo(4000) // (1000 - 200) × 5 s
     expect(s.metrics.c.pathMs).toBeCloseTo(10) // just the enqueue
     expect(s.global.errorPct).toBeCloseTo(0)
+  })
+
+  it('queue: at least once: what a consumer fails on goes back on the queue, so throughput = what completes', () => {
+    // Workers take 400/s, but the slow block behind them finishes only 100/s (timeout 100 ms: it can't buffer much).
+    const d = design([node('c', 'client'), node('q', 'queue'), node('w', 'worker', { replicas: 2, timeout_ms: 2000 }),
+      node('slow', 'service', { replicas: 1, capacity_rps: 100, base_latency_ms: 10, timeout_ms: 100 })],
+    [['c', 'q'], ['q', 'w'], ['w', 'slow']])
+    const s = run(d, { rps: 300, seconds: 10 })
+    expect(s.metrics.q.redelivered).toBeGreaterThan(100)                // failed messages come back
+    expect(s.metrics.q.queue).toBeGreaterThan(1500)                      // the shortfall shows up as backlog
+    expect(s.metrics.slow.served).toBeCloseTo(100, -1)                   // real throughput = the slowest step
+    expect(s.global.errorPct).toBeCloseTo(0)                             // producers never see it
   })
 
   it('stream: every consumer group reads every message; partitions cap parallelism', () => {

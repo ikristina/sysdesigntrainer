@@ -95,9 +95,11 @@ Logos: Simple Icons (SVGs are CC0, marks belong to their owners). Add a trademar
 Tick-based, 10 ticks/s sim time. Per node per tick:
 - Service rate `μ = replicas × capacity_rps`. Arrival `λ` = sum of inbound flows.
 - Utilization `ρ = λ/μ`.
-- If `ρ < 1`: latency ≈ `base_latency / (1 - ρ)` (cap ρ at 0.99 for the formula).
+- If `ρ < 1`: M/M/c with `c = μ × base_latency` servers (Little's law): latency ≈ `base + ErlangC(c, cρ) · base / (c(1 - ρ))` (cap ρ at 0.99). c = 1 is `base / (1 - ρ)`.
 - If `ρ ≥ 1`: queue grows by `(λ - μ)·dt`, wait = `queue/μ`. When wait > timeout, overflow becomes errors.
-- Retries (client param) re-add a share of errors to λ, so failures can cascade.
+- Retries (client param) re-add a share of errors to λ, so failures can cascade. `retry_budget` caps retries at 10% / 20% of offered traffic; `backoff: exponential` spreads them with full jitter.
+- Queues and streams are at least once: messages a consumer failed are redelivered (backlog grows instead of work being lost).
+- A fan-out edge can be `sequential`: N calls in turn (latency × N), like an agent loop.
 - Request latency end-to-end = sum along the path. Track p50/p99 from a sampled distribution per node.
 
 Behaviors:
