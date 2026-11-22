@@ -1,0 +1,42 @@
+{
+  "id": "ledger",
+  "title": "Double-entry ledger: exact balances past one primary",
+  "mode": "full",
+  "brief": "Design a double-entry ledger: every transfer writes two entries (a debit and a credit) in one transaction, and balance reads must be exact. No reads from a cache or a lagging replica.",
+  "variants": [
+    {
+      "id": "startup",
+      "requirements": [
+        "3k rps: 1.8k transfers/s (writes), 1.2k balance reads/s",
+        "p99 < 400 ms",
+        "errors < 0.1%",
+        "no stale reads",
+        "cost < $2/hr"
+      ],
+      "traffic": { "rps": 3000, "read_ratio": 0.4 },
+      "success": { "p99_ms": 400, "error_pct": 0.1, "max_cost_hr": 2, "max_stale_pct": 0 },
+      "twist": "Growth: set_traffic(rps=6000). One primary takes every write; how close is it to its limit now, and what's your plan before it hits it?"
+    },
+    {
+      "id": "scale",
+      "requirements": [
+        "15k rps: 9k transfers/s, 6k balance reads/s",
+        "p99 < 400 ms",
+        "errors < 0.1%",
+        "no stale reads",
+        "cost < $5/hr"
+      ],
+      "traffic": { "rps": 15000, "read_ratio": 0.4 },
+      "success": { "p99_ms": 400, "error_pct": 0.1, "max_cost_hr": 5, "max_stale_pct": 0 },
+      "twist": "A transfer between two accounts that live on different shards: how do both entries commit atomically? Compare two-phase commit, a saga with compensating entries, and a distributed SQL database."
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Why can't a cache or a read replica serve balance reads here?",
+    "Every write goes to one SQL primary, and it tops out around 5k/s. To get past that with exact reads, either split accounts across several primaries or use a database where every node takes writes.",
+    "Startup: LB -> 4 services -> one SQL DB. Scale: about 20 services -> a load balancer used as a shard router -> 4 SQL DBs (one per account range), or CockroachDB with about 14 nodes (each write lands on 3 replicas)."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "SQL DB: 5k/s, $0.50. Startup: LB + 4 services + SQL: p99 ~330 ms, $0.93. Cache or 1 read replica fails 'no stale reads'. DynamoDB passes latency but request pricing makes it $4.75/hr. Scale: one primary at 15k collapses. A load balancer as a shard router splits evenly: 3 shards (rho 1.33) collapse, 4 shards (rho 0.75): p99 ~330 ms, $4.06. CockroachDB: (6k reads + 9k x 3 writes) / 3k per node: 14 nodes p99 ~340 ms, $4.61; 18 nodes ($5.34) break the budget. Even splitting assumes no hot account; a platform fee account takes a share of every transfer in real life. Ask about it. Checked in frontend/src/lessons/content.test.ts."
+}

@@ -1,0 +1,44 @@
+{
+  "id": "bank-aggregator",
+  "title": "Bank aggregator: never call a bank on the read path",
+  "mode": "full",
+  "brief": "Design a Plaid-style aggregator: apps read users' bank transactions from you, and you pull fresh data from the banks. Banks are slow and rate-limit you: model them as one Service block named banks with 1 replica, capacity_rps 500, base_latency_ms 800, timeout_ms 30000, and don't scale it. Reads are apps fetching transactions; writes are refresh requests.",
+  "variants": [
+    {
+      "id": "budgeting-apps",
+      "requirements": [
+        "20k rps, 98% reads (400 refreshes/s)",
+        "Data a few minutes old is fine",
+        "p99 < 500 ms",
+        "errors < 0.1%",
+        "refreshes keep up: backlog under 1,000",
+        "cost < $3.75/hr"
+      ],
+      "traffic": { "rps": 20000, "read_ratio": 0.98 },
+      "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 3.75, "max_backlog": 1000 },
+      "twist": "A big bank goes down for 30 s: kill_node('banks'), then restore_node('banks'). Apps must keep reading. What do you tell an app whose refresh is stuck?"
+    },
+    {
+      "id": "payments-apps",
+      "requirements": [
+        "20k rps, 98% reads (400 refreshes/s)",
+        "Apps approve payments from the balance you return: no stale reads (no cache or replica on the read path)",
+        "p99 < 500 ms",
+        "errors < 0.1%",
+        "backlog under 1,000",
+        "cost < $4.50/hr"
+      ],
+      "traffic": { "rps": 20000, "read_ratio": 0.98 },
+      "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 4.5, "max_backlog": 1000, "max_stale_pct": 0 },
+      "twist": "Refreshes double: set_traffic(read_ratio=0.96). The banks cap you at 500/s. What now: prioritize, merge duplicate refreshes, ask banks for webhooks?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Can an app's read wait 800 ms for a bank? What happens when 20k reads/s hit something that handles 500?",
+    "Serve reads from your own store, and refresh in the background through a queue. For the second variant, which stores can serve 20k reads/s from the primary copy?",
+    "Budgeting: LB -> about 25 services; reads -> cache (hit 0.9) -> SQL DB; writes -> queue -> 3 workers -> banks and the SQL DB (use edge 'carries'). Payments: same refresh path, but reads go straight to a NoSQL/KV store (3 replicas), no cache."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Banks: 1 x 500/s, 800 ms. Calling banks on the read path: rho 50, everything fails. Async refresh: service -> queue (writes) -> 3 workers -> banks + store; banks rho 0.8 is fine because nobody waits. Budgeting: cache 0.9 + SQL: p99 ~410 ms, $3.63. SQL alone: 19.6k reads on a 5k primary collapse. SQL + 4 read replicas passes ($5.48, over budget). KV (3 x 10k) passes at $3.88: just over $3.75, so the cache is the cheap answer. Payments: cache fails 'no stale reads'; KV with 3 replicas: p99 ~410 ms, $3.88. Service replicas dominate cost (25 x $0.10). Checked in frontend/src/lessons/content.test.ts."
+}

@@ -1,0 +1,43 @@
+{
+  "id": "llm-gateway",
+  "title": "LLM API gateway: cache, route, size the GPU pool",
+  "mode": "full",
+  "brief": "Design the inference API behind a chat product: tenants send prompts, a pool of GPUs runs the model. One LLM replica handles about 5 requests/s at about 2 s each and costs $3/hr. Answers take seconds: give the client and every service on the path a long timeout_ms (about 60 s), or they give up first.",
+  "variants": [
+    {
+      "id": "steady",
+      "requirements": [
+        "40 prompts/s (reads in the sim)",
+        "30% are exact repeats of a recent prompt: a cache can hit at most 0.3",
+        "p99 < 10 s for the full answer (streaming hides most of it from the user)",
+        "errors < 0.5%",
+        "cost < $45/hr"
+      ],
+      "traffic": { "rps": 40, "read_ratio": 1 },
+      "success": { "p99_ms": 10000, "error_pct": 0.5, "max_cost_hr": 45 },
+      "twist": "The GPU provider loses your pool for 30 s: kill_node on the LLM block, then restore_node. What do users see? Would a smaller fallback model behind a load balancer help, and what would it answer badly?"
+    },
+    {
+      "id": "routing",
+      "requirements": [
+        "100 prompts/s",
+        "60% are easy (classify, short rewrite): reads in the sim. 40% are hard: writes in the sim",
+        "A small model handles easy prompts well: an LLM block with capacity_rps 40 and base_latency_ms 300 (same $3/hr GPU)",
+        "Hard prompts need the big model (5/s, 2 s per replica)",
+        "p99 < 10 s, errors < 0.5%",
+        "cost < $70/hr"
+      ],
+      "traffic": { "rps": 100, "read_ratio": 0.6 },
+      "success": { "p99_ms": 10000, "error_pct": 0.5, "max_cost_hr": 70 },
+      "twist": "One tenant's script sends 3x their quota. Apply with spike(multiplier=2, seconds=30). Where does a per-tenant limit go, and should it count requests or tokens?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "An LLM call takes about 2 s. What happens when the service in front of it gives up after 1 s?",
+    "Raise timeout_ms on the client and the service to about 60 s. In the sim, an LLM pool needs to stay under about 45% busy for p99 < 10 s. Which prompts don't need the big GPU at all?",
+    "Steady: client -> service -> cache (hit_ratio 0.3) -> about 13 LLM replicas. Routing: one service with two LLM blocks; set the edges' 'carries' so reads go to a small model (capacity_rps 40, base_latency_ms 300, 3 replicas) and writes go to about 18 big replicas."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "LLM block: 5/s per replica, 2000 ms base, 30 s timeout, $3. The sim queues all replicas as one M/M/1 server, so p99 grows fast with load: at 40 rps, 12 replicas (rho 0.67) give p99 20 s, 20 replicas (rho 0.4) give 8 s. A real fleet with batching runs hotter; tell the user the 45% rule is the sim's. Default timeouts (client 2 s, service 1 s) fail almost every LLM call: 20 replicas with defaults give 96% errors. Steady: no cache needs ~18 replicas ($54, over budget). Cache 0.3 + 13 replicas: p99 ~8.5 s, $39.35; 16 replicas ($48) breaks the budget. Routing: big only needs ~45 replicas ($135). Big 18 + small 3 (capacity 40, 300 ms): p99 ~8.2 s, $63; big 22 + small 4 ($78) breaks the budget. Tokens/s is shown on the block but the sim doesn't use it: cost and latency are per request. Checked in frontend/src/lessons/content.test.ts."
+}

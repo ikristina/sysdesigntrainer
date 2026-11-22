@@ -1,0 +1,43 @@
+{
+  "id": "agent-backend",
+  "title": "AI agent backend: one task, many LLM calls",
+  "mode": "full",
+  "brief": "Design the backend for an AI agent. Each user task runs a loop: the LLM picks a tool, the tool runs, the result goes back to the LLM, about 6 LLM calls per task. LLM: 5 calls/s per replica, about 2 s each, $3/hr. Mark the edge into the LLM as fan-out on read: the lesson sets following = 6, so each task becomes 6 calls. Answers take seconds: give the client and every service on the path a long timeout_ms (about 60 s), or they give up first.",
+  "variants": [
+    {
+      "id": "assistant",
+      "requirements": [
+        "5 tasks/s; the user watches the agent work",
+        "6 LLM calls per task (fan-out read edge, following = 6)",
+        "p99 < 10 s (the sim times the 6 calls as if parallel; a real loop runs them in sequence, which is why agents stream progress)",
+        "errors < 0.5%",
+        "cost < $45/hr"
+      ],
+      "traffic": { "rps": 5, "read_ratio": 1, "following": 6 },
+      "success": { "p99_ms": 10000, "error_pct": 0.5, "max_cost_hr": 45, "needs_fanout": true },
+      "twist": "A prompt change makes agents loop: 15 calls per task. Apply with set_traffic(following=15). How would you cap steps or tokens per task, and where is that enforced?"
+    },
+    {
+      "id": "background",
+      "requirements": [
+        "20 tasks/s; results arrive by notification, nobody waits",
+        "6 LLM calls per task (fan-out read edge, following = 6)",
+        "submit p99 < 300 ms",
+        "errors < 0.1%",
+        "tasks keep up: backlog under 50",
+        "cost < $95/hr"
+      ],
+      "traffic": { "rps": 20, "read_ratio": 1, "following": 6 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 95, "max_backlog": 50, "needs_fanout": true },
+      "twist": "The LLM provider is down for 30 s: kill_node on the LLM block, then restore_node. Are tasks lost? What happens to a task that was on step 4 of 6?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "How many LLM calls does one task make, and how many per second does that add up to?",
+    "Mark the edge into the LLM as fan-out on read so each task becomes 6 calls. Interactive: size the pool for 30 calls/s at about 45% busy. Background: nobody waits, so how busy can the GPUs run?",
+    "Assistant: client and service timeouts 60 s, service -> LLM with a fan-out read edge, about 13 replicas. Background: service -> queue -> worker -> LLM (fan-out read edge), about 26-30 replicas near 80% busy."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Fan-out read edge with following 6: 5 tasks/s = 30 LLM calls/s. Assistant: 13 replicas (rho 0.46) p99 9.8 s, $39.20; 16 replicas ($48) break the budget; without a fan-out edge the 'needs_fanout' check fails. Background: 20 tasks/s = 120 calls/s. Queue -> 1 worker -> LLM. 26 replicas (rho 0.92): submit p99 37 ms, $78; 22 replicas fall behind; 32 ($96) break the budget. Sync at p99 < 10 s needs ~50 replicas ($150). The sim counts a fan-out's calls as parallel for latency: a real 6-step loop takes ~6x longer end to end. Say so; it's why interactive agents stream steps and cap them. Tool calls aren't modeled; add a Service for tools if the user wants. Checked in frontend/src/lessons/content.test.ts."
+}

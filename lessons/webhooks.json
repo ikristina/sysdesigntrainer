@@ -1,0 +1,41 @@
+{
+  "id": "webhooks",
+  "title": "Webhook delivery: at least once, without waiting on merchants",
+  "mode": "full",
+  "brief": "Design webhook delivery: your platform emits events and must POST each one to the merchant's endpoint, at least once. Merchant endpoints are slow: model them as one Service block with capacity_rps 100000, base_latency_ms 400, timeout_ms 30000. A worker delivers about 200 events/s.",
+  "variants": [
+    {
+      "id": "steady",
+      "requirements": [
+        "2k events/s (writes)",
+        "Emitting an event p99 < 300 ms: the API must not wait on merchants",
+        "errors < 0.1%",
+        "deliveries keep up: backlog under 1,000",
+        "cost < $2/hr"
+      ],
+      "traffic": { "rps": 2000, "read_ratio": 0 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 2, "max_backlog": 1000 },
+      "twist": "Deliveries stop for 30 s: kill_node on your worker block, then restore_node. Does the backlog drain? In production, how do you keep one dead endpoint from blocking everyone else (retry queue with backoff, dead-letter queue)?"
+    },
+    {
+      "id": "black-friday",
+      "requirements": [
+        "12k events/s",
+        "Emitting p99 < 300 ms, errors < 0.1%, backlog under 1,000",
+        "Events for one merchant must arrive in order",
+        "cost < $10/hr"
+      ],
+      "traffic": { "rps": 12000, "read_ratio": 0 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 10, "max_backlog": 1000 },
+      "twist": "One merchant gets 30% of all events. With ordering per merchant, all of them land on one partition. What does that do to that merchant's lag, and to everyone else's?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Should the API that emits an event wait for the merchant to answer?",
+    "Put a queue between the API and delivery workers, then size the workers to drain faster than events arrive. At 12k/s: what is your queue's intake limit, and what does a per-message price come to per hour?",
+    "Steady: service -> queue -> about 11 workers -> merchants. Black Friday: about 20 services -> Kafka with about 66 partitions -> 66 workers (one reader per partition; key by merchant for ordering). SQS also works but costs about $50/hr in requests."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Workers 200/s, $0.10. Steady: sync (service -> merchants) gives p99 ~720 ms and 1% errors. Queue ($0.05, 3k/s) + 9 workers: rho 1, backlog fills; 11 workers: p99 ~220 ms, $1.55; 20 workers ($2.45) break the budget. Black Friday: one queue rejects above 3k/s (88% errors). SQS: $60/hr in requests. Kafka ($0.63) with 12 partitions and 65 workers: only 12 read, backlog explodes. Kafka 66 partitions + 66 workers needs ~20 services (15 give p99 ~410 ms): ~$9.30. A generic Stream with 66 partitions is cheaper. The sim doesn't model failed deliveries staying in the queue or per-merchant isolation; cover retries, backoff with jitter, DLQ and signing in the postmortem. Checked in frontend/src/lessons/content.test.ts."
+}

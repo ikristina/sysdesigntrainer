@@ -1,0 +1,42 @@
+{
+  "id": "doc-pipeline",
+  "title": "Document AI pipeline: keep GPUs busy, keep uploads fast",
+  "mode": "full",
+  "brief": "Users upload documents; each one gets an LLM summary and goes into search. The file goes to blob storage. The LLM handles 5 summaries/s per replica (about 2 s each, $3/hr). Uploads must stay fast and summaries must not pile up.",
+  "variants": [
+    {
+      "id": "bulk",
+      "requirements": [
+        "20 uploads/s (writes)",
+        "upload p99 < 300 ms",
+        "errors < 0.1%",
+        "summaries keep up: backlog under 100",
+        "cost < $25/hr"
+      ],
+      "traffic": { "rps": 20, "read_ratio": 0 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 25, "max_backlog": 100 },
+      "twist": "The LLM provider is down for 30 s: kill_node on the LLM block, then restore_node. Do uploads keep working? Watch the backlog build and drain."
+    },
+    {
+      "id": "ask-your-docs",
+      "requirements": [
+        "40 rps: 30 uploads/s (writes) and 10 questions/s about the docs (reads)",
+        "Questions are answered live by an LLM: the user waits for the answer",
+        "p99 < 10 s, errors < 0.5%",
+        "summaries keep up: backlog under 500",
+        "cost < $40/hr"
+      ],
+      "traffic": { "rps": 40, "read_ratio": 0.25 },
+      "success": { "p99_ms": 10000, "error_pct": 0.5, "max_cost_hr": 40, "max_backlog": 500 },
+      "twist": "A customer bulk-imports their archive: set_traffic(rps=100, read_ratio=0.1). Do questions stay fast while uploads flood in?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Does the uploader need the summary before the upload returns?",
+    "Accept the upload, store it, and hand the summary to a queue. A GPU nobody waits on can run about 80% busy, one a user waits on about 45%. In the second variant, should questions and uploads share one path and one GPU pool?",
+    "Bulk: service -> blob + queue -> worker -> LLM (5 replicas). Ask-your-docs: use edge 'carries': reads go service -> a chat LLM pool (about 5 replicas, timeouts 60 s), writes go to blob and to queue -> worker -> a batch LLM pool (about 7 replicas)."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Bulk: sync (service -> LLM, 10 replicas) gives p99 31 s and 78% errors (service timeout). Async: service -> blob + queue -> worker -> LLM. 5 replicas (rho 0.8): p99 96 ms, $15.50; 3 replicas fall behind (backlog grows ~5/s, over 100 within 30 s); 9 replicas ($27.50) break the budget. Ask-your-docs: one sync pool for everything needs 18-20+ replicas and still fails (errors from timeouts at rho 0.75+), $60. Two lanes: chat 5 (rho 0.4) + batch 7 (rho 0.86): p99 6.4 s, $36.50; chat 6 + batch 8 ($42.50) breaks the budget. Watch out: queueing the questions too also passes the sim (p99 96 ms), but breaks the 'user waits for the answer' requirement. The sim can't tell; check the design. Workers drain the queue at their own rate (200/s each); if the LLM behind them is slower, the backlog moves into the LLM block's queue, which also counts toward backlog. Checked in frontend/src/lessons/content.test.ts."
+}

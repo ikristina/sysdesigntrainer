@@ -1,0 +1,44 @@
+{
+  "id": "metrics-ingest",
+  "title": "Metrics ingestion: buffer the firehose, roll up the reads",
+  "mode": "full",
+  "brief": "Design a Datadog-style metrics backend. Agents send batches of points (one request = one batch); dashboards query them. Points end up in a time-series store (a Wide-column block, 10k ops/s per replica).",
+  "variants": [
+    {
+      "id": "ingest",
+      "requirements": [
+        "20k batches/s, 98% writes (2% dashboard queries)",
+        "intake p99 < 500 ms",
+        "errors < 0.1%",
+        "backlog under 20,000",
+        "intake must keep accepting while the store is down (the twist checks it)",
+        "cost < $8/hr"
+      ],
+      "traffic": { "rps": 20000, "read_ratio": 0.02 },
+      "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 8, "max_backlog": 20000 },
+      "twist": "The store is down for 30 s: kill_node on it, then restore_node. Intake should stay green while the backlog builds, then drain. Does yours?"
+    },
+    {
+      "id": "incident",
+      "requirements": [
+        "20k rps, 30% dashboard queries: there's an incident and everyone opens dashboards",
+        "Each query reads about 20 series: mark the read edge into the store as fan-out read (the lesson sets following = 20)",
+        "intake p99 < 500 ms",
+        "errors < 0.1%",
+        "backlog under 20,000",
+        "cost < $8/hr"
+      ],
+      "traffic": { "rps": 20000, "read_ratio": 0.3, "following": 20 },
+      "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 8, "max_backlog": 20000, "needs_fanout": true },
+      "twist": "A customer adds a user_id tag: 10x the series per query. Apply with set_traffic(following=200). Raw points or pre-aggregated rollups? What does high cardinality cost in storage?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "If the store slows down or dies, what happens to an agent sending points right now?",
+    "Put a log (a stream) between intake and the store, with aggregator consumers writing in the background; one consumer per partition reads. For dashboards: does every query have to read 20 raw series?",
+    "Ingest: LB -> about 25 intake services -> Kafka (about 24 partitions) -> 24 aggregator services -> wide-column (3 replicas). Incident: add a cache (hit 0.9, standing in for rollups) on the read path, with the fan-out read edge from the cache to the store."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Intake 25 services (rho 0.8, $2.50) + LB. Writing straight to wide-column (3 x 10k) passes steady (p99 ~440 ms, $3.73) but a store kill fails 100% of requests. Kafka ($0.63, 10k/partition) -> aggregator services (1k/s each) -> store: 24 partitions + 24 consumers: p99 ~410 ms, $6.76, and a store kill leaves intake green. 4 partitions with 24 consumers: only 4 read, backlog explodes. Incident (fan-out 20 on reads): no cache needs ~16 store replicas ($11) and 14 still miss p99. Cache 0.9 with the fan-out edge after it: store rho 0.87 on 3 replicas, p99 ~410 ms, $6.11. Aggregation that shrinks write volume isn't modeled; consumers forward every batch. Discuss rollups, downsampling and cardinality limits. Checked in frontend/src/lessons/content.test.ts."
+}

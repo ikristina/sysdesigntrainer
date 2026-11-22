@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "client",
+      "type": "client",
+      "position": { "x": 0, "y": 120 },
+      "params": { "timeout_ms": 60000 }
+    },
+    {
+      "id": "lb",
+      "type": "load_balancer",
+      "position": { "x": 240, "y": 120 },
+      "params": {}
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "position": { "x": 480, "y": 120 },
+      "params": { "timeout_ms": 60000 }
+    },
+    {
+      "id": "llm",
+      "type": "llm",
+      "position": { "x": 720, "y": 120 },
+      "params": { "replicas": 16 }
+    }
+  ],
+  "edges": [
+    { "id": "client-lb", "source": "client", "target": "lb" },
+    { "id": "lb-api", "source": "lb", "target": "api" },
+    { "id": "api-llm", "source": "api", "target": "llm" }
+  ]
+}

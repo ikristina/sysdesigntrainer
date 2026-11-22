@@ -1,0 +1,43 @@
+{
+  "id": "llm-cost",
+  "title": "The LLM bill is too high",
+  "mode": "targeted",
+  "brief": "A 'summarize this product page' feature runs on 16 GPU replicas: $48/hr, and p99 is about 11 s. Finance wants the bill cut by more than half, without making users wait longer. Find where the money goes, then cut it.",
+  "variants": [
+    {
+      "id": "repeats",
+      "requirements": [
+        "40 requests/s",
+        "70% are for the same popular products: an answer cache can hit at most 0.7",
+        "p99 < 10 s",
+        "errors < 0.5%",
+        "cost < $20/hr"
+      ],
+      "traffic": { "rps": 40, "read_ratio": 1 },
+      "success": { "p99_ms": 10000, "error_pct": 0.5, "max_cost_hr": 20 },
+      "twist": "Product pages change hourly, so the cache TTL drops and the hit ratio falls to 0.4 (set hit_ratio 0.4). What does that cost?"
+    },
+    {
+      "id": "async-ok",
+      "requirements": [
+        "40 requests/s, all unique: no cache helps",
+        "Summaries can arrive a few minutes later by notification: the request only has to be accepted",
+        "accept p99 < 300 ms",
+        "errors < 0.1%",
+        "summaries keep up: backlog under 50",
+        "cost < $30/hr"
+      ],
+      "traffic": { "rps": 40, "read_ratio": 1 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 30, "max_backlog": 50 },
+      "twist": "Launch day doubles requests for a while: spike(multiplier=2, seconds=30). Let the backlog grow, or add GPUs? What's the cost of each?"
+    }
+  ],
+  "starter_graph": "graphs/llm-feature.json",
+  "hints": [
+    "Why does a GPU pool serving waiting users have to sit mostly idle? Which requests didn't need a GPU at all?",
+    "Repeated prompts can be answered from a cache. If nobody waits for the answer, a queue lets the GPUs run near 80% busy instead of about 45%.",
+    "Repeats: cache (hit 0.7) in front of the LLM, about 6 replicas. Async: service -> queue -> worker -> LLM with about 9 replicas; the service only enqueues."
+  ],
+  "steps": ["requirements", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Starter: client (timeout 60 s) -> LB -> 2 services (timeout 60 s) -> LLM x16: rho 0.5, p99 ~11.3 s, $48.23. Repeats: cache 0.7 -> LLM sees 12/s. 5 replicas: p99 ~8.4 s, $15.38; 6: ~6.7 s, $18.38; 7 ($21.38) breaks the budget. Async: service -> queue -> 1 worker -> LLM. 9 replicas (rho 0.89): p99 38 ms, $27.38; 7 replicas fall behind (backlog grows ~5/s); 10 ($30.38) break the budget. Also worth raising: smaller model, shorter prompts, batching. Cost per token isn't modeled; the sim prices GPU-hours. Checked in frontend/src/lessons/content.test.ts."
+}

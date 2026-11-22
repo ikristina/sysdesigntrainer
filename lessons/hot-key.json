@@ -1,0 +1,42 @@
+{
+  "id": "hot-key",
+  "title": "One key is on fire: fix a hot partition",
+  "mode": "targeted",
+  "brief": "A celebrity joined and the profile API is failing for some users. DynamoDB isn't near its table limit, yet requests get throttled, and the bill is $11.80/hr. Find out why, then fix it.",
+  "variants": [
+    {
+      "id": "celebrity",
+      "requirements": [
+        "20k rps, 90% reads",
+        "40% of all requests hit one profile (hot key 0.4)",
+        "p99 < 500 ms",
+        "errors < 0.1%",
+        "cost < $10/hr"
+      ],
+      "traffic": { "rps": 20000, "read_ratio": 0.9, "hot_key": 0.4 },
+      "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 10 },
+      "twist": "The celebrity posts again: set_traffic(hot_key=0.7). Does your fix still hold?"
+    },
+    {
+      "id": "likes-counter",
+      "requirements": [
+        "20k rps: 60% reads, 40% writes: likes on one viral post",
+        "half of all requests touch one counter (hot key 0.5)",
+        "p99 < 500 ms",
+        "errors < 0.1%",
+        "cost < $10/hr"
+      ],
+      "traffic": { "rps": 20000, "read_ratio": 0.6, "hot_key": 0.5 },
+      "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 10 },
+      "twist": "Your counter store restarts: kill_node on it, then restore_node. With persistence 'none', what happens to the like count, and how often would you flush to DynamoDB?"
+    }
+  ],
+  "starter_graph": "graphs/hot-profile.json",
+  "hints": [
+    "One DynamoDB partition holds one key. What is a partition's limit, and what share of traffic goes to that key?",
+    "Reads of the same key can be answered from memory before they reach DynamoDB. Writes can't be cached away: what can take thousands of writes per second on a single key?",
+    "Celebrity: put a cache (hit 0.8+) between the services and DynamoDB. Likes: count in Redis (INCR): point the services at a Redis block as the counter store, and flush totals to DynamoDB in batches (the sim doesn't model the flush)."
+  ],
+  "steps": ["requirements", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Starter: LB + 25 services + DynamoDB (on demand). Per partition: 6k reads/s, 1k writes/s. Celebrity: hot reads 0.4 x 18k = 7.2k > 6k: throttled (errors ~0.7%), and request pricing makes it $11.79/hr. Cache 0.8: DynamoDB reads 3.6k (hot 1.4k), $8.31, no errors. Likes: hot writes 0.5 x 8k = 4k > 1k. A cache in front doesn't help: writes pass through, 2.5% errors, and write pricing makes it ~$25/hr. Redis as the counter store (no DynamoDB on the path): p99 ~420 ms, $2.75, no errors. The sim models a per-key limit only for DynamoDB; Redis has one too (one shard, ~100k ops/s), far above this load. Write sharding (key#1..N) is the other real answer: it lowers the hot share, which is a traffic change in the sim. Checked in frontend/src/lessons/content.test.ts."
+}

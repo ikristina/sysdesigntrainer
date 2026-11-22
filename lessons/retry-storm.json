@@ -1,0 +1,43 @@
+{
+  "id": "retry-storm",
+  "title": "Retry storm: it never comes back",
+  "mode": "targeted",
+  "brief": "Yesterday a 5-second traffic spike took this API down, and it stayed down long after traffic went back to normal. Run it: it's fine at 4k rps. Then replay the spike with spike(multiplier=2, seconds=5) and watch it fail to recover. Make it recover on its own.",
+  "variants": [
+    {
+      "id": "new-app",
+      "requirements": [
+        "4k rps, 90% reads",
+        "You can ship a new client: change its retry policy",
+        "After a 2x spike for 5 s, every check is green again within 15 s",
+        "p99 < 500 ms, errors < 0.1%",
+        "cost < $1.50/hr"
+      ],
+      "traffic": { "rps": 4000, "read_ratio": 0.9 },
+      "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 1.5 },
+      "twist": "Replay it: spike(multiplier=2, seconds=5), then wait 15 s. All checks must be green again without touching anything."
+    },
+    {
+      "id": "old-clients",
+      "requirements": [
+        "4k rps, 90% reads",
+        "Millions of old phones retry 3 times and won't update: client retries stay at 3",
+        "After a 2x spike for 5 s, every check is green again within 15 s",
+        "p99 < 500 ms, errors < 0.1%",
+        "cost < $1.60/hr"
+      ],
+      "traffic": { "rps": 4000, "read_ratio": 0.9 },
+      "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 1.6 },
+      "twist": "Replay it: spike(multiplier=2, seconds=5), then wait 15 s. All checks must be green again without touching anything."
+    }
+  ],
+  "starter_graph": "graphs/retry-api.json",
+  "hints": [
+    "During the spike some requests fail. What does each client do when a request fails, and what does that do to the load?",
+    "With 3 retries, a server that fails everything gets up to 4x the traffic, so it can't drain even after users go back to normal. Either send fewer retries, or turn the excess away early and cheaply, before it queues.",
+    "New app: set the client's retries to 0 (standing in for backoff with jitter and a retry budget). Old clients: put an API gateway in front of the load balancer with rate_limit_rps about 4500, so the services never queue past their timeout."
+  ],
+  "steps": ["requirements", "load_test", "design", "twist", "postmortem"],
+  "explainers": ["load-balancing"],
+  "_notes": "Starter: client (retries 3) -> LB -> 5 services (5k/s) -> KV: $1.43. Steady 4k: p99 ~380 ms. Spike 2x for 5 s, then 15 s at normal: still ~40% errors, p99 ~14 s (metastable). Even 1 retry stays stuck. Retries 0: back to p99 ~400 ms after the spike, $1.43. Gateway 4500 (or 4200) with retries 3: recovers, $1.48. Brute force: 10 services ride out the spike but cost $1.93; 6 or 8 services with retries still get stuck or need too much. The sim has no backoff: retries happen in the next tick. Real fixes: exponential backoff with jitter, retry budgets (retries < 10% of requests), circuit breakers, and shedding at the edge. Checked in frontend/src/lessons/content.test.ts."
+}

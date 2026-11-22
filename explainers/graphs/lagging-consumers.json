@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "client",
+      "type": "client",
+      "position": { "x": 0, "y": 120 },
+      "params": {}
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "position": { "x": 240, "y": 120 },
+      "params": { "replicas": 8 }
+    },
+    {
+      "id": "orders",
+      "type": "stream",
+      "position": { "x": 480, "y": 120 },
+      "params": { "partitions": 6 }
+    },
+    {
+      "id": "consumers",
+      "type": "worker",
+      "position": { "x": 720, "y": 120 },
+      "params": { "replicas": 12 }
+    },
+    {
+      "id": "db",
+      "type": "kv",
+      "position": { "x": 960, "y": 120 },
+      "params": {}
+    }
+  ],
+  "edges": [
+    { "id": "client-api", "source": "client", "target": "api" },
+    { "id": "api-orders", "source": "api", "target": "orders" },
+    { "id": "orders-consumers", "source": "orders", "target": "consumers" },
+    { "id": "consumers-db", "source": "consumers", "target": "db" }
+  ]
+}

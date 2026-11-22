@@ -1,0 +1,42 @@
+{
+  "id": "edge-rate-limiter",
+  "title": "Global rate limiter: exact or fast?",
+  "mode": "full",
+  "brief": "Design a rate limiter for an API served from 3 regions. Every request checks a counter before it's served. Use three Region blocks (us, eu, ap), each holding its own client and edge service: calls that cross a region add 70 ms. Use a Cache block as the counter store (Redis INCR with a TTL).",
+  "variants": [
+    {
+      "id": "exact",
+      "requirements": [
+        "6k rps, split evenly across the 3 regions (90% checks, 10% config writes)",
+        "A customer's limit must be exact across regions: billing depends on it",
+        "p99 < 200 ms",
+        "errors < 0.1%",
+        "cost < $1.50/hr"
+      ],
+      "traffic": { "rps": 6000, "read_ratio": 0.9 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 1.5 },
+      "twist": "The eu region is cut off: partition_region('eu'). Your counter is on the other side. Fail open (let traffic through) or fail closed (reject)? Which one would a payments API pick, and which a CDN?"
+    },
+    {
+      "id": "fast",
+      "requirements": [
+        "6k rps across the 3 regions",
+        "Limits may overshoot a little: each region counts on its own and syncs in the background",
+        "p99 < 120 ms",
+        "errors < 0.1%",
+        "cost < $2.50/hr"
+      ],
+      "traffic": { "rps": 6000, "read_ratio": 0.9 },
+      "success": { "p99_ms": 120, "error_pct": 0.1, "max_cost_hr": 2.5 },
+      "twist": "A customer spreads a burst across all 3 regions to get 3x their limit. How far can they overshoot, and how would you bound it (split the limit per region, sync more often)?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Where does the counter live, and how far is it from each edge?",
+    "One central counter is exact, but two of three regions pay a cross-region round trip on every request. A counter in each region is fast, but each one sees only its own traffic.",
+    "Exact: 4 edge service replicas per region, all calling one cache in us. Fast: a cache in each region next to its edge (4 replicas each), synced in the background."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Each region: client -> edge service. 2k rps per region. Central counter (one cache in us): eu and ap pay 70 ms. Edge 4 replicas: p99 ~180 ms, $1.35; edge 6: ~135 ms; edge 8: ~120 ms but $2.55. Local counters (a cache per region): edge 3: p99 ~206 ms (fails exact's 200 ms), edge 4: ~113 ms, $1.65 (over exact's budget). So exact forces central, fast forces local. Exactness isn't simulated: a local design under 'exact' only fails on cost. Ask why it's wrong anyway. Token bucket vs sliding window is worth a minute. Checked in frontend/src/lessons/content.test.ts."
+}

@@ -1,0 +1,35 @@
+{
+  "id": "rag-search",
+  "title": "RAG answer engine: where the latency and money go",
+  "mode": "full",
+  "brief": "Design a Perplexity-style answer engine: embed the question, search a vector index, then have an LLM write an answer with citations. Embeddings: 200/s per replica ($1/hr). Vector DB: 1k/s ($0.50/hr). LLM: 5/s per replica at about 2 s ($3/hr). Answers take seconds: give the client and every service on the path a long timeout_ms (about 60 s), or they give up first.",
+  "variants": [
+    {
+      "id": "long-tail",
+      "requirements": ["20 questions/s, nearly all unique: no cache helps", "p99 < 10 s", "errors < 0.5%", "cost < $35/hr"],
+      "traffic": { "rps": 20, "read_ratio": 1 },
+      "success": { "p99_ms": 10000, "error_pct": 0.5, "max_cost_hr": 35 },
+      "twist": "The index grows 10x and vector search slows to 200 ms: set base_latency_ms 200 on the vector DB. Where does your latency budget go now, and what would a reranker cost on top?"
+    },
+    {
+      "id": "trending",
+      "requirements": [
+        "200 questions/s during a big news event",
+        "70% ask about the same few stories within minutes: an answer cache can hit at most 0.7",
+        "p99 < 10 s, errors < 0.5%",
+        "cost < $90/hr"
+      ],
+      "traffic": { "rps": 200, "read_ratio": 1 },
+      "success": { "p99_ms": 10000, "error_pct": 0.5, "max_cost_hr": 90 },
+      "twist": "Answers must reflect breaking news within a minute, so the cache's hit ratio falls to 0.4 (set hit_ratio 0.4). What do you scale, and what does that cost per hour?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Of embed, search and generate, which step is slow and expensive, and which are cheap?",
+    "The LLM dominates time and cost; keep its pool under about 45% busy. If many people ask the same thing, can you skip the whole pipeline for them, and where would that cache sit?",
+    "Long tail: client -> service -> RAG service -> embeddings, vector DB and about 10 LLM replicas (timeouts about 60 s). Trending: put a cache (hit_ratio 0.7) in front of the RAG service and run about 26 LLM replicas."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Graph: client -> api -> (cache) -> rag -> embedding, vector_db, llm (rag calls all three, latencies add). Long tail: 1 LLM replica fails (rho 4). 9 replicas: p99 10.2 s (just over); 10: p99 8.8 s, $31.90; 12 ($37.90) breaks the budget. Trending: no cache needs 2 embedding replicas and ~90 LLM replicas; 40 replicas collapse (rho 2). Cache 0.7 in front of rag: LLM sees 60/s; 26 replicas give p99 ~8 s, $80; 30 ($92) breaks the budget. A cache only around the LLM still sends 200/s to embeddings (rho 1 on 1 replica): good to ask where the cache key comes from. Rerankers and hybrid BM25 aren't blocks; discuss them. Checked in frontend/src/lessons/content.test.ts."
+}

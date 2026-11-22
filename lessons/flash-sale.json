@@ -1,0 +1,41 @@
+{
+  "id": "flash-sale",
+  "title": "Flash sale: absorb the reads, gate the writes",
+  "mode": "full",
+  "brief": "Design ticket sales for a huge concert, or a sneaker drop. Reads are people loading the event page and seat map; writes are buy attempts. Buy attempts must go to the primary database so nothing is oversold.",
+  "variants": [
+    {
+      "id": "onsale",
+      "requirements": [
+        "50k rps, 95% reads (2.5k buy attempts/s)",
+        "The event page can be a few seconds stale",
+        "p99 < 300 ms",
+        "errors < 0.1%",
+        "cost < $2.50/hr"
+      ],
+      "traffic": { "rps": 50000, "read_ratio": 0.95 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 2.5 },
+      "twist": "Bots arrive: spike(multiplier=3, seconds=20). Which layer takes the hit, and what would you put in front of it?"
+    },
+    {
+      "id": "drop",
+      "requirements": [
+        "30k rps, 50% buy attempts (15k/s) for 1,000 pairs",
+        "Most buyers will get 'sold out' anyway: up to 30% of all requests may be turned away",
+        "p99 < 300 ms for the requests you accept",
+        "cost < $3/hr"
+      ],
+      "traffic": { "rps": 30000, "read_ratio": 0.5 },
+      "success": { "p99_ms": 300, "error_pct": 30, "max_cost_hr": 3 },
+      "twist": "Rejected buyers retry instantly, and bots retry fastest. How would a waiting room (a queue with positions and tokens) change who gets a pair?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Which requests must reach the database, and which could be answered from a copy?",
+    "A CDN answers most page reads at the edge, and a cache takes the reads that get through. Buy attempts still hit one primary at about 5k/s. If they come in at 3x that, who gets turned away, and where?",
+    "Onsale: client -> CDN -> LB -> about 10 services -> cache (hit 0.9) -> SQL DB. Drop: client -> CDN -> API gateway (rate_limit_rps about 4000) -> LB -> about 6 services -> SQL DB."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Onsale: no CDN needs ~60 services and the DB still collapses. CDN (0.9) alone: DB gets 4.75k reads + 2.5k writes (rho 1.45), fails. CDN + cache 0.9 + 10 services: DB rho 0.89 (mostly the 2.5k writes), p99 ~230 ms, $1.78. CDN + 2 read replicas passes ($2.63, over budget). Drop: CDN + 20 services: 15k writes collapse the DB. CDN -> gateway 4000 -> 6 services: p99 ~250 ms, 21% errors, $1.28; a 5000 limit leaves the DB at rho 1 (p99 ~2 s). CockroachDB with 18 nodes takes it all but costs $5.44. The sim has no hot-row lock on the one product; in Postgres every buyer updates the same inventory row. Ask how they'd avoid that (pre-split stock into buckets, Redis DECR, reservations with expiry). Checked in frontend/src/lessons/content.test.ts."
+}

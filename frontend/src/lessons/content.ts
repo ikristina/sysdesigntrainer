@@ -106,7 +106,7 @@ export function checks({ global: g, metrics }: Pick<SimState, 'global' | 'metric
     list.push({ label: s.max_stale_pct === 0 ? 'no stale reads (no cache or replica on the read path)' : `stale reads under ${s.max_stale_pct}%`,
       ok: g.stalePct <= s.max_stale_pct + 1e-9 })
   }
-  if (s.needs_fanout) list.push({ label: 'feeds are built: an edge fans out (× followers or × following)', ok: g.fanoutRps > 0 })
+  if (s.needs_fanout) list.push({ label: 'an edge fans out (× followers or × following)', ok: g.fanoutRps > 0 })
   return list
 }
 
