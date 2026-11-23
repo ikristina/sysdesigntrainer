@@ -140,7 +140,7 @@ describe('lessons match the simulator', () => {
   const chatOf = (...stores: SavedNode[]) => graphOf(front(50, ...stores),
     [...fe, ...stores.map((x, i) => [i ? stores[i - 1].id : 'api', x.id] as [string, string])])
   const cached = chatOf(n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'kv', { replicas: 1 }))
-  const kv4 = chatOf(n('db', 'kv', { replicas: 8 }))
+  const kv4 = chatOf(n('db', 'kv', { replicas: 4 }))
 
   it('chat channels: one SQL fails, cache + small KV passes, KV-only breaks the budget', () => {
     const v = variant('chat', 'channels')
@@ -204,7 +204,7 @@ describe('lessons match the simulator', () => {
       [n('c', 'client'), n('api', 'service', { replicas: api }), n('db', 'sql_db'), ...(mid ? [mid] : []), n('mail', 'worker', { replicas: workers })],
       [['c', 'api'], ['api', 'db'], ...(mid ? [['api', mid.id], [mid.id, 'mail']] as [string, string][] : [['api', 'mail']] as [string, string][])])
     const steady = variant('welcome-emails', 'steady')
-    expect(passes(emails(2, null, 10), steady)).toBe(false)
+    for (const w of [6, 9, 10]) expect(passes(emails(2, null, w), steady)).toBe(false) // the send's 100 ms is on the signup path
     expect(passes(emails(2, n('q', 'queue'), 2), steady)).toBe(false)
     expect(passes(emails(2, n('q', 'queue'), 6), steady)).toBe(true)
     expect(passes(emails(2, n('q', 'queue'), 30), steady)).toBe(false)
@@ -521,8 +521,10 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(start, repeats)).toBe(false)
     expect(passes(withParams(start, { llm: { replicas: 9 } }), repeats)).toBe(false) // right-sized, still over
     const cached = (r: number) => withParams(insert(start, n('k', 'cache', { hit_ratio: 0.7 }), 'llm'), { llm: { replicas: r } })
+    expect(passes(cached(2), repeats)).toBe(false)
     expect(passes(cached(3), repeats)).toBe(true)
-    expect(passes(cached(4), repeats)).toBe(false)
+    expect(passes(cached(4), repeats)).toBe(true)
+    expect(passes(cached(5), repeats)).toBe(false) // over budget
     const batch = variant('llm-cost', 'batch-ok')
     const batched = { capacity_rps: 10, base_latency_ms: 4000 }
     const queued = (r: number) => withParams(insert(insert(start, n('q', 'queue'), 'llm'), n('w', 'worker', { replicas: 1 }), 'llm'), { llm: { replicas: r, ...batched }, api: { timeout_ms: 1000 } })
@@ -530,7 +532,8 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(withParams(start, { llm: { replicas: 5, ...batched } }), batch)).toBe(false) // batched but users wait
     expect(after(queued(3), batch, [[30, 1, []]])).toBe(false) // falls behind
     expect(passes(queued(5), batch)).toBe(true)
-    expect(passes(queued(6), batch)).toBe(false)
+    expect(passes(queued(6), batch)).toBe(true)
+    expect(passes(queued(7), batch)).toBe(false) // over budget
   })
 })
 

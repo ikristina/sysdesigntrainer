@@ -11,10 +11,10 @@
         "70% are for the same popular products: an answer cache can hit at most 0.7",
         "p99 < 5 s",
         "errors < 0.5%",
-        "cost < $12/hr"
+        "cost < $13/hr"
       ],
       "traffic": { "rps": 40, "read_ratio": 1 },
-      "success": { "p99_ms": 5000, "error_pct": 0.5, "max_cost_hr": 12 },
+      "success": { "p99_ms": 5000, "error_pct": 0.5, "max_cost_hr": 13 },
       "twist": "Product pages change hourly, so the cache TTL drops and the hit ratio falls to 0.4 (set hit_ratio 0.4). What does that cost?"
     },
     {
@@ -26,10 +26,10 @@
         "accept p99 < 300 ms",
         "errors < 0.1%",
         "summaries keep up: backlog under 50",
-        "cost < $18/hr"
+        "cost < $20/hr"
       ],
       "traffic": { "rps": 40, "read_ratio": 1 },
-      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 18, "max_backlog": 50 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 20, "max_backlog": 50 },
       "twist": "Launch day doubles requests for a while: spike(multiplier=2, seconds=30). Let the backlog grow, or add GPUs? What's the cost of each?"
     }
   ],
@@ -40,5 +40,5 @@
     "Repeats: decide where a cache goes so repeats never reach a GPU, then right-size the pool for what's left. Batch: if nobody waits, a worker fed from a queue can use the bigger, slower batch setting. How many replicas keep up with 40/s at that rate?"
   ],
   "steps": ["requirements", "design", "load_test", "twist", "postmortem"],
-  "_notes": "Starter: client (timeout 60 s) -> LB -> 2 services (timeout 60 s) -> LLM x16: rho 0.5, p99 ~2.5 s, $48.23. Just right-sizing to 9 replicas (rho 0.89) gives $27.23: half the bill, still over both budgets. Repeats: cache 0.7 -> LLM sees 12/s. 3 replicas: p99 ~2.6 s, $9.38; 4 ($12.38) break the budget. Batch: queue -> 1 worker -> LLM (10/s, 4 s). 5 replicas (rho 0.8): accept p99 ~37 ms, $15.38; 3 fall behind; 6 ($18.38) break the budget. The same batched replicas behind a waiting user give p99 ~5 s. Also worth raising: a smaller model, shorter prompts, prompt caching. Cost per token isn't modeled; the sim prices GPU-hours. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "Starter: client (timeout 60 s) -> LB -> 2 services (timeout 60 s) -> LLM x16: rho 0.5, p99 ~2.5 s, $48.23. Just right-sizing to 9 replicas (rho 0.89) gives $27.23: half the bill, still over both budgets, and p99 ~7.4 s. Repeats: cache 0.7 -> LLM sees 12/s. 2 replicas collapse; 3: p99 ~3.6 s, $9.38; 4: ~2.5 s, $12.38; 5 ($15.38) break the budget. Batch: queue -> 1 worker -> LLM (10/s, 4 s). 5 replicas (rho 0.8): accept p99 ~37 ms, $15.38; 3-4 fall behind; 6: $18.38; 7 ($21.38) break the budget. The same batched replicas behind a waiting user give p99 ~5 s. Also worth raising: a smaller model, shorter prompts, prompt caching. Cost per token isn't modeled; the sim prices GPU-hours. Checked in frontend/src/lessons/content.test.ts."
 }
