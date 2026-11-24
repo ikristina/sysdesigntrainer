@@ -5,7 +5,7 @@
       "q": "A URL shortener must count every click and be able to disable a bad link immediately. Which redirect?",
       "choices": ["301 Moved Permanently", "302 Found (temporary)", "Either, they behave the same", "200 with a meta refresh"],
       "answer": 1,
-      "why": "Browsers cache a 301, so repeat clicks never reach you: analytics are lost and a disabled link keeps working for them. A 302 brings every click back to your service.",
+      "why": "Browsers cache a 301 by default, so repeat clicks may never reach you: analytics are lost and a disabled link keeps working for them. A 302 brings every click back to your service.",
       "note": "301 vs 302 redirects"
     },
     {
@@ -17,7 +17,7 @@
         "Nothing: only search engines care"
       ],
       "answer": 0,
-      "why": "Both send the long URL in the Location header. Only the 301 is remembered, so later clicks skip your service.",
+      "why": "Both send the long URL in the Location header. A 301 is remembered by default; a 302 only if you send Cache-Control or Expires.",
       "note": "301 vs 302 redirects"
     },
     {
@@ -56,11 +56,11 @@
       "choices": [
         "Put a queue in front of the redirect service",
         "Give the link its own replica behind the service",
-        "Cache the 302 at a CDN with a short max-age",
+        "Cache the 302 at the CDN only (Cache-Control: max-age=0, s-maxage=60)",
         "Return 301 for every link"
       ],
       "answer": 2,
-      "why": "Everyone clicking that link gets the same answer, so the CDN serves it from the edge; the service sees about one request per edge location per max-age.",
+      "why": "Everyone clicking that link gets the same answer, so the CDN serves it from the edge; the service sees about one request per edge location per 60 s. s-maxage applies only to shared caches, so browsers keep coming back to the CDN.",
       "note": "Spikes on a hot link: CDN, not a queue"
     },
     {
@@ -84,7 +84,7 @@
         "HTTPS"
       ],
       "answer": 0,
-      "why": "Fix with a short max-age or a CDN purge on delete. You also stop seeing every click; count them from CDN access logs.",
+      "why": "Fix with a short s-maxage or a CDN purge on delete. You also stop seeing every click; count them from CDN access logs.",
       "note": "Spikes on a hot link: CDN, not a queue"
     }
   ]

@@ -29,12 +29,12 @@
       "q": "An NTP adjustment moves a Snowflake generator's clock backwards. What should it do?",
       "choices": [
         "Keep going: IDs are still unique",
-        "Refuse or wait until the clock passes the last timestamp it used",
+        "Refuse (return an error) until the clock passes the last timestamp it used",
         "Reset the sequence to 0 and continue",
         "Switch to UUID v4 forever"
       ],
       "answer": 1,
-      "why": "Reusing an earlier millisecond with the same machine id could repeat IDs.",
+      "why": "Reusing an earlier millisecond with the same machine id could repeat IDs. Twitter's code throws an error; it only waits for the next millisecond when all 4,096 IDs of one millisecond are used up.",
       "note": "Unique ID generator (Snowflake IDs)"
     },
     {
@@ -89,12 +89,12 @@
       "q": "How do exchange matching engines get both speed and exact ordering?",
       "choices": [
         "A database with row locks on the order book",
-        "One thread per symbol in memory, a sequencer stamping inputs, and a durable event log to replay",
+        "A single-threaded in-memory engine, a sequencer stamping inputs, and a durable event log to replay",
         "Many threads per symbol with optimistic locking",
         "A cache in front of the database"
       ],
       "answer": 1,
-      "why": "No locks on the hot path; the engine is deterministic, so replaying the log rebuilds the exact book after a crash.",
+      "why": "No locks on the hot path; the engine is deterministic, so replaying the log rebuilds the exact book after a crash. LMAX ran every market on one thread; one thread per symbol is another common split.",
       "note": "Stock exchange: the matching engine"
     },
     {

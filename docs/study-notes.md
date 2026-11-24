@@ -10,12 +10,12 @@ lesson: url-shortener
 category: HTTP
 
 In both cases the browser gets the long URL in the `Location` header and goes there.
-The difference is whether the browser **remembers** the redirect.
+The difference is whether the browser **remembers** the redirect. (HTTP's rules, RFC 9110: a 301 may be cached by default; a 302 is cached only if the response says so.)
 
 | | 301 permanent | 302 temporary |
 |---|---|---|
-| Browser caches the redirect | Yes, repeat clicks never reach you | No, every click hits your service |
-| Click analytics | Lost after the first click | Every click counted |
+| Browser caches the redirect | Yes by default (the browser picks how long unless you send `Cache-Control`), so repeat clicks may never reach you | No, unless you send `Cache-Control` or `Expires`, so every click hits your service |
+| Click analytics | Lost for repeat clicks from a browser that cached it | Every click counted |
 | Expiry, editing, blocking a bad link | Doesn't reach browsers that cached it | Works right away |
 | Load on you | Lower | All of it |
 
@@ -129,15 +129,15 @@ service is what runs out.
 
 **Cache the 302 at a CDN.** Everyone clicking that link gets the exact same answer, so one
 remembered answer serves them all.
-- The service sends the 302 with `Cache-Control: max-age=60`.
+- The service sends the 302 with `Cache-Control: max-age=0, s-maxage=60`. `s-maxage` applies only to shared caches like the CDN; `max-age=0` stops the browser reusing it. With plain `max-age=60` the browser would cache it for 60 s too, and its repeat clicks wouldn't reach the CDN or its logs (RFC 9111).
 - The first click goes CDN → service. The CDN keeps the answer and serves the next clicks itself.
 - After 60 s the CDN asks once more. The service sees about 1 request a minute per edge location.
-- It's the 301 idea made safe: the CDN remembers the redirect for 60 s, not the browser forever.
+- It's the 301 idea made safe: the CDN remembers the redirect for 60 s, the browser doesn't remember it at all.
 
 | You give up | Fix |
 |---|---|
 | The service doesn't see every click | Count clicks from CDN access logs |
-| A deleted or expired link works for up to 60 s | Short max-age, or purge the CDN entry on delete |
+| A deleted or expired link works for up to 60 s | Short `s-maxage`, or purge the CDN entry on delete |
 
 ## Autoscaling: the minimum survives bursts, the maximum handles growth
 lesson: url-shortener
@@ -344,8 +344,8 @@ Twitter's Snowflake (2010) packs a 64-bit integer:
 | 12 | sequence within the same millisecond | 4,096 IDs per ms per machine |
 
 - Each machine needs a unique machine id, handed out once (config, or a coordination service like ZooKeeper).
-- **Clock going backwards** (NTP adjustment) could repeat IDs: the generator refuses or waits until its clock passes the last timestamp it used.
-- IDs sort by time only roughly: two machines' clocks differ by a few ms.
+- **Clock going backwards** (NTP adjustment) could repeat IDs: Twitter's generator refuses (returns an error) until its clock passes the last timestamp it used. It only *waits* in one case: when all 4,096 IDs of one millisecond are used up, it waits for the next millisecond.
+- IDs sort by time only roughly ("k-sorted"), because machines' clocks differ: Twitter promised ordering within 1 s and aimed for tens of ms (Snowflake README, 2010).
 
 Alternatives:
 
@@ -365,8 +365,13 @@ edits arrive "at position 5", but after the first one is applied, position 5 mea
 
 **Operational transformation (OT).** A server orders every edit for a document. When an edit was
 made against an older version, the server **transforms** it (shifts its position) past the edits
-it missed, then applies and broadcasts it. Google Docs uses OT. It works best with one central
-server per document, which is why each open document is handled by one server at a time.
+it missed, then applies and broadcasts it. Google Docs uses OT. It works best when one server orders each document's edits
+(general practice, not from Google's write-up).
+
+Google's version (Google Drive blog, 2010):
+- The document is a **revision log** of changes (insert text, delete text, apply style); showing it means replaying the log.
+- The client applies its own edits right away, and keeps **at most one change in flight**: it waits for the server's acknowledgement before sending the next one, and transforms incoming changes against its pending ones.
+- The server transforms a late change against everything committed since the revision the client had, stores it, and sends it to the other editors.
 
 **CRDT (conflict-free replicated data type).** Every character gets a unique, ordered id instead of a
 position. Edits refer to ids, and merging is designed so applying them in any order gives the same
@@ -382,7 +387,7 @@ Yjs, Automerge. The cost: extra metadata per character, and deleted characters l
 
 The rest of the design:
 - Clients keep a WebSocket to the document's server; edits and cursor positions flow over it.
-- Store an **operation log** plus periodic **snapshots**: load = latest snapshot + the operations after it. The log also gives version history.
+- Store an **operation log** plus periodic **snapshots**: load = latest snapshot + the operations after it. The log also gives version history. (Snapshots are the usual way to make loads fast; Google's write-up only describes replaying the log.)
 - Cursors and "who's here" (presence) are ephemeral: keep them in memory, never in the database.
 
 ## Stock exchange: the matching engine
@@ -397,7 +402,7 @@ the book.
 first trades first. That's why order of arrival must be exact and the same everywhere.
 
 How exchanges get speed and correctness at the same time:
-- **One thread per symbol (or group of symbols), all in memory.** No locks and no database on the hot path. LMAX, a retail exchange, reported about 6 million orders per second on a single thread with this approach (Martin Fowler, "The LMAX Architecture", 2011).
+- **A single thread, all in memory.** No locks and no database on the hot path. LMAX, a retail financial trading platform, ran all its business logic (every trade, from every customer, in every market) on one thread; Fowler reports about 6 million orders per second in a benchmark, since LMAX doesn't disclose real volumes (Martin Fowler, "The LMAX Architecture", 2011). Splitting by symbol, one thread per symbol or group of symbols, is another common way to scale (not from that article).
 - **A sequencer** stamps every incoming order with a sequence number before matching, so the order is fixed and nothing races.
 - **Event log (journal):** every input is written to a durable log. The engine is deterministic, so replaying the log rebuilds the exact book after a crash. A hot standby replays the same log live and can take over.
 - **Risk checks** (enough money, position limits) happen before an order reaches the engine.
@@ -497,5 +502,143 @@ category: References
 
 https://martinfowler.com/articles/lmax.html
 
-A retail exchange's matching engine on one thread, in memory, with an input journal and replay:
-about 6 million orders per second. Summary in the note "Stock exchange: the matching engine".
+A retail trading platform's business logic on one thread, in memory, with an input journal and replay:
+about 6 million orders per second in a benchmark. Summary in the note "Stock exchange: the matching engine".
+
+## Twitter: Snowflake README and code (2010)
+lesson: 
+category: References
+
+https://github.com/twitter-archive/snowflake/tree/snowflake-2010
+
+Why Twitter built Snowflake (moving from MySQL to Cassandra), the 41 + 10 + 12 bit layout, "k-sorted" within 1 s, and the code that refuses IDs when the clock goes backwards. Backs the note "Unique ID generator (Snowflake IDs)". (Twitter's original 2010 blog post wouldn't load; this is Twitter's own archived repo.)
+
+## Flickr: Ticket Servers, distributed unique primary keys on the cheap (2010)
+lesson: 
+category: References
+
+https://code.flickr.net/2010/02/08/ticket-servers-distributed-unique-primary-keys-on-the-cheap/
+
+Two MySQL servers handing out odd and even IDs with `REPLACE INTO` and `LAST_INSERT_ID()`. The ticket-server row in the Snowflake note's alternatives table.
+
+## Google: What's different about the new Google Docs (2010, 3 parts)
+lesson: 
+category: References
+
+https://drive.googleblog.com/2010/09/whats-different-about-new-google-docs_21.html
+
+https://drive.googleblog.com/2010/09/whats-different-about-new-google-docs_22.html
+
+https://drive.googleblog.com/2010/09/whats-different-about-new-google-docs.html
+
+The revision log, the three change types, and how client and server transform each other's edits with one change in flight. Backs the note "Collaborative editing (Google Docs): OT vs CRDT".
+
+## Uber: H3, a hexagonal hierarchical spatial index (2018)
+lesson: driver-locations
+category: References
+
+https://www.uber.com/blog/h3/
+
+Why hexagons (all 6 neighbours the same distance away), 16 resolutions each 1/7 the area, and use in surge pricing and dispatch. Backs the note "Proximity search (Yelp): geohash and quadtree".
+
+## Dropbox: Streaming File Synchronization (2014)
+lesson: file-sync
+category: References
+
+https://dropbox.tech/infrastructure/streaming-file-synchronization
+
+4 MB blocks, SHA-256 blocklists, the append-only file journal with a cursor per namespace, commit then "need blocks", and longpoll notifications.
+
+## Dropbox: Inside the Magic Pocket (2016)
+lesson: file-sync
+category: References
+
+https://dropbox.tech/infrastructure/inside-the-magic-pocket
+
+Dropbox's own block store: immutable blocks packed into 1 GB buckets, at least 2 zones per block, a sharded MySQL block index.
+
+## Amazon: Dynamo, a highly available key-value store (2007)
+lesson: kv-store
+category: References
+
+https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf
+
+The paper behind the kv-store lesson: consistent hashing, preference lists, (N, R, W) = (3, 2, 2), sloppy quorum, hinted handoff, Merkle trees, vector clocks.
+
+## Discord: How Discord Stores Billions of Messages (2017)
+lesson: chat
+category: References
+
+https://discord.com/blog/how-discord-stores-billions-of-messages
+
+Messages in Cassandra keyed by (channel, 10-day bucket), Snowflake message ids, and the tombstone outage.
+
+## Discord: How Discord Stores Trillions of Messages (2023)
+lesson: chat, hot-key
+category: References
+
+https://discord.com/blog/how-discord-stores-trillions-of-messages
+
+Moving to ScyllaDB, quorum reads and writes, and request coalescing for hot channels.
+
+## AWS: DynamoDB partition key design and adaptive capacity
+lesson: hot-key
+category: References
+
+https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-partition-key-design.html
+
+https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html
+
+Per-partition limits (3,000 RCU, 1,000 WCU) and what adaptive capacity can and can't do for a hot key.
+
+## Facebook: Scaling Memcache at Facebook (2013)
+lesson: redis-vs-memcached, hot-key
+category: References
+
+https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf
+
+Look-aside caching at huge scale: delete on write, leases against thundering herds, and the Gutter pool for failed cache nodes.
+
+## IETF: RFC 9110 and RFC 9111, HTTP semantics and caching (2022)
+lesson: url-shortener
+category: References
+
+https://www.rfc-editor.org/rfc/rfc9110.txt
+
+https://www.rfc-editor.org/rfc/rfc9111.txt
+
+The rules behind 301 vs 302 caching, `max-age` vs `s-maxage`, and `stale-while-revalidate` (RFC 5861). Backs the notes "301 vs 302 redirects" and "Spikes on a hot link: CDN, not a queue".
+
+## Najork & Heydon: High-Performance Web Crawling, Mercator (2001)
+lesson: web-crawler
+category: References
+
+https://www.cs.cornell.edu/courses/cs685/2002fa/mercator.pdf
+
+The front/back queue frontier with a per-host politeness delay, and an exact fingerprint set for seen URLs.
+
+## Facebook: The Life of a Typeahead Query (2010)
+lesson: typeahead
+category: References
+
+https://engineering.fb.com/2010/05/17/web/the-life-of-a-typeahead-query/
+
+Preloading personal data into the browser, an aggregator fanning out to leaf services, and a cache for global results.
+
+## Facebook: Serving Facebook Multifeed (2015)
+lesson: news-feed
+category: References
+
+https://engineering.fb.com/2015/03/10/production-engineering/serving-facebook-multifeed-efficiency-performance-gains-through-redesign/
+
+News Feed built at read time: an aggregator gathers friends' recent actions from in-memory leaf servers, then ranks them.
+
+## Redis: GEOADD and Elastic: geohash grid docs
+lesson: driver-locations
+category: References
+
+https://redis.io/docs/latest/commands/geoadd/
+
+https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation
+
+How Redis stores a geohash as a sorted-set score, and the cell sizes by geohash length used in the proximity note.
