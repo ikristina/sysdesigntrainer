@@ -32,10 +32,11 @@ const chain = (...nodes: SavedNode[]): Design => ({
 describe('content files', () => {
   it('found the files', () => {
     expect(lessons.map((l) => l.id)).toEqual([
-      'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline', 'edge-rate-limiter', 'flash-sale', 'hot-key',
-      'job-scheduler', 'leaderboard', 'ledger', 'llm-cost', 'llm-gateway', 'metrics-ingest', 'news-feed',
-      'p99-fix', 'payments', 'rag-search', 'rate-limiter', 'reddit-place', 'retry-storm', 'typeahead',
-      'url-shortener', 'video-platform', 'webhooks', 'welcome-emails',
+      'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline', 'driver-locations',
+      'edge-rate-limiter', 'flash-sale', 'hot-key', 'job-scheduler', 'leaderboard', 'ledger', 'llm-cost',
+      'llm-gateway', 'metrics-ingest', 'news-feed', 'p99-fix', 'payments', 'rag-search', 'rate-limiter',
+      'reddit-place', 'retry-storm', 'typeahead', 'url-shortener', 'video-platform', 'webhooks',
+      'welcome-emails',
     ])
     expect(explainers.map((e) => e.id)).toEqual(['caching-basics', 'load-balancing', 'replication-lag'])
   })
@@ -640,6 +641,42 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(origin(9, [n('cdn', 'cdn')]), viewers)).toBe(false) // over budget
     expect(passes(chain(n('c', 'client'), n('cdn', 'cdn'), n('blob', 'blob')), viewers)).toBe(true) // bucket as origin
     expect(run(origin(6, [n('cdn', 'cloudfront')]), 50000, 1, [], 15, undefined, simTraffic(viewers.traffic)).global.costHr).toBeCloseTo(15480.68, 1)
+  })
+
+  it('driver-locations: latest positions live in memory, not a SQL row each; the global map is split by region', () => {
+    const site = (api: number, ...back: SavedNode[]) => chain(...lbApi(api), ...back)
+    const shards = (k: number) => graphOf([...lbApi(25), n('router', 'load_balancer'), ...Array.from({ length: k }, (_, i) => n(`s${i}`, 'sql_db'))],
+      [...fe, ['api', 'router'], ...Array.from({ length: k }, (_, i) => ['router', `s${i}`] as E)])
+    const city = variant('driver-locations', 'one-city')
+    expect(passes(chain(n('c', 'client'), n('api', 'service'), n('db', 'sql_db')), city)).toBe(false)
+    expect(passes(site(25, n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'sql_db')), city)).toBe(false) // writes pass through
+    expect(passes(shards(4), city)).toBe(false) // rho 1
+    expect(passes(shards(5), city)).toBe(false) // over budget
+    expect(passes(site(25, n('k', 'kv', { replicas: 2 })), city)).toBe(false) // over budget
+    expect(passes(site(22, n('k', 'cache')), city)).toBe(true)
+    expect(passes(site(25, n('k', 'cache')), city)).toBe(true)
+    expect(passes(site(30, n('k', 'cache')), city)).toBe(false) // over budget
+
+    // One region each for us, eu, ap: client -> lb -> api, then a store per region or one in us.
+    const world = (local: boolean, api: number, store: SavedNode) => {
+      const regions = ['us', 'eu', 'ap'], inR = (x: SavedNode, r: string) => ({ ...x, parentId: r })
+      const nodes: SavedNode[] = regions.map((r) => n(r, 'region', { name: r })), edges: E[] = []
+      for (const r of regions) {
+        nodes.push(inR(n(`c_${r}`, 'client'), r), inR(n(`lb_${r}`, 'load_balancer'), r), inR(n(`api_${r}`, 'service', { replicas: api }), r))
+        edges.push([`c_${r}`, `lb_${r}`], [`lb_${r}`, `api_${r}`], [`api_${r}`, local ? `${store.id}_${r}` : store.id])
+        if (local) nodes.push(inR({ ...store, id: `${store.id}_${r}` }, r))
+      }
+      if (!local) nodes.push(inR(store, 'us'))
+      return graphOf(nodes, edges)
+    }
+    const worldwide = variant('driver-locations', 'global')
+    expect(passes(chain(n('c', 'client'), n('api', 'service'), n('db', 'sql_db')), worldwide)).toBe(false)
+    expect(passes(world(false, 45, n('k', 'cache', { replicas: 4 })), worldwide)).toBe(false) // 70 ms away
+    expect(passes(world(true, 45, n('db', 'sql_db')), worldwide)).toBe(false)
+    expect(passes(world(true, 45, n('db', 'kv', { replicas: 5 })), worldwide)).toBe(false) // over budget
+    expect(passes(world(true, 44, n('k', 'cache')), worldwide)).toBe(true)
+    expect(passes(world(true, 45, n('k', 'cache')), worldwide)).toBe(true)
+    expect(passes(world(true, 50, n('k', 'cache')), worldwide)).toBe(false) // over budget
   })
 })
 
