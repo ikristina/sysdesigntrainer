@@ -61,7 +61,7 @@ body { margin: 0; background: var(--paper); }
 
 /* Claude terminal (ttyd iframe), under the canvas. Colors from the Main mockup. */
 .terminal { height: 300px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--term-bg); color: var(--term-text); border-top: 2px solid var(--ink); }
-.terminal__bar { display: flex; justify-content: space-between; padding: 6px 14px; font: 11px var(--font-code); color: var(--term-muted); }
+.terminal__bar { display: flex; justify-content: space-between; padding: 6px 14px; cursor: ns-resize; user-select: none; touch-action: none; font: 11px var(--font-code); color: var(--term-muted); }
 .terminal__close { background: none; border: 0; color: inherit; cursor: pointer; font-size: 12px; margin-left: 8px; }
 .terminal__frame { flex: 1; border: 0; width: 100%; background: var(--term-bg); }
 .terminal__help { padding: 6px 20px; font: 13px var(--font-code); overflow-y: auto; }
