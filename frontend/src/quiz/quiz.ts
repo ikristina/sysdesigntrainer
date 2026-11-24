@@ -36,6 +36,15 @@ const RUN_KEY = 'quiz-run'
 export const useQuiz = create<{ run: Run | null }>(() => ({ run: load<Run | null>(RUN_KEY, null) }))
 export const setRun = (run: Run | null) => { useQuiz.setState({ run }); save(RUN_KEY, run) }
 
+// Questions answered right at least once (and not wrong since) go last on the next start, so you
+// see the ones you haven't got yet first. Both groups are shuffled.
+const RIGHT_KEY = 'quiz-right'
+export function rightLast(questions: Question[], right: Set<string>, rand = Math.random): Question[] {
+  const s = shuffled(questions, rand)
+  return [...s.filter((q) => !right.has(q.q)), ...s.filter((q) => right.has(q.q))]
+}
+export const ordered = (questions: Question[]) => rightLast(questions, new Set(load<string[]>(RIGHT_KEY, [])))
+
 // Questions answered wrong, newest last, so Claude can write weak-spot questions (get_quiz).
 // Answering one right later takes it off the list.
 export type Miss = { topic: string; q: string; picked: string; answer: string; at: string }
@@ -45,4 +54,7 @@ export function recordAnswer(topic: string, q: Question, picked: number) {
   const rest = misses().filter((m) => m.q !== q.q)
   if (picked !== q.answer) rest.push({ topic, q: q.q, picked: q.choices[picked], answer: q.choices[q.answer], at: new Date().toISOString() })
   save(MISSES_KEY, rest.slice(-MAX_MISSES))
+  const right = new Set(load<string[]>(RIGHT_KEY, []))
+  if (picked === q.answer) right.add(q.q); else right.delete(q.q)
+  save(RIGHT_KEY, [...right])
 }

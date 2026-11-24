@@ -1,13 +1,13 @@
 // The 🧠 Quiz panel: pick a topic, answer one question at a time, see why after each answer.
 // Replaces the right column while open, like 📓 Notes. The run lives in a small store (quiz.ts) so
 // the tutor link can send it to Claude (get_quiz) and a refresh resumes it; closing the panel clears it.
-import { quizzes, recordAnswer, setRun, shuffled, useQuiz } from './quiz'
+import { ordered, quizzes, recordAnswer, setRun, useQuiz } from './quiz'
 
 export function QuizPanel() {
   const run = useQuiz((s) => s.run)
   const start = (id: string) => {
     const q = quizzes.find((x) => x.id === id)!
-    setRun({ topic: q.topic, questions: shuffled(q.questions), i: 0, picked: null, right: 0 })
+    setRun({ topic: q.topic, questions: ordered(q.questions), i: 0, picked: null, right: 0 })
   }
 
   if (!run) return (

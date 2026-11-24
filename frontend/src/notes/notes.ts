@@ -15,12 +15,14 @@ export function parseNotes(md: string): Note[] {
 }
 
 // Rendered as React elements, not an HTML string, so note text can never become markup.
-const inline = (s: string): ReactNode[] => s.split(/(\*\*.+?\*\*|`.+?`)/).filter(Boolean).map((t, i) =>
-  t.startsWith('**') && t.length > 4 ? h('b', { key: i }, t.slice(2, -2))
+// Bare https:// URLs become links (only https, so a note can't smuggle in a javascript: link).
+const inline = (s: string): ReactNode[] => s.split(/(\*\*.+?\*\*|`.+?`|https:\/\/[^\s)]+)/).filter(Boolean).map((t, i) =>
+  t.startsWith('https://') ? h('a', { key: i, href: t, target: '_blank', rel: 'noopener noreferrer' }, t)
+    : t.startsWith('**') && t.length > 4 ? h('b', { key: i }, t.slice(2, -2))
     : t.startsWith('`') && t.length > 2 ? h('code', { key: i }, t.slice(1, -1)) : t)
 const cells = (row: string) => row.trim().replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()))
 
-// ponytail: markdown subset (paragraphs, "-" lists, "|" tables, bold, code); swap in a markdown lib if notes need more.
+// ponytail: markdown subset (paragraphs, "-" lists, "|" tables, bold, code, bare https links); swap in a markdown lib if notes need more.
 export function renderNote(md: string): ReactNode[] {
   return md.split(/\n\s*\n/).map((block, b) => {
     const lines = block.split('\n')

@@ -3,14 +3,24 @@
   "questions": [
     {
       "q": "A Snowflake ID has a 12-bit sequence number. How many IDs can one machine create per millisecond?",
-      "choices": ["1,024", "4,096", "65,536", "Unlimited"],
+      "choices": [
+        "1,024",
+        "4,096",
+        "65,536",
+        "Unlimited"
+      ],
       "answer": 1,
       "why": "2^12 = 4,096 per ms per machine. The 10-bit machine id allows up to 1,024 machines.",
       "note": "Unique ID generator (Snowflake IDs)"
     },
     {
       "q": "Snowflake's 41-bit millisecond timestamp lasts about how long from its custom epoch?",
-      "choices": ["~2 years", "~24 days", "~69 years", "~500 years"],
+      "choices": [
+        "~2 years",
+        "~24 days",
+        "~69 years",
+        "~500 years"
+      ],
       "answer": 2,
       "why": "2^41 ms ≈ 2.2 trillion ms ≈ 69.7 years.",
       "note": "Unique ID generator (Snowflake IDs)"
@@ -41,7 +51,12 @@
     },
     {
       "q": "Which approach to collaborative editing naturally supports offline edits merged later, without a central server?",
-      "choices": ["Operational transformation (OT)", "CRDTs", "Locking the paragraph", "Last write wins on the whole document"],
+      "choices": [
+        "Operational transformation (OT)",
+        "CRDTs",
+        "Locking the paragraph",
+        "Last write wins on the whole document"
+      ],
       "answer": 1,
       "why": "CRDT merges give the same result in any order. OT, used by Google Docs, works best with one server ordering a document's edits.",
       "note": "Collaborative editing (Google Docs): OT vs CRDT"
@@ -60,7 +75,12 @@
     },
     {
       "q": "Two buy orders at the same price are resting in an order book. Which trades first under price-time priority?",
-      "choices": ["The bigger one", "The one that arrived first", "A random one", "They split the fill evenly"],
+      "choices": [
+        "The bigger one",
+        "The one that arrived first",
+        "A random one",
+        "They split the fill evenly"
+      ],
       "answer": 1,
       "why": "Best price first; at the same price, earliest arrival first. That's why exact arrival order matters.",
       "note": "Stock exchange: the matching engine"
@@ -91,7 +111,12 @@
     },
     {
       "q": "Roughly how big is a geohash cell of length 6 (at the equator)?",
-      "choices": ["153 m × 153 m", "1.2 km × 0.6 km", "4.9 km × 4.9 km", "39 km × 20 km"],
+      "choices": [
+        "153 m × 153 m",
+        "1.2 km × 0.6 km",
+        "4.9 km × 4.9 km",
+        "39 km × 20 km"
+      ],
       "answer": 1,
       "why": "Length 5 ≈ 4.9 × 4.9 km, 6 ≈ 1.2 × 0.6 km, 7 ≈ 153 × 153 m.",
       "note": "Proximity search (Yelp): geohash and quadtree"
@@ -107,6 +132,66 @@
       "answer": 0,
       "why": "A square splits into 4 when it holds too many places (e.g. more than 100), so cities get fine cells.",
       "note": "Proximity search (Yelp): geohash and quadtree"
+    },
+    {
+      "q": "A new viewer opens a live r/place board. Which order keeps their board correct?",
+      "choices": [
+        "Fetch the full board, then open the websocket",
+        "Open the websocket and buffer updates, fetch the full board, then replay the buffer",
+        "Fetch the full board again every second",
+        "Open the websocket and wait until every tile has been sent"
+      ],
+      "answer": 1,
+      "why": "Subscribing first means no placement is missed while the board downloads. The board may be a few seconds old; replaying the buffer brings it up to date. Fetch-then-subscribe loses everything placed in between.",
+      "note": "r/place: how Reddit actually built it (2017)"
+    },
+    {
+      "q": "Reddit read a user's last placement time, then wrote the tile, with no lock in between. What happened?",
+      "choices": [
+        "Bots sending requests at the same time all passed the check: about 15,000 extra tiles",
+        "Nothing: Cassandra QUORUM prevents it",
+        "Every placement was rejected",
+        "The board was corrupted"
+      ],
+      "answer": 0,
+      "why": "Check-then-write isn't atomic. An atomic check such as Redis SET key 1 NX EX 300 per user succeeds only once per 5 minutes.",
+      "note": "r/place: how Reddit actually built it (2017)"
+    },
+    {
+      "q": "The full board is cached at the CDN for 1 s, and the CDN has about 33 edge locations, each caching on its own. About how many board requests/s reach the servers, however many viewers there are?",
+      "choices": [
+        "1",
+        "333",
+        "About 33",
+        "100,000"
+      ],
+      "answer": 2,
+      "why": "Each edge location refreshes its copy about once a second; stale-while-revalidate keeps that to one request while the others get the old copy. Reddit measured at most ~33/s.",
+      "note": "r/place: how Reddit actually built it (2017)"
+    },
+    {
+      "q": "A 1000×1000 board is stored as one bitfield of 4-bit colors, row by row. At which offset is the tile at x = 5, y = 2?",
+      "choices": [
+        "7",
+        "5,002",
+        "2,005",
+        "10,005"
+      ],
+      "answer": 2,
+      "why": "offset = x + 1000 × y = 5 + 2,000 = 2,005. One tile is one write at one offset, no lock needed.",
+      "note": "r/place: how Reddit actually built it (2017)"
+    },
+    {
+      "q": "At r/place's launch, what limited the websocket servers?",
+      "choices": [
+        "Network bandwidth",
+        "Memory for connections",
+        "Disk",
+        "CPU: lots of tiny messages, each sent to everyone"
+      ],
+      "answer": 3,
+      "why": "Reddit expected to be network-bound, but the 8-core instances ran out of CPU on many small messages, so they doubled the instances.",
+      "note": "r/place: how Reddit actually built it (2017)"
     }
   ]
 }

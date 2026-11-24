@@ -435,3 +435,67 @@ Other options: Google S2 (cells along a space-filling curve) and Uber H3 (hexago
 **Businesses vs drivers:**
 - Businesses rarely move, so precompute the index and cache search results hard.
 - Drivers move every few seconds, so their positions live in memory and get overwritten (see the driver locations lesson).
+
+## r/place: how Reddit actually built it (2017)
+lesson: reddit-place
+category: Design topics
+
+From Reddit's own write-up, "How We Built r/Place" (see References). Numbers: 1000×1000 board, at
+least 100,000 users at once, one tile per user every 5 minutes, so 100,000 ÷ 300 s ≈ **333
+placements/s** planned (the real peak was almost 200/s).
+
+**The board:** a Redis bitfield of 1 million 4-bit values (16 colors, 0 to 15), 500 KB in total.
+A tile's position is its offset: `offset = x + 1000 × y`. Reading the whole board took under
+100 ms, and one tile is one write at one offset, with no lock and no read-modify-write.
+
+- First attempt: the board as one Cassandra row with 1 million columns. Reading it took up to 30 s.
+- Cassandra stayed for the details: who placed each tile and when, and a way to rebuild the board if Redis died.
+
+**A new viewer gets a consistent board** (the key idea):
+- Open the websocket first and buffer the placements that arrive.
+- Then fetch the full board. It may be a few seconds old; that's fine.
+- Then replay the buffered placements on top, and draw new ones as they come.
+- Fetching first and subscribing second would lose every placement in between.
+
+**Board loads are cached at the CDN** (Fastly) for 1 s, with `stale-while-revalidate` so an expired
+copy is still served while one request refreshes it. Fastly had about 33 edge locations (POPs),
+each caching on its own, so Reddit's servers saw at most about **33 board requests/s**.
+
+**Placing a tile, step by step:**
+- Read the user's last placement time. Under 5 minutes ago → reject.
+- Write the tile to Redis and Cassandra, then write the new placement time.
+- Tell the websocket service to send the tile to every connected client.
+
+There was no lock around check-then-write, so bots sending requests at the same time all passed the
+check: about **15,000 extra tiles** (~0.09% of all). An atomic check, e.g. Redis `SET key 1 NX EX 300`
+per user (succeeds only if the key doesn't exist), closes that race.
+
+**What went wrong at launch:**
+- Websocket servers were CPU-bound, not network-bound: lots of tiny messages, all going to everyone. They doubled the instances. Peak: about 80k r/place viewers, over 4 Gbps from 24 instances.
+- The production RabbitMQ, shared with the rest of reddit.com, struggled; the stats collector polling its management interface was the trigger, and they turned it off.
+- To relieve pressure they raised the placement cooldown on the fly. They had made board size and cooldown adjustable up front for exactly this.
+- The "who placed this tile" endpoint wasn't cached, and scrapers read the whole board through it one tile at a time.
+- When r/place shut down, bots with no back-off kept retrying; they blocked them at the CDN.
+
+Takeaways: subscribe-then-snapshot for live state, cache shared state at the edge with a
+short TTL, make rate-limit checks atomic, keep a pressure-release knob, and isolate a launch from
+infrastructure the rest of the site depends on.
+
+## Reddit: How We Built r/Place (2017)
+lesson: reddit-place
+category: References
+
+https://redditinc.com/news/how-we-built-rplace
+
+Reddit's engineers on the 2017 April Fools' canvas: requirements with numbers, the Redis bitfield,
+CDN caching of the board, websockets, the cooldown race, and what broke at launch. Summary in the
+note "r/place: how Reddit actually built it (2017)".
+
+## Martin Fowler: The LMAX Architecture (2011)
+lesson:
+category: References
+
+https://martinfowler.com/articles/lmax.html
+
+A retail exchange's matching engine on one thread, in memory, with an input journal and replay:
+about 6 million orders per second. Summary in the note "Stock exchange: the matching engine".

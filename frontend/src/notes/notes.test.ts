@@ -15,5 +15,7 @@ describe('study notes', () => {
   it('render tables, lists and inline marks, escaping html', () => {
     expect(toHtml('| | a |\n|---|---|\n| x | `y` |')).toBe('<table><tbody><tr><th></th><th>a</th></tr><tr><td>x</td><td><code>y</code></td></tr></tbody></table>')
     expect(toHtml('Pick **302** <now>:\n- one\n- two')).toBe('<p>Pick <b>302</b> &lt;now&gt;:</p><ul><li>one</li><li>two</li></ul>')
+    expect(toHtml('See https://example.com/a (Reddit). javascript:alert(1) http://x.com')).toBe(
+      '<p>See <a href="https://example.com/a" target="_blank" rel="noopener noreferrer">https://example.com/a</a> (Reddit). javascript:alert(1) http://x.com</p>')
   })
 })
