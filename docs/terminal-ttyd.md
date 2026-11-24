@@ -40,7 +40,7 @@ The terminal is only for you to talk to Claude. Claude acts on the app through t
 - **ttyd starts a new process per connection.** With plain `claude`, every reload kills the old Claude and starts a fresh one, and two tabs are two separate Claudes.
 - **So we run Claude inside tmux** (`brew install tmux`). tmux keeps the session alive after the browser disconnects:
   ```bash
-  ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude
+  ttyd -W -O -i lo0 -p 7681 -t fontSize=15 tmux new -A -s sysdesign claude
   ```
   `new -A -s sysdesign` attaches to the tmux session named `sysdesign`, or creates it if it doesn't exist. A reload, or a second tab, joins the same Claude.
 - **Stopping ttyd doesn't stop Claude.** The tmux session keeps running in the background. End it with `tmux kill-session -t sysdesign` (or `/exit` in Claude). You can also join it from any terminal with `tmux attach -t sysdesign`.
@@ -51,7 +51,7 @@ The terminal is only for you to talk to Claude. Claude acts on the app through t
 ## The command we use
 
 ```bash
-ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude     # from the repo root
+ttyd -W -O -i lo0 -p 7681 -t fontSize=15 tmux new -A -s sysdesign claude     # from the repo root
 ```
 
 | Flag | Meaning |
@@ -60,6 +60,7 @@ ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude     # from the repo ro
 | `-O`, `--check-origin` | Only accept WebSockets opened by ttyd's own page. **Needed:** without it, any website you visit could open a WebSocket to `localhost:7681` and type into Claude (browsers don't apply CORS to WebSockets). Our iframe still works, because the iframe's page is ttyd's own (origin `localhost:7681`). |
 | `-i lo0`, `--interface` | Network interface to bind. `lo0` is macOS's loopback (127.0.0.1), so only this machine can connect. See Security below. |
 | `-p 7681`, `--port` | Port to listen on. 7681 is the default; we pass it to be explicit. |
+| `-t fontSize=15`, `--client-option` | Sends a setting to the terminal in the browser. ttyd's default font is 13 px; 15 is easier to read. Verified 2026-11-24 with ttyd 1.7.7: the server sends `{ "fontSize": 15 }` to the page on connect. |
 | `tmux new -A -s sysdesign claude` | The command to run. Anything after the flags is the command plus its arguments. Here tmux runs `claude` in a session named `sysdesign` that survives page reloads (see above). |
 
 Other flags you might want:
@@ -84,7 +85,7 @@ Other flags you might want:
 
 - **By default ttyd listens on every network interface.** That means other machines on your Wi-Fi can reach it. Always pass `-i lo0`, which every command in this repo does:
   ```bash
-  ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude
+  ttyd -W -O -i lo0 -p 7681 -t fontSize=15 tmux new -A -s sysdesign claude
   ```
 - Check what it's listening on (`2>/dev/null` hides harmless macOS lsof warnings):
   ```bash
@@ -104,7 +105,7 @@ Verified 2026-11-20 with ttyd 1.7.7 (Homebrew) on macOS:
 ```bash
 brew install ttyd tmux
 ttyd --version
-cd <repo root> && ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude
+cd <repo root> && ttyd -W -O -i lo0 -p 7681 -t fontSize=15 tmux new -A -s sysdesign claude
 # open http://localhost:7681 directly first, to check it works outside the app
 ```
 

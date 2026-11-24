@@ -5,7 +5,7 @@
 import { useEffect, useState, type PointerEvent } from 'react'
 import { TTYD_URL, ttydUp, useLink } from '../link'
 
-const TTYD_CMD = 'ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude'
+const TTYD_CMD = 'ttyd -W -O -i lo0 -p 7681 -t fontSize=15 tmux new -A -s sysdesign claude'
 const BACKEND_CMD = 'cd backend && uv run uvicorn app.main:app --reload --port 8000'
 const HEIGHT_KEY = 'terminal-height'
 const clampHeight = (h: number) => Math.round(Math.min(Math.max(h, 120), window.innerHeight - 120))

@@ -21,7 +21,7 @@ Backend and Claude terminal (only for Claude coaching; the frontend works fully 
 ```bash
 cd backend && uv run uvicorn app.main:app --reload --port 8000
 curl localhost:8000/health   # {"status":"ok"}
-ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude   # from the repo root
+ttyd -W -O -i lo0 -p 7681 -t fontSize=15 tmux new -A -s sysdesign claude   # from the repo root
 ```
 
 ## 2. The big picture
