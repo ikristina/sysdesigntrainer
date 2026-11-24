@@ -17,7 +17,7 @@ Use when Kristina asks to start, continue, or get feedback on a lesson in the Sy
 - **api_and_data_model**: check endpoints and keys match the access pattern (read vs write heavy, hot keys).
 - **design**: `get_design()`. Ask about one weak spot at a time. Use `highlight()` to point at it.
 - **load_test**: `set_traffic()` to the variant's profile, wait, `get_metrics()`. Ask her to explain what broke before saying it.
-- **twist**: apply with `set_requirements()` or `spike()` / `kill_node()` / `partition_region()`. Don't warn in advance.
+- **twist**: apply with `set_requirements()` or `spike()` / `kill_node()` / `kill_replica()` / `partition_region()`. "One host crashes" is `kill_replica` (the rest keep serving); `kill_node` takes the whole block down. Don't warn in advance.
 - **postmortem**: she summarizes. Add only what she missed.
 
 ## Style
