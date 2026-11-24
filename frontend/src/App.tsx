@@ -68,7 +68,11 @@ export default function App() {
         <a className="logo" href="#/" title="Back to sandbox">sysdesign<span>/</span>trainer</a>
         <select className="mode-select sk" aria-label="Mode" value={hashOf(mode)} onChange={(e) => go(parseHash(e.target.value))}>
           <option value="#/">Sandbox (autosaved)</option>
-          <optgroup label="Lessons">{lessons.map((l) => <option key={l.id} value={`#/lesson/${l.id}`}>{l.title}</option>)}</optgroup>
+          {([['full', 'Full designs'], ['targeted', 'Fix-it tasks']] as const).map(([m, label]) => (
+            <optgroup key={m} label={label}>
+              {lessons.filter((l) => l.mode === m).map((l) => <option key={l.id} value={`#/lesson/${l.id}`}>{l.title}</option>)}
+            </optgroup>
+          ))}
           <optgroup label="Compare">
             {compareLessons.map((l) => <option key={l.id} value={`#/compare/${l.id}`}>{l.title}</option>)}
             <option value="#/compare/">Two saved designs</option>
