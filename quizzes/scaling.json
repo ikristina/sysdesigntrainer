@@ -1,0 +1,67 @@
+{
+  "topic": "Scaling and spikes",
+  "questions": [
+    {
+      "q": "New instances take ~1–3 minutes to detect load, boot and warm up. A traffic spike lasts 60 s. What saves you?",
+      "choices": [
+        "Autoscaling with a fast policy",
+        "A minimum replica count that survives the burst on its own",
+        "A bigger maximum replica count",
+        "Restarting the service"
+      ],
+      "answer": 1,
+      "why": "The spike can be over before new instances arrive. Autoscaling handles slow curves (day/night, growth); the floor handles bursts.",
+      "note": "Autoscaling: the minimum survives bursts, the maximum handles growth"
+    },
+    {
+      "q": "A ×3 burst sends 3,300 rps to the service. Each replica does 1,000 rps and you accept ρ ≈ 0.85 for a short burst. Minimum replicas?",
+      "choices": ["2", "3", "4", "16"],
+      "answer": 2,
+      "why": "Usable per replica in a burst = 1,000 × 0.85 = 850 rps. 3,300 ÷ 850 ≈ 3.9, so 4.",
+      "note": "Autoscaling: the minimum survives bursts, the maximum handles growth"
+    },
+    {
+      "q": "Which utilization targets make sense?",
+      "choices": [
+        "Steady ≈ 1.0, burst ≈ 1.2",
+        "Steady ≈ 0.6, short burst up to ≈ 0.85",
+        "Steady ≈ 0.95, burst ≈ 0.99",
+        "Always 0.5"
+      ],
+      "answer": 1,
+      "why": "≈ 0.6 keeps waits short all day; ≈ 0.85 is slower but bounded for a minute. At or above 1.0 the queue grows without limit.",
+      "note": "Autoscaling: the minimum survives bursts, the maximum handles growth"
+    },
+    {
+      "q": "Besides bursts, what else must the replica floor cover?",
+      "choices": [
+        "The cache or CDN missing (purge, deploy, outage) and sending traffic straight to the service",
+        "Disk filling up",
+        "DNS changes",
+        "Nothing else"
+      ],
+      "answer": 0,
+      "why": "With a CDN at 90% hits the service sees ~10% of traffic. If the CDN misses, it sees all of it at once.",
+      "note": "Autoscaling: the minimum survives bursts, the maximum handles growth"
+    },
+    {
+      "q": "Which of these does a queue help with?",
+      "choices": [
+        "Redirect GET /{code}, the browser is waiting",
+        "Bulk POST /shorten imports, which can be async",
+        "A login request",
+        "Loading a web page"
+      ],
+      "answer": 1,
+      "why": "A queue smooths work that nobody waits on: bulk imports, click events, emails. Anything a user is waiting for still needs capacity now.",
+      "note": "Spikes on a hot link: CDN, not a queue"
+    },
+    {
+      "q": "In the URL shortener with a CDN, a 4-replica service went from 10k to 40k rps. The service hit ρ 1.10. What happened to p99?",
+      "choices": ["It stayed ~50 ms", "It doubled", "It jumped to seconds (~3 s) and kept backing up", "It dropped"],
+      "answer": 2,
+      "why": "Above ρ 1.0 more arrives than can be served, so the line grows every second and waits explode.",
+      "note": "ρ (rho): utilization"
+    }
+  ]
+}

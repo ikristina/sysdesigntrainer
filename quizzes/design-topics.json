@@ -1,0 +1,112 @@
+{
+  "topic": "Design topics: IDs, editing, exchanges, maps",
+  "questions": [
+    {
+      "q": "A Snowflake ID has a 12-bit sequence number. How many IDs can one machine create per millisecond?",
+      "choices": ["1,024", "4,096", "65,536", "Unlimited"],
+      "answer": 1,
+      "why": "2^12 = 4,096 per ms per machine. The 10-bit machine id allows up to 1,024 machines.",
+      "note": "Unique ID generator (Snowflake IDs)"
+    },
+    {
+      "q": "Snowflake's 41-bit millisecond timestamp lasts about how long from its custom epoch?",
+      "choices": ["~2 years", "~24 days", "~69 years", "~500 years"],
+      "answer": 2,
+      "why": "2^41 ms ≈ 2.2 trillion ms ≈ 69.7 years.",
+      "note": "Unique ID generator (Snowflake IDs)"
+    },
+    {
+      "q": "An NTP adjustment moves a Snowflake generator's clock backwards. What should it do?",
+      "choices": [
+        "Keep going: IDs are still unique",
+        "Refuse or wait until the clock passes the last timestamp it used",
+        "Reset the sequence to 0 and continue",
+        "Switch to UUID v4 forever"
+      ],
+      "answer": 1,
+      "why": "Reusing an earlier millisecond with the same machine id could repeat IDs.",
+      "note": "Unique ID generator (Snowflake IDs)"
+    },
+    {
+      "q": "Why can UUID v4 primary keys hurt a database?",
+      "choices": [
+        "They aren't unique",
+        "They're random: inserts scatter across the B-tree index and IDs don't sort by time",
+        "They're too short",
+        "Databases can't store them"
+      ],
+      "answer": 1,
+      "why": "UUID v7 (RFC 9562) fixes the ordering by starting with a millisecond timestamp, at 128 bits.",
+      "note": "Unique ID generator (Snowflake IDs)"
+    },
+    {
+      "q": "Which approach to collaborative editing naturally supports offline edits merged later, without a central server?",
+      "choices": ["Operational transformation (OT)", "CRDTs", "Locking the paragraph", "Last write wins on the whole document"],
+      "answer": 1,
+      "why": "CRDT merges give the same result in any order. OT, used by Google Docs, works best with one server ordering a document's edits.",
+      "note": "Collaborative editing (Google Docs): OT vs CRDT"
+    },
+    {
+      "q": "What's the main cost of a CRDT text editor?",
+      "choices": [
+        "It needs a central server",
+        "Extra metadata per character, and deleted characters linger as tombstones",
+        "It can't show cursors",
+        "Edits arrive out of order"
+      ],
+      "answer": 1,
+      "why": "Every character carries a unique id so edits can refer to it instead of a position.",
+      "note": "Collaborative editing (Google Docs): OT vs CRDT"
+    },
+    {
+      "q": "Two buy orders at the same price are resting in an order book. Which trades first under price-time priority?",
+      "choices": ["The bigger one", "The one that arrived first", "A random one", "They split the fill evenly"],
+      "answer": 1,
+      "why": "Best price first; at the same price, earliest arrival first. That's why exact arrival order matters.",
+      "note": "Stock exchange: the matching engine"
+    },
+    {
+      "q": "How do exchange matching engines get both speed and exact ordering?",
+      "choices": [
+        "A database with row locks on the order book",
+        "One thread per symbol in memory, a sequencer stamping inputs, and a durable event log to replay",
+        "Many threads per symbol with optimistic locking",
+        "A cache in front of the database"
+      ],
+      "answer": 1,
+      "why": "No locks on the hot path; the engine is deterministic, so replaying the log rebuilds the exact book after a crash.",
+      "note": "Stock exchange: the matching engine"
+    },
+    {
+      "q": "To find places within a radius using geohash, which cells do you search?",
+      "choices": [
+        "Only the user's cell",
+        "The user's cell plus its 8 neighbours, then filter by real distance",
+        "Every cell with the same first letter",
+        "The 4 cells of a quadtree"
+      ],
+      "answer": 1,
+      "why": "A place just across a cell border can have a different prefix, so neighbours must be included.",
+      "note": "Proximity search (Yelp): geohash and quadtree"
+    },
+    {
+      "q": "Roughly how big is a geohash cell of length 6 (at the equator)?",
+      "choices": ["153 m × 153 m", "1.2 km × 0.6 km", "4.9 km × 4.9 km", "39 km × 20 km"],
+      "answer": 1,
+      "why": "Length 5 ≈ 4.9 × 4.9 km, 6 ≈ 1.2 × 0.6 km, 7 ≈ 153 × 153 m.",
+      "note": "Proximity search (Yelp): geohash and quadtree"
+    },
+    {
+      "q": "What does a quadtree do that a fixed grid doesn't?",
+      "choices": [
+        "Splits dense areas into smaller cells and leaves empty areas big",
+        "Stores exact addresses",
+        "Avoids any memory use",
+        "Works only for hexagons"
+      ],
+      "answer": 0,
+      "why": "A square splits into 4 when it holds too many places (e.g. more than 100), so cities get fine cells.",
+      "note": "Proximity search (Yelp): geohash and quadtree"
+    }
+  ]
+}

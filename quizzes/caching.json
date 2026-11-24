@@ -1,0 +1,91 @@
+{
+  "topic": "Caching, CDNs and redirects",
+  "questions": [
+    {
+      "q": "A URL shortener must count every click and be able to disable a bad link immediately. Which redirect?",
+      "choices": ["301 Moved Permanently", "302 Found (temporary)", "Either, they behave the same", "200 with a meta refresh"],
+      "answer": 1,
+      "why": "Browsers cache a 301, so repeat clicks never reach you: analytics are lost and a disabled link keeps working for them. A 302 brings every click back to your service.",
+      "note": "301 vs 302 redirects"
+    },
+    {
+      "q": "What does a browser do differently after a 301 compared with a 302?",
+      "choices": [
+        "It remembers the redirect and goes straight to the long URL next time",
+        "It shows the user a warning",
+        "It sends the request twice",
+        "Nothing: only search engines care"
+      ],
+      "answer": 0,
+      "why": "Both send the long URL in the Location header. Only the 301 is remembered, so later clicks skip your service.",
+      "note": "301 vs 302 redirects"
+    },
+    {
+      "q": "Click counts use write-behind: Redis counts, and a job adds each link's delta to the DB every ~30 s. What do you lose if Redis crashes?",
+      "choices": ["Nothing", "Up to one flush interval of clicks", "All counts ever recorded", "The link mappings"],
+      "answer": 1,
+      "why": "Counts not yet flushed are lost (up to ~30 s). Fine for analytics; mappings, which you can't lose, are written durably.",
+      "note": "Click counts: write-through vs write-behind"
+    },
+    {
+      "q": "Why not write every click through to a SQL row at 50k clicks/s on one link?",
+      "choices": [
+        "SQL can't store integers that big",
+        "All writes hit ONE row and wait on its lock; a primary does ~5k writes/s in total",
+        "Write-through loses data",
+        "It's fine; SQL handles it"
+      ],
+      "answer": 1,
+      "why": "Write-through sends 50k/s to one hot row. Write-behind turns that into one DB write per flush.",
+      "note": "Click counts: write-through vs write-behind"
+    },
+    {
+      "q": "Why not track per-link click counts in Prometheus (metrics)?",
+      "choices": [
+        "Prometheus can't count",
+        "One series per short code is billions of series; metrics stores fall over on that cardinality",
+        "Metrics are too slow to write",
+        "It costs per click"
+      ],
+      "answer": 1,
+      "why": "Metrics systems are for low-cardinality totals like redirects/s. Per-entity counters belong in a store like Redis.",
+      "note": "Click counts: write-through vs write-behind"
+    },
+    {
+      "q": "A celebrity link gets 30k clicks/s against a service sized for 16k/s. Best fix?",
+      "choices": [
+        "Put a queue in front of the redirect service",
+        "Give the link its own replica behind the service",
+        "Cache the 302 at a CDN with a short max-age",
+        "Return 301 for every link"
+      ],
+      "answer": 2,
+      "why": "Everyone clicking that link gets the same answer, so the CDN serves it from the edge; the service sees about one request per edge location per max-age.",
+      "note": "Spikes on a hot link: CDN, not a queue"
+    },
+    {
+      "q": "Why doesn't a queue help with redirect spikes?",
+      "choices": [
+        "Queues are too expensive",
+        "The browser is waiting for the 302, so queued requests just time out later",
+        "Queues lose messages",
+        "Redirects are writes"
+      ],
+      "answer": 1,
+      "why": "Queues help work nobody waits on (click events, bulk imports). A synchronous request still needs an answer within the client's timeout.",
+      "note": "Spikes on a hot link: CDN, not a queue"
+    },
+    {
+      "q": "The CDN caches each 302 for 60 s. What do you give up?",
+      "choices": [
+        "A deleted or expired link keeps working for up to 60 s",
+        "Every click is counted twice",
+        "Links become permanent",
+        "HTTPS"
+      ],
+      "answer": 0,
+      "why": "Fix with a short max-age or a CDN purge on delete. You also stop seeing every click; count them from CDN access logs.",
+      "note": "Spikes on a hot link: CDN, not a queue"
+    }
+  ]
+}

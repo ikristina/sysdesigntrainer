@@ -1,0 +1,93 @@
+{
+  "topic": "Distributed data and streams",
+  "questions": [
+    {
+      "q": "A key is stored on N = 3 replicas. Which read/write quorum makes a read overlap the latest acknowledged write (in the normal case)?",
+      "choices": [
+        "R = 1, W = 1",
+        "R = 1, W = 2",
+        "R = 2, W = 2",
+        "R = 2, W = 1"
+      ],
+      "answer": 2,
+      "why": "R + W > N: 2 + 2 > 3, so the replicas you read and the ones that acked the write share at least one. It isn't full linearizability: sloppy quorums and concurrent writes can still surprise you."
+    },
+    {
+      "q": "With consistent hashing, you add a 5th node to a 4-node ring. About how many keys move?",
+      "choices": [
+        "About 1/5",
+        "About half",
+        "About 4/5",
+        "All of them"
+      ],
+      "answer": 0,
+      "why": "Only the keys the new node takes over move: about 1/(n+1). With hash(key) mod n, changing n moves most keys."
+    },
+    {
+      "q": "A crawler's Bloom filter says a URL was already seen. What can be true?",
+      "choices": [
+        "It was definitely seen",
+        "It may never have been seen (a false positive), so the crawler might skip a new page",
+        "The filter is broken",
+        "The URL is definitely new"
+      ],
+      "answer": 1,
+      "why": "Bloom filters can give false positives, never false negatives. About 10 bits per URL gives ~1% false positives."
+    },
+    {
+      "q": "A Count-Min Sketch estimates how often each ad was clicked. Its error is…",
+      "choices": [
+        "It may overcount, never undercount",
+        "It may undercount, never overcount",
+        "Either way",
+        "None: it's exact"
+      ],
+      "answer": 0,
+      "why": "Hash collisions only add counts. Fine for a top-K dashboard; billing needs exact counts."
+    },
+    {
+      "q": "A Kafka topic has 6 partitions and a consumer group has 10 consumers. What happens?",
+      "choices": [
+        "All 10 share the work evenly",
+        "6 consumers work and 4 sit idle",
+        "Kafka adds 4 partitions",
+        "Messages are duplicated to all 10"
+      ],
+      "answer": 1,
+      "why": "In a classic consumer group each partition goes to at most one consumer. To scale consumers, add partitions."
+    },
+    {
+      "q": "Billing must count each ad click exactly once, but the log delivers at least once. What gives exact results?",
+      "choices": [
+        "Turn off retries",
+        "Dedup by click id and make the writes idempotent",
+        "Use a bigger Kafka cluster",
+        "Sample 10% of clicks"
+      ],
+      "answer": 1,
+      "why": "At-least-once delivery + idempotent processing gives effectively-once results. Late events also need a watermark or allowed lateness."
+    },
+    {
+      "q": "360k online drivers send a GPS position every 4 s, and only the latest matters. Where does it go?",
+      "choices": [
+        "A new SQL row per update",
+        "In memory, overwriting each driver's latest position",
+        "Blob storage",
+        "A message queue only"
+      ],
+      "answer": 1,
+      "why": "90k writes/s of values that are stale in seconds: an in-memory store keyed by driver, partitioned by region, not a durable row each time."
+    },
+    {
+      "q": "A crawler fetches 770 pages/s and each fetch takes about 1 s. How many fetches must be in flight?",
+      "choices": [
+        "About 8",
+        "About 77",
+        "About 770",
+        "About 7,700"
+      ],
+      "answer": 2,
+      "why": "Little's law: in flight = rate × time = 770 × 1 s. Throughput comes from many concurrent connections, not faster servers."
+    }
+  ]
+}

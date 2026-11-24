@@ -228,3 +228,13 @@ body { margin: 0; background: var(--paper); }
 .note__body table { border-collapse: collapse; margin: 8px 0; }
 .note__body th, .note__body td { border: 1px solid var(--line-faint); padding: 3px 6px; text-align: left; vertical-align: top; }
 .note__body code { background: var(--hover); padding: 0 3px; }
+
+/* 🧠 Quiz panel (quiz/QuizPanel.tsx): replaces the inspector while open, like notes. */
+.quiz { width: 440px; }
+.quiz__topic, .quiz__choice { text-align: left; white-space: normal; }
+.quiz__q { font-weight: 600; margin: 4px 0; }
+.quiz__choice:disabled { opacity: 1; cursor: default; }
+.quiz__choice--right { background: var(--ok-soft); }
+.quiz__choice--wrong { background: var(--coral-soft); }
+.quiz__why { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border: 1.5px dashed var(--line-faint); font-size: 13px; line-height: 1.45; }
+.quiz__score { font-family: var(--font); font-size: 22px; margin: 4px 0; }

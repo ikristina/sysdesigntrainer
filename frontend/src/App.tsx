@@ -14,6 +14,7 @@ import { LessonPanel, StepNav, SuccessPanel } from './lessons/LessonPanel'
 import { active, useLesson } from './lessons/lessonStore'
 import { go, hashOf, parseHash, useMode } from './mode'
 import { NotesPanel } from './notes/NotesPanel'
+import { QuizPanel } from './quiz/QuizPanel'
 import { MetricsPanel } from './panels/MetricsPanel'
 import { Palette } from './panels/Palette'
 import { ParamPanel } from './panels/ParamPanel'
@@ -28,7 +29,7 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [terminal, setTerminal] = useState(false)
-  const [notes, setNotes] = useState(false)
+  const [side, setSide] = useState<'notes' | 'quiz' | null>(null) // swaps the right column
   useEffect(() => { ttydUp().then((up) => up && setTerminal(true)) }, []) // open it if ttyd is running
   const lessonState = useLesson()
   const mode = useMode((s) => s.mode)
@@ -84,7 +85,8 @@ export default function App() {
         {compare ? <CompareBar /> : !explainer && <TrafficBar />}
         <div className="header__actions">
           <button className="btn btn--claude sk" onClick={() => setTerminal(!terminal)} aria-pressed={terminal}>✦ Ask Claude</button>
-          <button className="btn sk" onClick={() => setNotes(!notes)} aria-pressed={notes}>📓 Notes</button>
+          <button className="btn sk" onClick={() => setSide(side === 'notes' ? null : 'notes')} aria-pressed={side === 'notes'}>📓 Notes</button>
+          <button className="btn sk" onClick={() => setSide(side === 'quiz' ? null : 'quiz')} aria-pressed={side === 'quiz'}>🧠 Quiz</button>
           {!compare && <button className="btn sk" onClick={exportFile}>Export JSON</button>}
           {!explainer && !compare && <button className="btn sk" onClick={() => fileInput.current?.click()}>Import JSON</button>}
           <input ref={fileInput} type="file" accept=".json,application/json" hidden
@@ -103,7 +105,7 @@ export default function App() {
           </main>}
           {terminal && <TerminalPanel onClose={() => setTerminal(false)} />}
         </div>
-        {notes ? <NotesPanel /> : <aside className="inspector">
+        {side === 'notes' ? <NotesPanel /> : side === 'quiz' ? <QuizPanel /> : <aside className="inspector">
           {compare ? <CompareTable /> : <MetricsPanel p99Target={mode.kind === 'lesson' && lessonState.lesson ? active(lessonState).success.p99_ms : undefined} />}
           {mode.kind === 'lesson' && <SuccessPanel />}
           {!explainer && !compare && <ParamPanel />}
