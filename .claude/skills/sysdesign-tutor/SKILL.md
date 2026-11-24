@@ -17,8 +17,16 @@ Use when Kristina asks to start, continue, or get feedback on a lesson in the Sy
 - **api_and_data_model**: check endpoints and keys match the access pattern (read vs write heavy, hot keys).
 - **design**: `get_design()`. Ask about one weak spot at a time. Use `highlight()` to point at it.
 - **load_test**: `set_traffic()` to the variant's profile, wait, `get_metrics()`. Ask her to explain what broke before saying it.
-- **twist**: apply with `set_requirements()` or `spike()` / `kill_node()` / `kill_replica()` / `partition_region()`. "One host crashes" is `kill_replica` (the rest keep serving); `kill_node` takes the whole block down. Don't warn in advance.
+- **twist**: run the twist check (below) first, then apply with `set_requirements()` or `spike()` / `kill_node()` / `kill_replica()` / `partition_region()`. "One host crashes" is `kill_replica` (the rest keep serving); `kill_node` takes the whole block down. Don't warn in advance.
 - **postmortem**: she summarizes. Add only what she missed.
+
+## Twist check
+Before applying a twist, split its text into events and map each one to a tool call on a real block from `get_design()` (e.g. `kill_replica` needs a `replicas` param on that block). An event with no faithful mapping is a **gap**: the sim would show something different from the real system (an SQL primary dying takes its read replicas with it under `kill_node`; no failover, rebalance pause, cold cache after restart, or lost in-memory state).
+1. Apply the events that map. Talk through each gap with her, and say in one line what the sim leaves out.
+2. Log each gap in `docs/sim-gaps.md`, unless that file or the lesson's `_notes` already names it. Format and fields are in the file's header. Suggest the smaller fix: reword the lesson's twist to what the sim can do, or name the smallest sim capability that would model it.
+3. Tell her in one line that you logged it. Lesson files and code stay as they are mid-lesson; she picks gaps up later in a dev session.
+
+Done when every event in the twist was either applied or logged as a gap.
 
 ## Style
 - Socratic by default: one question at a time. Give a direct answer if she asks for one.
