@@ -33,7 +33,7 @@ describe('content files', () => {
   it('found the files', () => {
     expect(lessons.map((l) => l.id)).toEqual([
       'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline', 'driver-locations',
-      'edge-rate-limiter', 'flash-sale', 'hot-key', 'job-scheduler', 'leaderboard', 'ledger', 'llm-cost',
+      'edge-rate-limiter', 'file-sync', 'flash-sale', 'hot-key', 'job-scheduler', 'leaderboard', 'ledger', 'llm-cost',
       'llm-gateway', 'metrics-ingest', 'news-feed', 'p99-fix', 'payments', 'rag-search', 'rate-limiter',
       'reddit-place', 'retry-storm', 'typeahead', 'url-shortener', 'video-platform', 'webhooks',
       'welcome-emails',
@@ -680,6 +680,37 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(world(true, 46, n('k', 'cache')), worldwide)).toBe(true)
     expect(passes(world(true, 50, n('k', 'cache')), worldwide)).toBe(false) // over budget
 
+  })
+
+  it('file-sync: chunk bytes go straight to blob storage; change checks are answered from memory', () => {
+    const naive = chain(n('c', 'client'), n('api', 'service'), n('db', 'sql_db'))
+    const uploads = variant('file-sync', 'uploads')
+    const relay = (api: number) => graphOf([...lbApi(api, { capacity_rps: 50 }), n('db', 'sql_db'), n('blob', 'blob')],
+      [...fe, ['api', 'db'], ['api', 'blob']])
+    const direct = (api: number, blob = 'blob') => graphOf([...lbApi(api), n('db', 'sql_db'), n('blob', blob)],
+      [...fe, ['api', 'db'], ['c', 'blob', { carries: 'write' }]])
+    expect(passes(naive, uploads)).toBe(false)
+    expect(passes(chain(n('c', 'client'), n('api', 'service', { capacity_rps: 50 }), n('db', 'sql_db')), uploads)).toBe(false)
+    expect(passes(relay(66), uploads)).toBe(false) // p99 ~1 s
+    expect(passes(relay(100), uploads)).toBe(false) // over budget
+    expect(passes(direct(3), uploads)).toBe(false) // rho 1
+    for (const api of [4, 5, 6]) expect(passes(direct(api), uploads)).toBe(true)
+    expect(passes(direct(7), uploads)).toBe(false) // over budget
+    const costAt = (rps: number) => run(direct(4, 's3'), rps, 0, [], 15, undefined, simTraffic({ ...uploads.traffic, rps })).global.costHr
+    expect(costAt(3000)).toBeCloseTo(54.93, 1) // twist: S3 bills each PUT
+    expect(costAt(1800)).toBeCloseTo(33.33, 1) // twist: 40% dedup
+
+    const sync = variant('file-sync', 'sync')
+    const site = (api: number, ...back: SavedNode[]) => chain(...lbApi(api), ...back)
+    const cursors = (api: number) => site(api, n('k', 'cache', { hit_ratio: 0.95, write_mode: 'write-through' }), n('db', 'sql_db'))
+    expect(passes(naive, sync)).toBe(false)
+    expect(passes(site(45, n('db', 'sql_db', { read_replicas: 15 })), sync)).toBe(false) // over budget
+    expect(passes(site(42, n('db', 'kv', { replicas: 4 })), sync)).toBe(false) // rho 1
+    expect(passes(site(45, n('db', 'kv', { replicas: 5 })), sync)).toBe(false) // over budget
+    expect(passes(cursors(41), sync)).toBe(false) // services rho 0.98
+    for (const api of [42, 44, 46]) expect(passes(cursors(api), sync)).toBe(true)
+    expect(passes(cursors(48), sync)).toBe(false) // over budget
+    expect(run(cursors(44), 586000, 0.998).global.errorPct).toBeGreaterThan(90) // twist: poll every 2 s
   })
 })
 

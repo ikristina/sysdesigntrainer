@@ -1,0 +1,47 @@
+{
+  "id": "file-sync",
+  "title": "File sync (Dropbox / Google Drive): bytes go straight to blob storage, change checks stay in memory",
+  "mode": "full",
+  "brief": "Design a file sync service like Dropbox or Google Drive. Users upload files, every file shows up on all of their devices, and files and folders can be shared. Clients split each file into fixed-size chunks (Dropbox has described 4 MB blocks) and name each chunk by a hash of its content, so a file is a list of chunk hashes. The bytes live in blob storage; the metadata (which chunks make up which version of which file, who it's shared with) lives in a database. Two variants of the same service: the upload path, then the sync path.",
+  "variants": [
+    {
+      "id": "uploads",
+      "requirements": [
+        "3,000 new 4 MB chunks/s at peak, about 12 GB/s (roughly 1 PB a day), all writes",
+        "Each chunk upload also makes one metadata call (record the chunk against the file being saved)",
+        "A server that relays chunk bytes handles about 50 chunks/s (4 MB each, ~200 MB/s; an estimate): set capacity 50 on any service the chunk bytes pass through. A service that only handles metadata calls keeps the default 1,000/s",
+        "p99 < 200 ms per chunk, server side only. The sim leaves out the time the bytes spend on the user's network (4 MB at 20 Mbps is about 1.6 s), and its blob store takes the same 50 ms for a 4 MB PUT as for a tiny one",
+        "errors < 0.1%",
+        "cost < $1.20/hr (servers only; the generic blob block is flat-rate and prices no storage)"
+      ],
+      "traffic": { "rps": 3000, "read_ratio": 0 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 1.2 },
+      "twist": "Swap the blob block for S3, which bills each PUT (the sim uses S3 Standard's list price, $0.005 per 1,000 PUTs; check current pricing): watch the cost meter. Now dedup: the client sends the chunk hashes first and the API answers which ones are already stored, so only the missing chunks are uploaded. Unchanged chunks of an edited file and the same file saved in several accounts are skipped. If 40% of chunks are already stored, apply set_traffic(rps=1800) to see the blob side drop. (The sim can't skip PUTs by hash, so this also lowers the API calls, which in reality still see every hash. Talk it through.) What does dedup save, why does an insert near the start of a file defeat fixed-size chunks, and should dedup cross user accounts?"
+    },
+    {
+      "id": "sync",
+      "requirements": [
+        "About 1.2M devices online, each asking 'anything new since my cursor?' every 30 s: 39k checks/s (reads)",
+        "1k file commits/s (writes): a new version of a file, as its list of chunk hashes",
+        "Each commit is news for about 2 other devices (the user's other devices and people the folder is shared with), so about 2k of the 39k checks/s find something new, roughly 1 in 20",
+        "A check that finds something reads the change list from the metadata DB",
+        "p99 < 100 ms",
+        "errors < 0.1%",
+        "cost < $5.30/hr",
+        "The sim counts every cache hit as a possibly stale read. If you keep each user's latest cursor in memory and write it on every commit (write-through), it isn't stale, so ignore the stale % here"
+      ],
+      "traffic": { "rps": 40000, "read_ratio": 0.975 },
+      "success": { "p99_ms": 100, "error_pct": 0.1, "max_cost_hr": 5.3 },
+      "twist": "Product wants changes on other devices within 2 s, not up to 30 s. Polling every 2 s is 15x the checks: apply set_traffic(rps=586000, read_ratio=0.998) and watch it fall over. Instead, each device holds one long-poll request (or a websocket) open to a notification server, which answers the moment that user's cursor moves, or after a timeout so the device reconnects. How many requests/s is that with a 60 s timeout, how many open connections does a notification server hold, and what happens when one restarts and all its devices reconnect at once? (The sim can't hold a request open: talk it through.)"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Uploads: what does an API server do with the 4 MB it receives, other than pass it on? Sync: of the 39k 'anything new?' checks a second, how many find something?",
+    "Let the client send the bytes straight to blob storage on a short-lived URL your API signs (e.g. an S3 presigned URL); the API keeps only the metadata. For sync, keep each user's latest change cursor in memory, so a check that finds nothing never reaches the database.",
+    "Uploads: client -> LB -> a handful of services -> metadata DB, plus an edge from the client straight to the blob store that carries writes. How many services do 3k metadata calls/s need? Sync: client -> LB -> services -> a cache (hit 0.95, write-through) -> one SQL DB. How many services do 40k/s need, and what's left of the budget?"
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "explainers": ["caching-basics"],
+  "_notes": "Sim: a service replica does 1k/s at 20 ms ($0.10), the relaying service is set to capacity 50 (c = 50 x 0.02 = 1 server per replica, so it queues early), SQL 5k/s ($0.50), blob 11k/s at 50 ms ($0.05 flat), cache 50k/s ($0.15), LB 50k/s ($0.03). Uploads (3k writes/s): naive client -> 2 services -> SQL: 44.5% errors (services rho 2.5); with the relay capacity 50 it's 98% errors. Relay through the API (client -> LB -> api capacity 50 -> blob + SQL): 60 replicas rho 1.7, 52% errors; 66 rho 0.91, p99 ~1 s, $7.18; 100 rho 0.6, p99 ~220 ms, $10.58. Direct to blob (client -> LB -> api -> SQL, plus client -> blob carrying writes): 3 services rho 1, p99 ~524 ms; 4 services p99 ~92 ms, $0.98; 5: $1.08; 6: $1.18; 7 ($1.28) breaks the budget. SQL rho 0.6 (3k writes on one primary), blob rho 0.27. Twist: the same design with S3 costs $54.93/hr (3k PUT/s x $5 per million = $54/hr in PUTs); at set_traffic(rps=1800) $33.33/hr. The sim can't tell if a service relays bytes: if the user puts the blob store behind the API, check they set capacity 50 on that service, or it passes for the wrong reason. Sync (39k reads + 1k writes): naive collapses (96% errors). SQL + 15 read replicas with 45 services: p99 ~50 ms but $12.53. KV with no cache: 4 nodes rho 1.0 ($5.43 with 42 services, p99 ~118 ms), 5 nodes $6.03 with 45 services, over budget. Cursor cache (hit 0.95, write-through) -> one SQL: misses 1.95k reads + 1k writes on SQL (rho 0.59), cache rho 0.8, LB rho 0.8. 41 services rho 0.98, p99 ~187 ms; 42 p99 ~94 ms, $4.88; 43: $4.98; 44: $5.08; 45: $5.18; 46: $5.28; 48 ($5.48) breaks the budget. Hit 0.9 also passes (SQL rho 0.98), and invalidate mode passes (hit 0.95 x 0.975 read share). A miss in the sim stands in for 'the cursor moved, read the change list'; in reality the in-memory tier answers the check and the device then calls the list endpoint, about the same request count. Twist: 2 s polling (rps 586000) on the 44-service design: 95% errors. Not modelled, talk it through: long-poll or websocket connections (twist), chunking and hashing on the client, dedup (twist), payload size (a 4 MB PUT costs the same as a tiny one), downloads, conflicts, sharing permissions, storage cost.\nGrade beyond the sim:\n- API: POST /files/{path}/upload (body: file size + ordered chunk hashes, base version) returns the hashes the server doesn't have and a presigned PUT URL for each. The client PUTs each missing chunk straight to blob storage, then POST /files/{path}/commit (chunk hashes, base version) returns the new version id, or 409 if base version isn't the latest. GET /files/{path} returns the chunk hash list plus presigned GET URLs. GET /changes?cursor=... returns changed entries since the cursor and a new cursor. GET /changes/longpoll?cursor=... blocks until something changes or a timeout and returns {changes: true|false}. POST /shares (folder id, user, role) grants access.\n- Data model: blob store keyed by chunk hash (e.g. SHA-256), immutable. files (file_id, namespace_id, path, latest_version, deleted). file_versions (file_id, version, ordered chunk hashes, size, device_id, created_at). A per-namespace change journal (namespace_id, seq, file_id, version): a device's cursor is the last seq it saw, and the in-memory tier keeps the latest seq per namespace. Namespaces give each user and each shared folder its own journal; shares (namespace_id, user_id, role) map users to namespaces. Something to find unreferenced chunks for garbage collection (refcounts or mark and sweep).\n- Trade-offs to defend: chunk size (bigger means fewer PUTs and less metadata, but more bytes re-sent per edit and less dedup); fixed vs content-defined chunking (an insert shifts every later fixed-size chunk); cross-account dedup saves storage but can reveal that someone else has a file, so it's often limited to one user or namespace; never trust the client's hash: verify it after upload or before commit; presigned URLs short-lived and scoped to one key; commit only after every chunk exists, so a device never sees a version with missing bytes; conflicts (two devices commit on the same base version): keep both, e.g. a 'conflicted copy', vs last writer wins; metadata strongly consistent (SQL sharded by namespace) while chunks are immutable and trivially cacheable; polling vs long-poll vs websocket and the reconnect storm when a notification server restarts. Checked in frontend/src/lessons/content.test.ts."
+}
