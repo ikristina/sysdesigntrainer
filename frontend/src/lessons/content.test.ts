@@ -618,7 +618,7 @@ describe('classic-design lessons match the simulator', () => {
     const queued = (r: number) => graphOf([n('c', 'client'), n('api', 'service'), n('blob', 'blob'), n('q', 'queue'), tx(r)],
       [['c', 'api'], ['api', 'blob'], ['api', 'q'], ['q', 'w'], ['w', 'blob']])
     expect(passes(chain(n('c', 'client'), n('api', 'service'), tx(13), n('blob', 'blob')), creators)).toBe(false) // inline
-    expect(passes(chain(C(), S(), tx(13), n('blob', 'blob')), creators)).toBe(false) // inline, long timeouts
+    expect(passes(chain(clientNode(), apiNode(), tx(13), n('blob', 'blob')), creators)).toBe(false) // inline, long timeouts
     expect(after(queued(12), creators, [[120, 1, []]])).toBe(false) // falls behind
     expect(passes(queued(13), creators)).toBe(true)
     expect(passes(queued(14), creators)).toBe(true)
@@ -628,11 +628,12 @@ describe('classic-design lessons match the simulator', () => {
     const origin = (api: number, front: SavedNode[] = []) => chain(n('c', 'client'), ...front, n('lb', 'load_balancer'), n('api', 'service', { replicas: api }), n('blob', 'blob'))
     const blobs = Array.from({ length: 5 }, (_, i) => n(`b${i}`, 'blob'))
     const sharded = graphOf([n('c', 'client'), n('lb', 'load_balancer'), n('api', 'service', { replicas: 55 }), n('lb2', 'load_balancer'), ...blobs],
-      [['c', 'lb'], ['lb', 'api'], ['api', 'lb2'], ...blobs.map((b): E => ['lb2', b.id])])
+      [['c', 'lb'], ['lb', 'api'], ['api', 'lb2'], ...blobs.map((b): EdgeSpec => ['lb2', b.id])])
     expect(passes(chain(n('c', 'client'), n('api', 'service'), n('blob', 'blob')), viewers)).toBe(false)
     expect(passes(origin(50), viewers)).toBe(false) // one blob store melts
     expect(passes(sharded, viewers)).toBe(false) // over budget
     expect(passes(origin(4, [n('cdn', 'cdn')]), viewers)).toBe(false)
+    expect(passes(origin(5, [n('cdn', 'cdn')]), viewers)).toBe(false) // rho 1, misses p99
     expect(passes(origin(6, [n('cdn', 'cdn')]), viewers)).toBe(true)
     expect(passes(origin(7, [n('cdn', 'cdn')]), viewers)).toBe(true)
     expect(passes(origin(8, [n('cdn', 'cdn')]), viewers)).toBe(true)
