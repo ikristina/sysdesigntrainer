@@ -646,21 +646,23 @@ describe('classic-design lessons match the simulator', () => {
   it('driver-locations: latest positions live in memory, not a SQL row each; the global map is split by region', () => {
     const site = (api: number, ...back: SavedNode[]) => chain(...lbApi(api), ...back)
     const shards = (k: number) => graphOf([...lbApi(25), n('router', 'load_balancer'), ...Array.from({ length: k }, (_, i) => n(`s${i}`, 'sql_db'))],
-      [...fe, ['api', 'router'], ...Array.from({ length: k }, (_, i) => ['router', `s${i}`] as E)])
+      [...fe, ['api', 'router'], ...Array.from({ length: k }, (_, i) => ['router', `s${i}`] as EdgeSpec)])
     const city = variant('driver-locations', 'one-city')
     expect(passes(chain(n('c', 'client'), n('api', 'service'), n('db', 'sql_db')), city)).toBe(false)
     expect(passes(site(25, n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'sql_db')), city)).toBe(false) // writes pass through
     expect(passes(shards(4), city)).toBe(false) // rho 1
     expect(passes(shards(5), city)).toBe(false) // over budget
-    expect(passes(site(25, n('k', 'kv', { replicas: 2 })), city)).toBe(false) // over budget
-    expect(passes(site(22, n('k', 'cache')), city)).toBe(true)
+    expect(passes(site(22, n('k', 'kv', { replicas: 2 })), city)).toBe(false) // rho 1
+    expect(passes(site(23, n('k', 'kv', { replicas: 3 })), city)).toBe(false) // over budget
+    expect(passes(site(22, n('k', 'cache')), city)).toBe(false) // services near rho 1
+    expect(passes(site(23, n('k', 'cache')), city)).toBe(true)
     expect(passes(site(25, n('k', 'cache')), city)).toBe(true)
     expect(passes(site(30, n('k', 'cache')), city)).toBe(false) // over budget
 
     // One region each for us, eu, ap: client -> lb -> api, then a store per region or one in us.
     const world = (local: boolean, api: number, store: SavedNode) => {
       const regions = ['us', 'eu', 'ap'], inR = (x: SavedNode, r: string) => ({ ...x, parentId: r })
-      const nodes: SavedNode[] = regions.map((r) => n(r, 'region', { name: r })), edges: E[] = []
+      const nodes: SavedNode[] = regions.map((r) => n(r, 'region', { name: r })), edges: EdgeSpec[] = []
       for (const r of regions) {
         nodes.push(inR(n(`c_${r}`, 'client'), r), inR(n(`lb_${r}`, 'load_balancer'), r), inR(n(`api_${r}`, 'service', { replicas: api }), r))
         edges.push([`c_${r}`, `lb_${r}`], [`lb_${r}`, `api_${r}`], [`api_${r}`, local ? `${store.id}_${r}` : store.id])
@@ -674,9 +676,10 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(world(false, 45, n('k', 'cache', { replicas: 4 })), worldwide)).toBe(false) // 70 ms away
     expect(passes(world(true, 45, n('db', 'sql_db')), worldwide)).toBe(false)
     expect(passes(world(true, 45, n('db', 'kv', { replicas: 5 })), worldwide)).toBe(false) // over budget
-    expect(passes(world(true, 44, n('k', 'cache')), worldwide)).toBe(true)
     expect(passes(world(true, 45, n('k', 'cache')), worldwide)).toBe(true)
+    expect(passes(world(true, 46, n('k', 'cache')), worldwide)).toBe(true)
     expect(passes(world(true, 50, n('k', 'cache')), worldwide)).toBe(false) // over budget
+
   })
 })
 

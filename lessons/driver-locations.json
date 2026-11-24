@@ -10,12 +10,12 @@
         "One big city at peak: 60k online drivers x 1 update per 4 s = 15k writes/s",
         "5k nearby-driver reads/s: 20k rps, 25% reads",
         "Only each driver's latest position matters",
-        "p99 < 100 ms",
+        "p99 < 50 ms",
         "errors < 0.1%",
         "cost < $3/hr"
       ],
       "traffic": { "rps": 20000, "read_ratio": 0.25 },
-      "success": { "p99_ms": 100, "error_pct": 0.1, "max_cost_hr": 3 },
+      "success": { "p99_ms": 50, "error_pct": 0.1, "max_cost_hr": 3 },
       "twist": "The location store dies: kill_node on it, then restore_node 10 s later. Its memory is gone. How long until the map is full again, and what does that say about making it durable? (The sim doesn't model the empty map: talk it through.)"
     },
     {
@@ -40,5 +40,5 @@
     "One city: client -> LB -> about 25 services -> a Cache block used as the store (nothing behind it). Global: the same stack in each region (about 45 services), each with its own Cache block holding only that region's drivers."
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
-  "_notes": "One city: 20k rps = 15k writes + 5k reads. Services 1k rps each, so 21+ replicas; LB + 25 services = $2.53 before the store. Naive client -> 2 services -> SQL: p99 ~4955 ms, 92% errors. A cache (hit 0.9) in front of one SQL DB doesn't help: writes pass through, p99 ~6507 ms, 87% errors. SQL sharded behind a router LB (5k writes/s per primary): 4 shards rho 1.0, p99 ~113 ms; 5 shards p99 ~33 ms but $5.06. KV (10k ops/s per node) x 2 with 25 services: p99 ~49 ms, $3.13, over $3. A Cache block as the store, nothing behind it (50k ops/s, rho 0.4): 22 services p99 ~27 ms, $2.38; 25 services p99 ~27 ms, $2.68; 30 services $3.18, over budget. Global: 3 regions, 40k rps each (30k writes + 10k reads); LB 50k/node, so one LB per region is enough. Naive: p99 ~4955 ms, 99% errors. 45 services per region all writing to one cache (4 replicas) in us: eu and ap pay 70 ms per call, p99 ~97 ms ($14.19). A SQL DB per region still melts (p99 ~8393 ms, 96% errors). KV x 5 per region: p99 ~32 ms but $18.09. A cache per region (rho 0.8): 44 services p99 ~27 ms, $13.74; 45 services p99 ~27 ms, $14.04; 50 services $15.54, over $15. Not modeled: the spatial index (geohash / quadtree / H3 cell lookup for 'drivers within 2 km'), the matching algorithm, the empty store after a restart (drivers refill it within one 4 s update), and hot downtown cells. Talk them through in estimation and the twists. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "One city: 20k rps = 15k writes + 5k reads. Services 1k rps each; each replica queues on its own, so near rho 1 they are slow: with a cache store, 21 services p99 ~102 ms, 22 services p99 ~54 ms (both fail the 50 ms). Naive client -> 2 services -> SQL: p99 ~5184 ms, 92% errors. A cache (hit 0.9) in front of one SQL DB doesn't help: writes pass through, p99 ~6933 ms, 87% errors. SQL sharded behind a router LB (5k writes/s per primary): 4 shards rho 1.0, p99 ~114 ms; 5 shards p99 ~36 ms but $5.06. KV (10k ops/s per node): x 2 is at rho 1.0 (22 services p99 ~80 ms, $2.83); x 3 needs 23+ services for the p99 (23: p99 ~44 ms, $3.23), over $3. A Cache block as the store, nothing behind it (50k ops/s, rho 0.4): 23 services p99 ~40 ms, $2.48; 25 services p99 ~30 ms, $2.68; 28 services $2.98; 30 services $3.18, over budget. Global: 3 regions, 40k rps each (30k writes + 10k reads); LB 50k/node, so one LB per region is enough. Naive: p99 ~5184 ms, 99% errors. 45 services per region all writing to one cache (4 replicas) in us: eu and ap pay 70 ms per call, p99 ~114 ms ($14.19). A SQL DB per region still melts (p99 ~8704 ms, 96% errors). KV x 5 per region: p99 ~50 ms but $18.09. A cache per region (rho 0.8): 43 services p99 ~70 ms (fails); 44 services p99 ~54 ms, $13.74; 45 services p99 ~45 ms, $14.04; 46 services p99 ~40 ms, $14.34; 48 services $14.94; 50 services $15.54, over $15. Not modeled: the spatial index (geohash / quadtree / H3 cell lookup for 'drivers within 2 km'), the matching algorithm, the empty store after a restart (drivers refill it within one 4 s update), and hot downtown cells. Talk them through in estimation and the twists. Checked in frontend/src/lessons/content.test.ts."
 }
