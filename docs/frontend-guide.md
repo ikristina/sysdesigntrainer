@@ -67,7 +67,7 @@ index.html ── loads ──> src/main.tsx ── renders ──> <App/>
 
 The app has four **modes**, picked from the menu at the top left. Sandbox is the free canvas. A lesson and an explainer reuse the same canvas, stores and simulator; they only decide which design is loaded, what the left column shows, and what traffic is set. Compare shows two designs side by side under the same scripted scenario. Section 9 explains them.
 
-There are two stores. `store.ts` holds the design (what you drew, saved). `simStore.ts` holds the run (traffic settings, killed nodes, latest metrics, not saved). The simulator itself (`sim/`) is plain TypeScript with no React, so it can be unit-tested like any pure function.
+There are two stores. `store.ts` holds the design (what you drew, saved). `simStore.ts` holds the run (traffic settings, killed nodes, dead replicas per block, latest metrics, not saved). The simulator itself (`sim/`) is plain TypeScript with no React, so it can be unit-tested like any pure function.
 
 A backend analogy:
 

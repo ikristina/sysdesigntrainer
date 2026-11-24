@@ -108,7 +108,7 @@ Behaviors:
 - SQL DB: writes → primary only, reads → spread across replicas. Replication lag grows with primary ρ and write rate. Connection pool caps concurrent requests.
 - Queue/stream: accepts up to its ingest limit, depth grows if consumers < producers, consumers drain at their μ. Producer latency stays low (this is the lesson).
 - Cross-region edges add fixed latency (e.g. 70 ms).
-- Killed node: μ = 0. Partitioned region: edges across it drop.
+- Killed node: μ = 0. Dead replicas: μ = (replicas − down) × capacity_rps; all down = killed. Partitioned region: edges across it drop.
 
 Traffic profile (global controls): total rps, read/write ratio, payload size, hot-key skew, spike button (×N for T seconds).
 
@@ -119,7 +119,7 @@ Outputs per node: λ, μ, ρ, queue depth, latency, error rate. Global: p50, p99
 - Dropped/errored requests: red particles that fall off the edge.
 - Utilization bar inside every node fills with ρ.
 - Queues show depth as a growing stack of small boxes.
-- Nodes pulse/shake when saturated (ρ ≥ 1), gray with a crack when killed.
+- Nodes pulse/shake when saturated (ρ ≥ 1), gray with a crack when killed. One dot per replica (up to 8) under the label; click one to kill or restore a replica.
 - Style: hand-drawn (rough.js) as the default. Optional fake-isometric skin later. No 3D engine.
 
 ## Lessons
@@ -195,7 +195,7 @@ Works for any two saved designs too, not just presets.
 - `get_lesson()` → current lesson, variant, step, user's estimation notes
 - `set_requirements(variant_id | custom)` → swap requirements live
 - `set_traffic(rps, read_ratio, ...)`, `spike(multiplier, seconds)`
-- `kill_node(id)`, `restore_node(id)`, `partition_region(id)`
+- `kill_node(id)`, `kill_replica(id, count)`, `restore_replica(id, count)`, `restore_node(id)`, `partition_region(id)`
 - `highlight(node_ids, message)` → draws attention on canvas
 - `advance_step()`, `give_hint(level)`
 - `get_quiz()` → the 🧠 Quiz question on screen (answer only after the user picks) and the user's recent wrong answers
