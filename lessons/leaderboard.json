@@ -1,0 +1,42 @@
+{
+  "id": "leaderboard",
+  "title": "Real-time leaderboard: cache the top, rank in memory",
+  "mode": "full",
+  "brief": "Design the leaderboard for a mobile game: players post scores, and everyone sees the live top 100 and their own rank. In SQL the reads are ORDER BY score DESC LIMIT 100 and a COUNT of players above you, and every score update has to keep those answers current.",
+  "variants": [
+    {
+      "id": "spectators",
+      "requirements": [
+        "100k rps, 99% reads (1k score updates/s): a world final, millions watching",
+        "90% of reads are the top-100 list: the same for every player, may be 2 s stale",
+        "p99 < 200 ms",
+        "errors < 0.1%",
+        "cost < $2.50/hr"
+      ],
+      "traffic": { "rps": 100000, "read_ratio": 0.99 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 2.5 },
+      "twist": "Every screen now shows the player's own rank too, and that is different for each player, so no shared copy can answer it. Lower the CDN (or front cache) hit_ratio to 0.5 and run again. What breaks behind it, and what store answers 'my rank' without counting rows?"
+    },
+    {
+      "id": "tournament",
+      "requirements": [
+        "30k rps, 70% score updates (21k/s): a live tournament, every match posts scores",
+        "Reads (top 100 and 'my rank') must reflect updates within 1 s",
+        "p99 < 200 ms",
+        "errors < 0.1%",
+        "cost < $4/hr"
+      ],
+      "traffic": { "rps": 30000, "read_ratio": 0.3 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 4 },
+      "twist": "Season finale: set_traffic(rps=150000). One sorted set lives on one node. When you split it across nodes, by what key? How do you still answer the global top 100, and a player's exact rank? Two players with the same score: who ranks first? (The sim spreads load evenly over a store's replicas and can't model cross-shard rank or ties: talk it through.)"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "How many score updates per second does each variant send, and how many writes per second can one SQL primary take? Which reads get the same answer for every player?",
+    "The top 100 is one answer shared by everyone, so a copy at the edge or in a cache can serve it. Score updates can't be cached: at tens of thousands per second, the store itself has to keep scores sorted, in memory.",
+    "Spectators: client -> CDN (hit 0.9) -> LB -> about 12-15 services -> cache (hit 0.9) -> SQL DB. Tournament: no cache helps; put an in-memory sorted store (one node, like a sorted set with ZADD / ZREVRANGE / ZREVRANK) behind about 33-35 services instead of the SQL DB."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "The sim has no per-query cost, so a ranking query costs SQL the same as any query (5k/s per node); the lesson turns on the write rate. Spectators: 99k reads + 1k writes. Naive client -> service -> SQL: p99 ~4955 ms, 98% errors. Without a CDN the LB (50k) and ~100 services are the wall: 3 LBs + 110 services + Redis carries it but costs $11.31. CDN hit 0.9 x read share 0.99 = 0.89, so origin gets ~11.8k. CDN + 12 services + SQL alone: DB rho 2.35, fails. CDN + cache (hit 0.9) + SQL: DB rho 0.56, p99 ~50 ms, $1.98 at 12 services, $2.08 at 13. CDN + 12 + Redis as the store also passes ($1.55). CDN + 12 + SQL with 2 read replicas carries it but costs $2.83. Tournament: 9k reads + 21k writes. Naive: p99 ~4955 ms, 94% errors. 35 services + SQL: DB rho 7.0. CDN + cache + SQL still fails (writes pass through, DB rho 5.19). 33 or 34 services + Redis (100k/node, rho 0.30): p99 ~27 ms, $3.55 / $3.65. The generic cache ($3.58) and Valkey ($3.61) pass too: accept any in-memory sorted structure. Over-provisioned: 7 SQL shards behind a router carry it (rho 0.86) but cost $6.96; Redis with 4 nodes costs $4.31. A plain KV (3 nodes, 34 services) sits at rho 1.00 and costs $4.33, but CDN + 26 services + KV passes at $3.63: the sim can't tell a sorted set from a hash, so ask how a KV would answer 'my rank' (it can't without a scan or a separate sorted index). Cross-shard rank and ties are talk-through only. Checked in frontend/src/lessons/content.test.ts."
+}

@@ -33,8 +33,9 @@ describe('content files', () => {
   it('found the files', () => {
     expect(lessons.map((l) => l.id)).toEqual([
       'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline', 'edge-rate-limiter', 'flash-sale', 'hot-key',
-      'job-scheduler', 'ledger', 'llm-cost', 'llm-gateway', 'metrics-ingest', 'news-feed', 'p99-fix', 'payments', 'rag-search',
-      'rate-limiter', 'reddit-place', 'retry-storm', 'url-shortener', 'webhooks', 'welcome-emails',
+      'job-scheduler', 'leaderboard', 'ledger', 'llm-cost', 'llm-gateway', 'metrics-ingest', 'news-feed',
+      'p99-fix', 'payments', 'rag-search', 'rate-limiter', 'reddit-place', 'retry-storm', 'url-shortener',
+      'webhooks', 'welcome-emails',
     ])
     expect(explainers.map((e) => e.id)).toEqual(['caching-basics', 'load-balancing', 'replication-lag'])
   })
@@ -459,6 +460,30 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(gated(4000), drop)).toBe(true)
     expect(passes(gated(6000), drop)).toBe(false)
     expect(passes(site([n('cdn', 'cdn')], 20, [n('db', 'cockroachdb', { replicas: 18 })]), drop)).toBe(false) // over budget
+  })
+
+  it('leaderboard: a CDN + cache absorb spectator reads; tournament score updates need an in-memory sorted store', () => {
+    const site = (front: SavedNode[], api: number, back: SavedNode[]) => chain(n('c', 'client'), ...front, n('lb', 'load_balancer'), n('api', 'service', { replicas: api }), ...back)
+    const naive = chain(n('c', 'client'), n('api', 'service'), n('db', 'sql_db'))
+    const watch = variant('leaderboard', 'spectators')
+    expect(passes(naive, watch)).toBe(false)
+    expect(passes(chain(n('c', 'client'), n('lb', 'load_balancer', { replicas: 3 }), n('api', 'service', { replicas: 110 }), n('db', 'redis')), watch)).toBe(false) // over budget
+    expect(passes(site([n('cdn', 'cdn')], 12, [n('db', 'sql_db')]), watch)).toBe(false)
+    for (const api of [12, 13]) expect(passes(site([n('cdn', 'cdn')], api, [n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'sql_db')]), watch)).toBe(true)
+    expect(passes(site([n('cdn', 'cdn')], 12, [n('db', 'redis')]), watch)).toBe(true)
+    expect(passes(site([n('cdn', 'cdn')], 12, [n('db', 'sql_db', { read_replicas: 2 })]), watch)).toBe(false) // over budget
+    const live = variant('leaderboard', 'tournament')
+    expect(passes(naive, live)).toBe(false)
+    expect(passes(site([], 35, [n('db', 'sql_db')]), live)).toBe(false)
+    expect(passes(site([n('cdn', 'cdn')], 26, [n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'sql_db')]), live)).toBe(false) // writes pass through
+    for (const api of [33, 34]) expect(passes(site([], api, [n('db', 'redis')]), live)).toBe(true)
+    for (const store of ['cache', 'valkey']) expect(passes(site([], 34, [n('db', store)]), live)).toBe(true)
+    const shards = graphOf([...lbApi(34), n('router', 'load_balancer'), ...Array.from({ length: 7 }, (_, i) => n(`s${i}`, 'sql_db'))],
+      [...fe, ['api', 'router'], ...Array.from({ length: 7 }, (_, i) => ['router', `s${i}`] as E)])
+    expect(passes(shards, live)).toBe(false) // over budget
+    expect(passes(site([], 34, [n('db', 'redis', { replicas: 4 })]), live)).toBe(false) // over budget
+    expect(passes(site([], 34, [n('db', 'kv')]), live)).toBe(false)
+    expect(passes(site([n('cdn', 'cdn')], 26, [n('db', 'kv')]), live)).toBe(true) // the sim can't tell a hash from a sorted set
   })
 
   const withParams = (d: Design, extra: Record<string, Record<string, number | string>>) => ({
