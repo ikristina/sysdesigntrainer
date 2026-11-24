@@ -178,6 +178,8 @@ body { margin: 0; background: var(--paper); }
 .lesson__notes { font: 13px var(--font); padding: 6px; border: 1.5px solid var(--ink); border-radius: 4px; resize: vertical; }
 .lesson__hint { background: var(--amber-soft); padding: 6px 8px; }
 .steps { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Own row in the header: the pills change width as steps complete, and mid-row they'd reflow everything after them. */
+.header > .steps { order: 1; flex-basis: 100%; }
 .step { font: 12px var(--font); padding: 4px 10px; border: 1.5px solid var(--line-faint); border-radius: 999px; background: var(--panel); cursor: pointer; color: var(--ink-muted); }
 .step--done { border-color: var(--ok-text); color: var(--ok-text); }
 .step--current { border-color: var(--ink); color: var(--ink); font-weight: 700; }
