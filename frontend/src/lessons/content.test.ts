@@ -35,8 +35,8 @@ describe('content files', () => {
       'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline', 'driver-locations',
       'edge-rate-limiter', 'file-sync', 'flash-sale', 'hot-key', 'job-scheduler', 'leaderboard', 'ledger', 'llm-cost',
       'llm-gateway', 'metrics-ingest', 'news-feed', 'p99-fix', 'payments', 'rag-search', 'rate-limiter',
-      'reddit-place', 'retry-storm', 'typeahead', 'url-shortener', 'video-platform', 'webhooks',
-      'welcome-emails',
+      'reddit-place', 'retry-storm', 'typeahead', 'url-shortener', 'video-platform', 'web-crawler',
+      'webhooks', 'welcome-emails',
     ])
     expect(explainers.map((e) => e.id)).toEqual(['caching-basics', 'load-balancing', 'replication-lag'])
   })
@@ -711,6 +711,49 @@ describe('classic-design lessons match the simulator', () => {
     for (const api of [42, 44, 46]) expect(passes(cursors(api), sync)).toBe(true)
     expect(passes(cursors(48), sync)).toBe(false) // over budget
     expect(run(cursors(44), 586000, 0.998).global.errorPct).toBeGreaterThan(90) // twist: poll every 2 s
+  })
+
+  it('web-crawler: fetch from a frontier queue, sized by pages in flight; per-link seen checks need an in-memory set', () => {
+    const fetcher = (r: number, p = {}) => n('f', 'worker', { replicas: r, capacity_rps: 100, base_latency_ms: 1000, ...p })
+    const crawl = (f: SavedNode, store = n('blob', 'blob'), seen?: SavedNode) => graphOf(
+      [n('c', 'client'), n('api', 'service'), n('q', 'queue'), f, store, ...(seen ? [seen] : [])],
+      [['c', 'api'], ['api', 'q'], ['q', 'f'], ['f', store.id], ...(seen ? [['f', seen.id, { fanout: 'write' }] as EdgeSpec] : [])])
+    const sim = (d: Design, v: Variant, seconds = 15) => run(d, v.traffic.rps, v.traffic.read_ratio, [], seconds, undefined, simTraffic(v.traffic))
+    const backlog = (s: SimState) => Math.max(0, ...Object.values(s.metrics).map((m) => m.queue))
+
+    const broad = variant('web-crawler', 'broad')
+    expect(sim(chain(n('c', 'client'), n('api', 'service'), fetcher(10), n('blob', 'blob')), broad).global.errorPct).toBeGreaterThan(90) // inline
+    expect(sim(chain(clientNode(), apiNode(), fetcher(10), n('blob', 'blob')), broad).global.p99Ms).toBeGreaterThan(1000) // inline, long timeouts
+    expect(backlog(sim(crawl(fetcher(7)), broad, 120))).toBeCloseTo(8400, -2) // falls behind
+    for (const [r, cost] of [[8, 1.1], [9, 1.2], [10, 1.3]]) {
+      expect(passes(crawl(fetcher(r)), broad)).toBe(true)
+      expect(sim(crawl(fetcher(r)), broad).global.costHr).toBeCloseTo(cost)
+    }
+    expect(passes(crawl(fetcher(11)), broad)).toBe(false) // over budget
+    expect(sim(crawl(fetcher(8), n('db', 'sql_db')), broad).global.costHr).toBeCloseTo(1.55) // pages in SQL: only cost fails
+    // Twist: 2 s fetches with the same 100 connections = 50 pages/s per fetcher.
+    expect(after(crawl(fetcher(15, { capacity_rps: 50, base_latency_ms: 2000 })), broad, [[120, 1, []]])).toBe(false)
+    expect(backlog(sim(crawl(fetcher(16, { capacity_rps: 50, base_latency_ms: 2000 })), broad, 120))).toBe(0)
+    expect(sim(crawl(fetcher(16, { capacity_rps: 50, base_latency_ms: 2000 })), broad).global.costHr).toBeCloseTo(1.9)
+    expect(passes(crawl(fetcher(8, { base_latency_ms: 2000 })), broad)).toBe(true) // 200 connections each
+
+    const fresh = variant('web-crawler', 'freshness')
+    expect(sim(graphOf([n('c', 'client'), n('api', 'service'), n('db', 'sql_db')], [['c', 'api'], ['api', 'db', { fanout: 'write' }]]), fresh).global.errorPct).toBeGreaterThan(90)
+    expect(after(crawl(fetcher(3), n('blob', 'blob'), n('s', 'sql_db')), fresh, [[30, 1, []]])).toBe(false)
+    expect(after(crawl(fetcher(3), n('blob', 'blob'), n('s', 'kv', { replicas: 3 })), fresh, [[30, 1, []]])).toBe(false)
+    const kv4 = sim(crawl(fetcher(3), n('blob', 'blob'), n('s', 'kv', { replicas: 4 })), fresh, 30)
+    expect(backlog(kv4)).toBe(0)
+    expect(kv4.global.costHr).toBeCloseTo(1.8) // keeps up, over budget
+    expect(backlog(sim(crawl(fetcher(2), n('blob', 'blob'), n('s', 'cache')), fresh, 120))).toBeCloseTo(6000, -2) // falls behind
+    for (const [r, cost] of [[3, 0.75], [4, 0.85], [5, 0.95]]) {
+      expect(passes(crawl(fetcher(r), n('blob', 'blob'), n('s', 'cache')), fresh)).toBe(true)
+      expect(sim(crawl(fetcher(r), n('blob', 'blob'), n('s', 'cache')), fresh).global.costHr).toBeCloseTo(cost)
+    }
+    expect(passes(crawl(fetcher(6), n('blob', 'blob'), n('s', 'cache')), fresh)).toBe(false) // over budget
+    expect(sim(crawl(fetcher(3), n('blob', 'blob'), n('s', 'redis')), fresh).global.costHr).toBeCloseTo(0.819, 2)
+    expect(passes(crawl(fetcher(3), n('blob', 'blob'), n('s', 'redis')), fresh)).toBe(true)
+    expect(passes(graphOf([n('c', 'client'), n('api', 'service'), n('q', 'queue'), fetcher(3), n('blob', 'blob'), n('s', 'cache')],
+      [['c', 'api'], ['api', 'q'], ['q', 'f'], ['f', 'blob'], ['f', 's']]), fresh)).toBe(false) // no fan-out edge
   })
 })
 

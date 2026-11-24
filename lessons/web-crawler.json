@@ -1,0 +1,49 @@
+{
+  "id": "web-crawler",
+  "title": "Web crawler: many slow fetches in flight, a seen set in memory",
+  "mode": "full",
+  "brief": "Design a web crawler, e.g. one that fetches 1 billion pages a month for a search index. A scheduler decides which URLs are due (seeds, newly found links, pages due for a re-crawl) and hands them to the URL frontier; fetchers download each page; a parser pulls out its links and content; page bodies go to blob storage. In the sim the client block is that scheduler: it releases URLs at the crawl rate, and each URL counts as a write (it ends in a stored page). A real frontier holds billions of URLs waiting their turn; the sim's queue holds only the ones released and not yet fetched, so its backlog means the fetchers are falling behind the crawl rate. Remote sites are slow: a fetch takes hundreds of ms to seconds (this lesson uses 1 s, an estimate). Model a fetcher replica as a worker holding 100 connections open: capacity 100 pages/s, base latency 1000 ms. The sim does not derive capacity from latency: you set capacity = connections ÷ fetch time yourself (Little's law).",
+  "variants": [
+    {
+      "id": "broad",
+      "requirements": [
+        "770 pages/s at peak: 1B pages / 30 days ≈ 386/s on average, ×2 for peak",
+        "~100 KB of HTML per page (an estimate); page bodies go to blob storage. The sim counts requests, not bytes, so it can't see why a month of pages doesn't belong in a SQL database: that argument is yours",
+        "A fetcher replica holds 100 connections, 1 s per fetch: a worker with capacity 100, base latency 1000 ms",
+        "handing a URL to the frontier: p99 < 200 ms (the scheduler never waits for a fetch)",
+        "errors < 0.1%",
+        "fetchers keep up: backlog under 1,000",
+        "cost < $1.35/hr (the sim's generic worker costs $0.10/hr, less than a real fetch box, so this budget is about how many fetchers you run, not real dollars)",
+        "Link extraction and the seen-URL check are the freshness variant's topic: here each fetched page is one write to blob storage"
+      ],
+      "traffic": { "rps": 770, "read_ratio": 0 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 1.35, "max_backlog": 1000 },
+      "twist": "Many sites slow down: the average fetch doubles to 2 s. A fetcher with 100 connections now finishes 50 pages/s, but the sim won't lower capacity on its own: set the fetchers to capacity 50, base latency 2000 ms and watch the backlog. Get back under budget: more fetchers, more connections per fetcher (with async I/O one box can hold many more), or a shorter fetch timeout that gives up on the slowest sites? Which of those loses pages? (The sim has no fetch timeout of that kind: talk that one through.)"
+    },
+    {
+      "id": "freshness",
+      "requirements": [
+        "Re-crawl news: 30,000 hub pages (homepages and section fronts), each re-fetched every 2 minutes: 250 fetches/s",
+        "Each hub page has ~150 links (an estimate), and every link is checked against the seen-URL set. Almost all are already known; only new articles get queued",
+        "Mark the fetchers' edge into the seen set as fan-out on write (the lesson sets followers = 150): one fetched page becomes 150 lookups. The sim counts each lookup as a write",
+        "The sim has no Bloom filter block: any store block can stand in for the seen set. It also has no loops, so the few new links that would go back into the frontier aren't modeled",
+        "Same fetcher as the broad crawl: worker, capacity 100, base latency 1000 ms",
+        "handing a URL to the frontier: p99 < 200 ms",
+        "errors < 0.1%",
+        "fetchers keep up: backlog under 1,000",
+        "cost < $1/hr"
+      ],
+      "traffic": { "rps": 250, "read_ratio": 0, "followers": 150 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 1, "max_backlog": 1000, "needs_fanout": true },
+      "twist": "Politeness: one publisher has 3,000 of the 30,000 hub pages, so every 2 minutes means 25 requests/s to one host. Its robots.txt asks for at most one request per second (e.g. a Crawl-delay line, a non-standard directive some crawlers honor). How often can each of its pages be re-fetched now, which of its pages get the slots, and how do you hold that host back without stalling every other site's fetches? (The sim has no per-host limits: talk it through.)"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "If one fetch takes a second, how many have to be in flight to finish 770 a second, and should the scheduler wait for any of them? Freshness: for each hub page you fetch, how many seen-set lookups happen?",
+    "Put a queue (the frontier) between the scheduler and the fetchers, and size the fetchers by pages in flight: in flight = rate × fetch time. The seen-set check runs once per link, not once per page, so it needs a store that answers tens of thousands of lookups a second cheaply; a set of known URLs this size fits in memory.",
+    "Broad: scheduler -> service -> queue -> fetchers (capacity 100, latency 1000) -> blob, with enough fetchers to stay below full utilization. Freshness: the same pipeline plus a fan-out-on-write edge from the fetchers to the seen set; price a KV store sized for 37,500 lookups/s against one in-memory store (a cache block, or e.g. Redis)."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Fetcher = worker, capacity 100, base 1000 ms: 100 servers per replica (c = capacity x latency), so it barely queues until it's nearly full. Broad: 770 writes/s. Inline (scheduler -> service -> 10 fetchers -> blob): default timeouts give over 90% errors (the 1 s service timeout vs 1 s fetches, then client retries pile on); 60 s timeouts still give p99 over 1 s. Queued (service -> queue -> fetchers -> blob): 7 fetchers fall behind (backlog 8,400 after 120 s); 8 (rho 0.96) pass, $1.10; 9: $1.20; 10: $1.30; 11 ($1.40) break the budget. Page bodies in SQL instead of blob fail only on cost here ($1.55 with 8 fetchers); the real reason is the byte volume, which the sim doesn't count. Twist: capacity 50 at 2000 ms: 15 fetchers fall behind; 16 keep up but cost $1.90; 8 fetchers at capacity 100 and 2000 ms (200 connections each) pass at $1.10. Freshness: 250 fetches/s x 150 links = 37,500 lookups/s on the fan-out edge. client -> service -> SQL with the fan-out: over 90% errors. Seen set in SQL (5k/s) falls behind; KV with 3 replicas (30k/s) falls behind; KV 4 (rho 0.94) keeps up but costs $1.80. Cache block as the seen set (50k/s, rho 0.75): 2 fetchers fall behind (backlog 6,000 after 120 s); 3 fetchers (rho 0.83) pass, $0.75; 4: $0.85; 5: $0.95; 6 ($1.05) break the budget. Redis instead of the cache block with 3 fetchers: $0.82. Without the fan-out edge the fan-out check fails. Grade beyond the sim: (1) Interfaces: frontier enqueue(url, priority) and dequeue() -> a URL whose host may be hit now; fetcher: resolve DNS (cached, since one host serves many pages), check robots.txt (fetched and cached per host), HTTP GET with a timeout and a size cap; parser: extract links and text; store: page body to blob storage, metadata to a KV or wide-column store; new links: normalize (lowercase host, drop fragments, resolve relative paths), check the seen set, enqueue the new ones. (2) Data model: URL record keyed by a hash of the normalized URL: url, host, last fetched at, HTTP status, content hash, next fetch at, priority. Seen set of URL hashes: a Bloom filter can give false positives (a new URL looks seen and is skipped, so a page is missed) but never false negatives (a seen URL never looks new, so no duplicate crawls); about 10 bits per URL gives 1% false positives (textbook Bloom filter math, not a sim number). Content hash of the body catches exact duplicates (mirrors, the same page under several URLs); near-duplicates need a similarity hash such as SimHash or MinHash. (3) Trade-offs: politeness vs throughput: a per-host limit caps how fast one site can be crawled, so throughput comes from many hosts in parallel; usual answer is per-host queues (e.g. Mercator-style front queues for priority, back queues per host with a next-allowed time). BFS vs priority: plain BFS from seeds is simple but spends the budget on whatever is near the seeds and can sink into crawler traps (endless calendar pages, session IDs in URLs); priority by importance or by how often a page changes spends fetches better. Freshness vs coverage: re-crawls compete with new pages for the same fetchers; conditional GET (If-Modified-Since, or If-None-Match with the page's ETag, answered with 304 Not Modified) makes unchanged re-crawls cheap. Bloom filter vs exact set: memory vs missed pages. Checked in frontend/src/lessons/content.test.ts."
+}
