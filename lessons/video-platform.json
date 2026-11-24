@@ -2,7 +2,7 @@
   "id": "video-platform",
   "title": "Video platform: queue the transcodes, let the CDN carry the bytes",
   "mode": "full",
-  "brief": "Design a video sharing site. Creators upload videos; each upload is transcoded into several resolutions (240p to 1080p) and stored in blob storage; viewers watch by fetching the video in segments. Transcoding is slow: model the transcoder as a worker with capacity 2 uploads/s per replica and base latency 20,000 ms (20 s per upload, all resolutions). Uploads are writes, segment fetches are reads.",
+  "brief": "Design a video sharing site. Creators upload videos; each upload is transcoded into several resolutions (240p to 1080p) and stored in blob storage; viewers watch by fetching the video in segments. Transcoding is slow: model the transcoder as a worker with capacity 2 uploads/s per replica and base latency 20,000 ms (20 s per upload, all resolutions). Uploads are writes, segment fetches are reads. The cost budgets cover servers only and exclude the bytes served to viewers (egress); in a real video platform egress dominates the bill, and the viewers twist shows how much.",
   "variants": [
     {
       "id": "creators",
@@ -12,7 +12,7 @@
         "upload p99 < 300 ms (the upload call returns; the video shows up as 'processing')",
         "errors < 0.1%",
         "transcodes keep up: backlog under 100",
-        "cost < $1.75/hr"
+        "cost < $1.75/hr (the sim's generic worker costs $0.10/hr, far below a real transcoding box, so this budget is about how many workers you run, not real dollars)"
       ],
       "traffic": { "rps": 25, "read_ratio": 0 },
       "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 1.75, "max_backlog": 100 },
@@ -26,7 +26,7 @@
         "One blob store serves about 11k GET/s",
         "segment p99 < 200 ms",
         "errors < 0.1%",
-        "cost < $1/hr for the blocks (count the generic CDN block as flat-rate; the twist prices the bytes)"
+        "cost < $1/hr for servers only: the budget excludes bytes served (egress), and the generic CDN block is priced flat-rate. Egress is most of a real video bill: the twist prices these 50 GB/s at about $15.5k/hr"
       ],
       "traffic": { "rps": 50000, "read_ratio": 1, "payload_kb": 1000 },
       "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 1 },
