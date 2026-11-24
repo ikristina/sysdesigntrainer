@@ -12,8 +12,8 @@ Entry format (append, newest last):
 - suggest: lesson change: <new twist wording> | capability: <smallest sim change that models it>
 ```
 
-## p99-fix: SQL primary dies, but kill_node takes the read replicas too
-- twist: "The database primary dies for a minute. Apply with kill_node('db'), then restore_node('db')."
-- sim does: the whole SQL block (primary + read replicas) goes to μ = 0, so reads fail too.
-- real system: read replicas keep serving reads (possibly stale); writes fail until a replica is promoted (failover), and writes the primary hadn't shipped yet can be lost with async replication.
-- suggest: capability: `kill_primary(id)` on SQL blocks: writes fail (or wait) for a failover time, reads keep going to replicas. Until then, lesson change: say in the twist that the sim drops reads too, and ask what really happens.
+## any lesson: deterministic failures are counted as random ones
+- twist: any outage that fails one kind of request every time (kill_primary fails every write; kill_node behind a cache fails every miss and write)
+- sim does: each block's failures become one fail share spread over all requests, and client retries are treated as independent tries (fails for good with p^retries). A 100% write outage at 5% writes shows as ~0.3% errors after 3 retries.
+- real system: a retry of a write to a dead primary fails again; users see every write fail (5% of requests in p99-fix growth). kill_node on the p99-fix growth design shows 3.5% where writes + cache misses are ~14%.
+- suggest: capability: track pathFail separately for reads and writes (handlers report dropped by type; SQL already knows primary vs replica drops), and only count a retry as independent for overload drops, not for dead targets.

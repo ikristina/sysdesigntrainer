@@ -5,7 +5,8 @@ import type { ParamValue } from '../blocks/types'
 export type Flow = { read: number; write: number }
 
 /** One block as the simulator sees it. */
-export type SimNode = { id: string; type: string; params: Record<string, ParamValue>; killed: boolean }
+// primaryDown: an SQL DB's primary is dead (writes fail; read replicas keep serving reads).
+export type SimNode = { id: string; type: string; params: Record<string, ParamValue>; killed: boolean; primaryDown?: boolean }
 
 /** Handler-private numbers that carry over between ticks (queue depth, lag, ...). */
 export type NodeState = Record<string, number>

@@ -157,8 +157,18 @@ async def restore_replica(id: str, count: int = 1) -> str:
 
 
 @mcp.tool()
+async def kill_primary(id: str) -> str:
+    """Kill an SQL DB's primary: writes fail, reads keep going to its read replicas (none = reads fail too).
+    No automatic failover: restore_node stands for a replica being promoted."""
+    if "read_replicas" not in link.node(id)["params"]:  # single-primary SQL: SQL DB, Postgres, MySQL
+        raise ToolError(f"{id} is not a single-primary SQL DB")
+    await link.send("kill_primary", id=id)
+    return f"{id} primary down"
+
+
+@mcp.tool()
 async def restore_node(id: str) -> str:
-    """Undo kill_node, kill_replica or partition_region for this node."""
+    """Undo kill_node, kill_replica, kill_primary or partition_region for this node."""
     link.node(id)
     await link.send("restore_node", id=id)
     return f"{id} restored"

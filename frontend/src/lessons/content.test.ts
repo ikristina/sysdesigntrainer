@@ -179,8 +179,19 @@ describe('lessons match the simulator', () => {
 
     const growth = variant('p99-fix', 'growth')
     expect(passes(withPool(start, { db: { pool_size: 40 } }), growth)).toBe(false)
-    expect(passes(chain(n('c', 'client'), n('lb', 'load_balancer'), n('api', 'service', { replicas: 19 }),
-      n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'sql_db', { pool_size: 40 })), growth)).toBe(true)
+    const grown = (r: number) => chain(n('c', 'client'), n('lb', 'load_balancer'), n('api', 'service', { replicas: 19 }),
+      n('k', 'cache', { hit_ratio: 0.9 }), n('db', 'sql_db', { pool_size: 40, read_replicas: r }))
+    expect(passes(grown(0), growth)).toBe(true)
+    // Twist: primary down. No replicas: every miss and write fails. One replica: only the 600 writes/s, but $3.08 > $3.
+    const primaryGone = (r: number) => {
+      let s = initialSim()
+      const full = withDefaults(grown(r)), t = simTraffic(growth.traffic)
+      for (let i = 0; i < 100; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed: [], primaryDown: ['db'] })
+      return s
+    }
+    expect(primaryGone(0).metrics.db.dropped / primaryGone(0).metrics.db.lambda).toBeCloseTo(1)
+    expect(primaryGone(1).metrics.db.dropped).toBeCloseTo(630, -1) // 600 writes/s + the client's retries of them
+    expect(passes(grown(1), growth)).toBe(false) // over budget
   })
 
   it('rate-limiter scraper: the starter collapses; a 5k limit passes; too tight, too loose and scaling fail', () => {

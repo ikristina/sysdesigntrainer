@@ -25,6 +25,7 @@ type Sim = {
   killed: string[]
   partitioned: string[] // regions whose border is cut
   down: Record<string, number> // dead replicas per block (the rest keep serving)
+  primaryDown: string[] // SQL blocks whose primary is dead
   highlight: { ids: string[]; message: string } // drawn on the canvas (Claude, explainers)
   sim: SimState
   history: number[] // p99 per tick, last 60 s
@@ -37,7 +38,7 @@ type Sim = {
   setHotKey: (h: number) => void
   setTraffic: (t: Partial<Pick<Sim, 'rps' | 'readRatio' | 'hotKey' | 'payloadKb' | 'followers' | 'following'>>) => void
   spike: (multiplier?: number, seconds?: number) => void
-  setFlag: (list: 'killed' | 'partitioned', id: string, on: boolean) => void
+  setFlag: (list: 'killed' | 'partitioned' | 'primaryDown', id: string, on: boolean) => void
   killReplicas: (id: string, n: number) => void // n < 0 restores; clamped to 0..replicas
   setHighlight: (ids: string[], message?: string) => void
 }
@@ -54,6 +55,7 @@ export const useSim = create<Sim>((set, get) => ({
   killed: [],
   partitioned: [],
   down: {},
+  primaryDown: [],
   highlight: { ids: [], message: '' },
   sim: initialSim(),
   history: [],
@@ -74,7 +76,7 @@ export const useSim = create<Sim>((set, get) => ({
     const { nodes, edges } = useDesign.getState()
     const multiplier = s.sim.t < s.spikeUntil ? s.spikeMultiplier : 1
     const traffic = { rps: s.rps, readRatio: s.readRatio, multiplier, hotKey: s.hotKey, payloadKb: s.payloadKb, followers: s.followers, following: s.following }
-    const sim = step(toDesign(nodes, edges), s.sim, { traffic, killed: s.killed, partitioned: s.partitioned, down: s.down }, TICK_S)
+    const sim = step(toDesign(nodes, edges), s.sim, { traffic, killed: s.killed, partitioned: s.partitioned, down: s.down, primaryDown: s.primaryDown }, TICK_S)
     return { sim, history: [...s.history, sim.global.p99Ms].slice(-HISTORY_TICKS) }
   }),
 

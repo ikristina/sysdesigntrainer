@@ -51,6 +51,8 @@ def test_mirror_and_commands(client):
             call(client, "kill_node", {"id": "nope"})
         with pytest.raises(ToolError, match="not a region"):
             call(client, "partition_region", {"id": "svc"})
+        with pytest.raises(ToolError, match="not a single-primary SQL DB"):
+            call(client, "kill_primary", {"id": "svc"})
         with pytest.raises(ToolError, match="no replicas"):
             call(client, "kill_replica", {"id": "r1"})
         with pytest.raises(ToolError, match="rps"):

@@ -28,7 +28,7 @@ function enter(mode: Mode) {
   const sim = useSim.getState()
   sim.pause()
   sim.reset()
-  useSim.setState({ killed: [], partitioned: [], down: {}, highlight: { ids: [], message: '' } })
+  useSim.setState({ killed: [], partitioned: [], down: {}, primaryDown: [], highlight: { ids: [], message: '' } })
   stopExplainer()
   stopLesson()
   stopCompare()

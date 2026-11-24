@@ -125,6 +125,15 @@ describe('simulator', () => {
     expect(go(4).global.errorPct).toBeCloseTo(100)
   })
 
+  it('SQL primary down: writes fail, read replicas keep serving reads', () => {
+    const d = (r: number) => design([node('c', 'client', { retries: 0 }), node('db', 'sql_db', { read_replicas: r })], [['c', 'db']])
+    const go = (r: number) => { let s = initialSim(); for (let i = 0; i < 20; i++) s = step(d(r), s, { traffic: { rps: 1000, readRatio: 0.9, multiplier: 1 }, killed: [], primaryDown: ['db'] }); return s }
+    expect(go(2).metrics.db.dropped).toBeCloseTo(100) // the writes
+    expect(go(2).global.errorPct).toBeCloseTo(10)
+    expect(go(2).metrics.db.note).toBe('primary down')
+    expect(go(0).global.errorPct).toBeCloseTo(100) // no replicas: same as killing it
+  })
+
   it('a killed node fails everything sent to it', () => {
     const s = run(simple({}, { retries: 0 }), { killed: ['s'] })
     expect(s.global.errorPct).toBeCloseTo(100)

@@ -105,7 +105,7 @@ Tick-based, 10 ticks/s sim time. Per node per tick:
 Behaviors:
 - Load balancer / gateway: split evenly across downstream. Gateway drops above its rate limit.
 - Cache: reads → `h·λ` served locally, `(1-h)·λ` forwarded. Writes pass through (write-through) or invalidate (param).
-- SQL DB: writes → primary only, reads → spread across replicas. Replication lag grows with primary ρ and write rate. Connection pool caps concurrent requests.
+- SQL DB: writes → primary only, reads → spread across replicas. Replication lag grows with primary ρ and write rate. Connection pool caps concurrent requests. Primary down: writes fail, reads go to the read replicas only; no automatic failover (restore stands for a promotion).
 - Queue/stream: accepts up to its ingest limit, depth grows if consumers < producers, consumers drain at their μ. Producer latency stays low (this is the lesson).
 - Cross-region edges add fixed latency (e.g. 70 ms).
 - Killed node: μ = 0. Dead replicas: μ = (replicas − down) × capacity_rps; all down = killed. Partitioned region: edges across it drop.
@@ -195,7 +195,7 @@ Works for any two saved designs too, not just presets.
 - `get_lesson()` → current lesson, variant, step, user's estimation notes
 - `set_requirements(variant_id | custom)` → swap requirements live
 - `set_traffic(rps, read_ratio, ...)`, `spike(multiplier, seconds)`
-- `kill_node(id)`, `kill_replica(id, count)`, `restore_replica(id, count)`, `restore_node(id)`, `partition_region(id)`
+- `kill_node(id)`, `kill_replica(id, count)`, `restore_replica(id, count)`, `kill_primary(id)` (single-primary SQL), `restore_node(id)`, `partition_region(id)`
 - `highlight(node_ids, message)` → draws attention on canvas
 - `advance_step()`, `give_hint(level)`
 - `get_quiz()` → the 🧠 Quiz question on screen (answer only after the user picks) and the user's recent wrong answers

@@ -44,8 +44,10 @@ const commands: Record<string, (a: Args) => void> = {
   restore_node: (a) => {
     sim().setFlag('killed', a.id as string, false)
     sim().killReplicas(a.id as string, -Infinity)
+    sim().setFlag('primaryDown', a.id as string, false)
     sim().setFlag('partitioned', a.id as string, false)
   },
+  kill_primary: (a) => sim().setFlag('primaryDown', a.id as string, true),
   partition_region: (a) => sim().setFlag('partitioned', a.id as string, true),
   highlight: (a) => sim().setHighlight(a.node_ids as string[], a.message as string),
   // Lesson tools. The backend has already checked a lesson is open and the arguments are valid.
@@ -129,7 +131,7 @@ function snapshot() {
     ...JSON.parse(JSON.stringify({
       running: s.running, t: s.sim.t,
       traffic: { rps: s.rps, readRatio: s.readRatio, hotKey: s.hotKey, payloadKb: s.payloadKb, followers: s.followers, following: s.following, spike: s.sim.t < s.spikeUntil ? s.spikeMultiplier : null },
-      killed: s.killed, replicasDown: s.down, partitioned: s.partitioned, cutEdges: s.sim.cut,
+      killed: s.killed, replicasDown: s.down, primaryDown: s.primaryDown, partitioned: s.partitioned, cutEdges: s.sim.cut,
       global: s.sim.global, nodes: metrics, compare: compareState(),
     }, round)),
   }
