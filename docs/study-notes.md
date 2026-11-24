@@ -326,3 +326,112 @@ Corrections I made along the way:
 - "fix incorrect info always": before that, the agent offered corrections as optional follow-ups.
 
 The agent's choices: how the tools are scoped (the SPEC listed them), the "Claude can't edit your design" boundary, the 1 s snapshot rate, and the security checks.
+
+## Unique ID generator (Snowflake IDs)
+lesson:
+category: Design topics
+
+The problem: many servers create IDs at once, with no central counter. You want IDs that are unique,
+fit in 64 bits, and roughly sort by creation time (good for indexes and "newest first").
+
+Twitter's Snowflake (2010) packs a 64-bit integer:
+
+| Bits | Holds | Why |
+|---|---|---|
+| 1 | sign bit, always 0 | Keeps the number positive |
+| 41 | milliseconds since a custom epoch | ~69 years of IDs; sorting by ID ≈ sorting by time |
+| 10 | machine id (Twitter split it 5 datacenter + 5 worker) | Up to 1,024 generators, no coordination |
+| 12 | sequence within the same millisecond | 4,096 IDs per ms per machine |
+
+- Each machine needs a unique machine id, handed out once (config, or a coordination service like ZooKeeper).
+- **Clock going backwards** (NTP adjustment) could repeat IDs: the generator refuses or waits until its clock passes the last timestamp it used.
+- IDs sort by time only roughly: two machines' clocks differ by a few ms.
+
+Alternatives:
+
+| Option | Good | Bad |
+|---|---|---|
+| UUID v4 (128 bits, random) | No coordination at all | Not sortable; random inserts scatter across a B-tree index |
+| UUID v7 (RFC 9562, 2024) | Starts with a ms timestamp, so sortable; no machine ids | 128 bits, twice the size |
+| Database auto-increment | Simple, strictly ordered | One database is a bottleneck and single point of failure |
+| Ticket servers (Flickr) | Two DBs, one hands out odd IDs, the other even | Still a central service; order is only rough across the two |
+
+## Collaborative editing (Google Docs): OT vs CRDT
+lesson:
+category: Design topics
+
+The hard part isn't storage, it's two people typing in the same place at the same time. Both
+edits arrive "at position 5", but after the first one is applied, position 5 means something else.
+
+**Operational transformation (OT).** A server orders every edit for a document. When an edit was
+made against an older version, the server **transforms** it (shifts its position) past the edits
+it missed, then applies and broadcasts it. Google Docs uses OT. It works best with one central
+server per document, which is why each open document is handled by one server at a time.
+
+**CRDT (conflict-free replicated data type).** Every character gets a unique, ordered id instead of a
+position. Edits refer to ids, and merging is designed so applying them in any order gives the same
+result. No central ordering needed, so it suits offline and peer-to-peer editing. Libraries: e.g.
+Yjs, Automerge. The cost: extra metadata per character, and deleted characters linger as
+"tombstones" until cleaned up.
+
+| | OT | CRDT |
+|---|---|---|
+| Needs a central server to order edits | Yes, in practice | No |
+| Offline editing, merge later | Hard | Natural |
+| Overhead | Small operations | Ids and tombstones per character |
+
+The rest of the design:
+- Clients keep a WebSocket to the document's server; edits and cursor positions flow over it.
+- Store an **operation log** plus periodic **snapshots**: load = latest snapshot + the operations after it. The log also gives version history.
+- Cursors and "who's here" (presence) are ephemeral: keep them in memory, never in the database.
+
+## Stock exchange: the matching engine
+lesson:
+category: Design topics
+
+The core is an **order book** per stock: resting buy orders sorted high to low, sell orders sorted
+low to high. A new order that crosses the best price on the other side trades; the rest waits in
+the book.
+
+**Price-time priority:** the best price trades first; at the same price, the order that arrived
+first trades first. That's why order of arrival must be exact and the same everywhere.
+
+How exchanges get speed and correctness at the same time:
+- **One thread per symbol (or group of symbols), all in memory.** No locks and no database on the hot path. LMAX, a retail exchange, reported about 6 million orders per second on a single thread with this approach (Martin Fowler, "The LMAX Architecture", 2011).
+- **A sequencer** stamps every incoming order with a sequence number before matching, so the order is fixed and nothing races.
+- **Event log (journal):** every input is written to a durable log. The engine is deterministic, so replaying the log rebuilds the exact book after a crash. A hot standby replays the same log live and can take over.
+- **Risk checks** (enough money, position limits) happen before an order reaches the engine.
+- **Market data** (trades, book updates) fans out to many subscribers; inside the data centre this is often UDP multicast.
+
+Common trap: putting the order book in a database with row locks. The exact ordering and
+microsecond latency come from the single-threaded in-memory engine plus the log, not from the database.
+
+## Proximity search (Yelp): geohash and quadtree
+lesson: driver-locations
+category: Design topics
+
+"Find restaurants within 1 km" can't use a normal index: latitude and longitude are two separate
+numbers, and an index on each still scans a whole strip of the map. The fix is to turn 2D positions
+into cells you can look up.
+
+**Geohash:** interleave the bits of latitude and longitude and write them in base32. Points that
+share a longer prefix are usually close together. Cell size by length:
+
+| Geohash length | Cell size (roughly, at the equator) |
+|---|---|
+| 5 | 4.9 km × 4.9 km |
+| 6 | 1.2 km × 0.6 km |
+| 7 | 153 m × 153 m |
+
+- To search a radius: pick the length whose cell covers it, take the user's cell **plus its 8 neighbours** (a place across a cell border can have a different prefix), then filter by real distance.
+- Easy to store: a plain indexed string column, or Redis GEO commands (they store a geohash as the sorted-set score).
+
+**Quadtree:** split the map into 4 squares, and keep splitting any square with too many places
+(e.g. more than 100). Dense cities get small cells, empty areas stay big. Usually built in memory
+and rebuilt periodically.
+
+Other options: Google S2 (cells along a space-filling curve) and Uber H3 (hexagons).
+
+**Businesses vs drivers:**
+- Businesses rarely move, so precompute the index and cache search results hard.
+- Drivers move every few seconds, so their positions live in memory and get overwritten (see the driver locations lesson).
