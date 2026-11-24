@@ -1,6 +1,6 @@
 // Compare mode UI (docs/mockups/Compare): two live canvases (A above B), overlaid charts under
 // them, the A/B table on the right, and scenario controls in the header.
-import { Background, BackgroundVariant, ReactFlow, ReactFlowProvider } from '@xyflow/react'
+import { Background, BackgroundVariant, ConnectionMode, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore, type StoreApi } from 'zustand'
 import { edgeTypes, nodeTypes } from '../canvas/nodeTypes'
@@ -139,7 +139,7 @@ function MiniCanvas({ i }: { i: number }) {
         {/* Its own provider: each canvas is a separate React Flow instance. key: refit when the design is replaced. */}
         <ReactFlowProvider key={label}>
           <ReactFlow nodes={flow.nodes} edges={flow.edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes}
-            fitView fitViewOptions={{ padding: '10%' }} nodesDraggable={false} nodesConnectable={false}
+            connectionMode={ConnectionMode.Loose /* blocks only have source handles; Strict wouldn't find edge ends */} fitView fitViewOptions={{ padding: '10%' }} nodesDraggable={false} nodesConnectable={false}
             elementsSelectable={false} deleteKeyCode={null} minZoom={0.1}>
             <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="var(--line-faint)" />
           </ReactFlow>

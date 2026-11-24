@@ -2,7 +2,7 @@
 // we feed it nodes/edges from the store and handle drops from the palette.
 // readOnly (explainers): no dragging, connecting, selecting, deleting or dropping.
 import {
-  Background, BackgroundVariant, Controls, ReactFlow, useReactFlow, type XYPosition,
+  Background, BackgroundVariant, ConnectionMode, Controls, ReactFlow, useReactFlow, type XYPosition,
 } from '@xyflow/react'
 import { useCallback, useState, type DragEvent } from 'react'
 import { isContainer, type FlowNode } from '../design'
@@ -20,6 +20,7 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
   const onNodesChange = useDesign((s) => s.onNodesChange)
   const onEdgesChange = useDesign((s) => s.onEdgesChange)
   const onConnect = useDesign((s) => s.onConnect)
+  const onReconnect = useDesign((s) => s.onReconnect)
   const addBlock = useDesign((s) => s.addBlock)
   // Zoom to fit only if the page opened with an autosaved design, not when you drop the first block.
   const [fitOnOpen] = useState(() => nodes.length > 0)
@@ -78,6 +79,8 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
+      connectionMode={ConnectionMode.Loose} // every handle is a "source" (BlockNode); Loose lets them end edges too
+      onReconnect={readOnly ? undefined : onReconnect}
       onDrop={readOnly ? undefined : onDrop}
       onDragOver={readOnly ? undefined : onDragOver}
       onNodeDragStop={onNodeDragStop}

@@ -99,6 +99,12 @@ body { margin: 0; background: var(--paper); }
 /* React Flow draws its own box around custom nodes by default; we draw ours with rough.js. */
 .react-flow__node-block, .react-flow__node-container { background: none; border: none; padding: 0; }
 .react-flow__handle { width: 9px; height: 9px; background: var(--panel); border: 2px solid var(--ink); }
+/* Connection dots show only on a hovered or selected block (never on read-only canvases). Hidden with
+   opacity, not display: none, so React Flow can still measure them (edge ends are placed on them). */
+.react-flow__node-block .react-flow__handle { opacity: 0; transition: opacity .15s; }
+.react-flow__node-block:hover .react-flow__handle.connectable, .react-flow__node-block.selected .react-flow__handle.connectable,
+.react-flow__handle.connectingfrom { opacity: 1; }
+.react-flow__handle.connectable:hover, .react-flow__handle.connectingto { background: var(--violet); }
 
 /* Live sim state on blocks. */
 .util { position: absolute; left: 14px; right: 14px; bottom: 7px; height: 4px; background: var(--line-faint); border-radius: 2px; overflow: hidden; }

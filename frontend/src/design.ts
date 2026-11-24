@@ -1,7 +1,7 @@
 // Saved-design format and conversion to/from React Flow's node/edge objects.
 // The saved format is ours, not React Flow's: lessons, explainers and MCP will read it,
 // so it must not change when the library's internals do.
-import type { Edge, Node } from '@xyflow/react'
+import type { Connection, Edge, Node } from '@xyflow/react'
 import { defaultParams, registry } from './blocks'
 import type { ParamValue } from './blocks/types'
 
@@ -23,7 +23,12 @@ export type EdgeRoute = {
   fanout?: 'write' | 'read'   // each write is sent `followers` times / each read fetches `following` times
   sequential?: boolean        // with fanout: the N calls run one after another (latency × N), e.g. an agent's LLM loop
 }
-export type SavedEdge = { id: string; source: string; target: string } & EdgeRoute
+/** Which side of a block an edge leaves (`sourceHandle`) or enters (`targetHandle`). Absent = 'r' / 'l'. */
+export type Side = 't' | 'r' | 'b' | 'l'
+export const SIDES: Side[] = ['t', 'r', 'b', 'l']
+export const DEFAULT_OUT: Side = 'r'
+export const DEFAULT_IN: Side = 'l'
+export type SavedEdge = { id: string; source: string; target: string; sourceHandle?: Side; targetHandle?: Side } & EdgeRoute
 export type Design = {
   version: 1
   nodes: SavedNode[]
@@ -46,7 +51,13 @@ export function toDesign(nodes: FlowNode[], edges: Edge[]): Design {
       }
       return s
     }),
-    edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, ...routeOf(e.data as EdgeRoute) })),
+    edges: edges.map((e) => ({
+      id: e.id, source: e.source, target: e.target,
+      // Default sides are left out, so designs drawn before handles existed save exactly as before.
+      ...(e.sourceHandle && e.sourceHandle !== DEFAULT_OUT && { sourceHandle: e.sourceHandle as Side }),
+      ...(e.targetHandle && e.targetHandle !== DEFAULT_IN && { targetHandle: e.targetHandle as Side }),
+      ...routeOf(e.data as EdgeRoute),
+    })),
   }
 }
 
@@ -77,13 +88,24 @@ export function fromDesign(input: unknown): { nodes: FlowNode[]; edges: Edge[] }
     if (!ids.has(e.source) || !ids.has(e.target)) throw new Error(`Edge ${e.id} points at a missing node`)
     if (e.carries && !['read', 'write'].includes(e.carries)) throw new Error(`Edge ${e.id}: carries must be "read" or "write"`)
     if (e.fanout && !['read', 'write'].includes(e.fanout)) throw new Error(`Edge ${e.id}: fanout must be "read" or "write"`)
+    for (const h of [e.sourceHandle, e.targetHandle]) {
+      if (h !== undefined && !SIDES.includes(h)) throw new Error(`Edge ${e.id}: handle must be one of ${SIDES.join(', ')}`)
+    }
     if (e.sequential !== undefined && typeof e.sequential !== 'boolean') throw new Error(`Edge ${e.id}: sequential must be true or false`)
   }
   return {
     nodes: d.nodes.map(makeNode),
-    edges: d.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: 'rough', data: routeOf(e) })),
+    edges: d.edges.map((e) => ({
+      id: e.id, source: e.source, target: e.target, type: 'rough', data: routeOf(e),
+      sourceHandle: e.sourceHandle ?? DEFAULT_OUT, targetHandle: e.targetHandle ?? DEFAULT_IN,
+    })),
   }
 }
+
+/** Can this connection be added (or an existing edge, `movingId`, be moved to it)? No self-loops and
+ * at most one edge per direction between two blocks: the sim would count a parallel edge twice. */
+export const canLink = (edges: Edge[], c: Connection, movingId?: string) =>
+  c.source !== c.target && !edges.some((e) => e.id !== movingId && e.source === c.source && e.target === c.target)
 
 // Where the sandbox autosaves. Each lesson saves under its own key (see lessons/lessonStore.ts).
 export const SANDBOX_KEY = 'sysdesign.design'

@@ -5,7 +5,7 @@
 // turns coral, line and dots, and coral dots fall off its end.
 // An edge cut by a partitioned region gets a red ✕ in the middle. A routed edge shows a tag:
 // 'reads' / 'writes' if it carries only one kind, '× followers' / '× following' if it fans out.
-import { BaseEdge, getBezierPath, useNodesData, type EdgeProps } from '@xyflow/react'
+import { BaseEdge, getBezierPath, Position, useNodesData, type EdgeProps } from '@xyflow/react'
 import { useMemo } from 'react'
 import { registry, toneOf } from '../blocks'
 import type { FlowNode } from '../design'
@@ -14,9 +14,15 @@ import type { EdgeRoute } from '../design'
 import { roughLine, roughPath, seedOf } from './rough'
 import { RoughPaths } from './RoughPaths'
 
+// Unit vector pointing out of the target block from the side the edge enters.
+const OUT: Record<Position, [number, number]> = {
+  [Position.Left]: [-1, 0], [Position.Right]: [1, 0], [Position.Top]: [0, -1], [Position.Bottom]: [0, 1],
+}
+
 export function RoughEdge(p: EdgeProps) {
   const [d, midX, midY] = getBezierPath(p)
   const { id, target, targetX: x, targetY: y } = p
+  const [dx, dy] = OUT[p.targetPosition]
   const rps = useSimView((s) => s.sim.edges[id] ?? 0)
   const running = useSimView((s) => s.running)
   const m = useSimView((s) => s.sim.metrics[target])
@@ -28,9 +34,10 @@ export function RoughEdge(p: EdgeProps) {
   const stroke = p.selected ? 'var(--violet)' : failing ? 'var(--coral)' : 'var(--ink)'
   const drawn = useMemo(() => {
     const o = { seed: seedOf(id), roughness: 1, strokeWidth: 2, stroke }
-    // Targets are always on a block's left side, so the arrow always points right.
-    return [roughPath(d, o), roughLine(x - 10, y - 6, x, y, o), roughLine(x - 10, y + 6, x, y, o)]
-  }, [id, d, x, y, stroke])
+    // Arrowhead at the target, pointing into the block from whichever side the edge enters.
+    const bx = x + dx * 10, by = y + dy * 10
+    return [roughPath(d, o), roughLine(bx - dy * 6, by + dx * 6, x, y, o), roughLine(bx + dy * 6, by - dx * 6, x, y, o)]
+  }, [id, d, x, y, dx, dy, stroke])
 
   const r = (p.data ?? {}) as EdgeRoute
   const fanTag = (r.fanout === 'write' ? 'writes × followers' : r.fanout === 'read' ? 'reads × following' : '') + (r.fanout && r.sequential ? ', in turn' : '')
@@ -48,7 +55,7 @@ export function RoughEdge(p: EdgeProps) {
           style={{ stroke: failing ? 'var(--coral)' : tone ? `var(--flow-${tone})` : 'var(--ink-muted)', strokeDasharray: `2 ${gap}`, animationDuration: `${dur}s` }} />
       )}
       {failing && running && [0, 0.4, 0.8].map((delay) => (
-        <circle key={delay} cx={x - 16} cy={y} r={3} className="edge-drop" style={{ animationDelay: `${delay}s` }} />
+        <circle key={delay} cx={x + dx * 16} cy={y + dy * 16} r={3} className="edge-drop" style={{ animationDelay: `${delay}s` }} />
       ))}
       {isCut && <text x={midX} y={midY} className="edge-cut">✕</text>}
       {tag && <text x={midX} y={midY - 10} textAnchor="middle" className="edge-tag">{tag}</text>}

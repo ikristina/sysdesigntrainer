@@ -217,7 +217,13 @@ backend/
 `onNodeDragStop` checks which container the block's center is over. If that differs from the current parent, React Flow's `changeParent` re-parents it and recalculates the relative position, so the block stays where you dropped it.
 
 **...connect two blocks**
-Drag from the right dot (source handle) of one block to the left dot (target handle) of another. React Flow calls `onConnect` and the store adds an edge of type `rough`, which `RoughEdge` draws.
+Hover a block and four dots (handles) appear, one per side, with ids `t` / `r` / `b` / `l`. Drag from any dot of one block to any dot of another. The edge runs from the block you started on to the block you dropped on, so that's the request direction the sim uses. React Flow calls `onConnect` with `{ source, sourceHandle, target, targetHandle }` and the store adds an edge of type `rough`, which `RoughEdge` draws, with the arrowhead pointing into whichever side it enters.
+- How "any dot can start or end an edge" works: every `<Handle>` in `BlockNode` is `type="source"`, and both `<ReactFlow>`s (main canvas, compare canvases) set `connectionMode={ConnectionMode.Loose}`. In the default Strict mode a connection must go source → target handle, and edges are only looked up on target handles. Loose lets a source handle end an edge too. React Flow builds the connection as "source = node you dragged from", so direction always follows the drag. (We don't use `type="target"` handles: in Loose mode, dragging *from* one makes the dragged-from block the target, which would flip direction.)
+- The dots are hidden with `opacity: 0` until you hover or select the block (`index.css`). React Flow's docs say not to use `display: none`: it measures the handles to place edge ends.
+- `canLink` in `design.ts` (pure, tested) refuses a self-loop and a second edge in the same direction between the same two blocks. With one dot per block that couldn't happen; with four it could, and the sim would count the parallel edge twice. A refused drop just does nothing.
+
+**...move an existing edge (reconnect)**
+Drag either end of an edge (grab it just outside the block, or click the edge first: a selected edge is drawn above blocks, so its ends are easy to grab) onto another dot, on the same block or a different one. `<ReactFlow onReconnect>` calls `store.onReconnect(oldEdge, connection)`, which uses React Flow's `reconnectEdge` to swap the ends. The edge keeps its `data` (carries, fan-out), and its direction: moving the target end keeps the same source, moving the source end keeps the same target. `reconnectEdge` gives the edge a new id built from its new ends (default `shouldReplaceId: true`), so a later new edge can't collide with the old id; nothing keeps per-edge state across ticks, so the id change is harmless. Read-only canvases (explainers, compare) don't pass `onReconnect`, so their edges can't be moved. React Flow APIs: `Handle` with `id` (reactflow.dev/api-reference/components/handle), `ConnectionMode.Loose` (reactflow.dev/api-reference/types/connection-mode), `onReconnect` / `edgesReconnectable` (default `true`) / `reconnectRadius` (default 10 px) (reactflow.dev/api-reference/react-flow), `reconnectEdge` (reactflow.dev/api-reference/utils/reconnect-edge).
 
 **...select a block and edit a param**
 1. Clicking a node makes React Flow send a "select" change, so that node gets `selected: true`.
@@ -292,6 +298,7 @@ This is our own format, not React Flow's internal one. Lessons, explainers and t
 - `type` is a registry key (`blocks/<type>.ts`).
 - `position` is relative to `parentId` when one is set.
 - `size` appears only on regions and AZs.
+- An edge may say which side it leaves and enters: `"sourceHandle"` / `"targetHandle"`, each `"t" | "r" | "b" | "l"`. Left out means `"r"` (leaves on the right) and `"l"` (enters on the left), which is how every edge looked before blocks had four dots, so old saves, lesson `starter_graph`s and explainer graphs load unchanged. `toDesign` leaves the defaults out again. The sim ignores both fields.
 - An edge may carry `"carries": "read" | "write"` (only that kind of request takes it) and `"fanout": "write" | "read"` (each request becomes N calls, see section 7). Both are left out when not set. In the store they live in the React Flow edge's `data`.
 - On load, params missing from the file are filled from the registry defaults, so old saves keep working when a block gains a param.
 
@@ -459,7 +466,7 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - **Re-render:** React calling a component again and updating the page with the difference.
 - **Hook:** a `useX` function that gives a component state or effects.
 - **Node / edge:** a box / a connection on the React Flow canvas.
-- **Handle:** a connection dot on a node.
+- **Handle:** a connection dot on a node. Blocks have four (`t`, `r`, `b`, `l`), shown on hover.
 - **Parent / child node:** a child (`parentId`) moves with its parent and is positioned relative to it.
 - **Flow coordinates vs screen coordinates:** canvas space (which pans and zooms) vs pixels on your monitor.
 - **Bundle / build:** Vite's output, a few static `.js`/`.css` files plus `index.html`.

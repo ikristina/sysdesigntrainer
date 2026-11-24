@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fromDesign, toDesign, type Design } from './design'
+import { canLink, fromDesign, toDesign, type Design } from './design'
 
 const design: Design = {
   version: 1,
@@ -28,6 +28,22 @@ describe('save/load', () => {
     const routed = { ...design, edges: [{ id: 'e1', source: 'api', target: 'db', carries: 'write', fanout: 'write' }] }
     expect(trip(routed).edges).toEqual(routed.edges)
     expect(() => fromDesign({ ...design, edges: [{ ...design.edges[0], carries: 'both' }] })).toThrow(/carries/)
+  })
+
+  it('keeps which side an edge leaves and enters; old edges get right -> left', () => {
+    const sided = { ...design, edges: [{ id: 'e1', source: 'api', target: 'db', sourceHandle: 'b', targetHandle: 't' }] }
+    expect(trip(sided).edges).toEqual(sided.edges)
+    expect(fromDesign(design).edges[0]).toMatchObject({ sourceHandle: 'r', targetHandle: 'l' })
+    expect(() => fromDesign({ ...design, edges: [{ ...design.edges[0], targetHandle: 'middle' }] })).toThrow(/handle/)
+  })
+
+  it('canLink: no self-loops, one edge per direction between two blocks', () => {
+    const { edges } = fromDesign(design)
+    const c = (source: string, target: string) => ({ source, target, sourceHandle: 't', targetHandle: 'b' })
+    expect(canLink(edges, c('db', 'api'))).toBe(true)
+    expect(canLink(edges, c('api', 'api'))).toBe(false)
+    expect(canLink(edges, c('api', 'db'))).toBe(false) // parallel edge
+    expect(canLink(edges, c('api', 'db'), 'e1')).toBe(true) // moving e1 to other sides of the same blocks
   })
 
   it('survives JSON serialization (what export/import and localStorage do)', () => {

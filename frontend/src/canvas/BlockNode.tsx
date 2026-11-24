@@ -5,7 +5,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { useMemo } from 'react'
 import { hasPresets, registry, toneOf } from '../blocks'
-import type { FlowNode } from '../design'
+import { SIDES, type FlowNode } from '../design'
 import { fmtPct, healthColor, healthOf } from '../display'
 import { isDown, useSimView } from '../simStore'
 import { Gauge } from './Gauge'
@@ -16,6 +16,7 @@ import { RoughPaths } from './RoughPaths'
 
 export const BLOCK_W = 150
 export const BLOCK_H = 72
+const SIDE_POS = { t: Position.Top, r: Position.Right, b: Position.Bottom, l: Position.Left }
 
 export function BlockNode({ id, data }: NodeProps<FlowNode>) {
   const def = registry[data.blockType]
@@ -81,9 +82,9 @@ export function BlockNode({ id, data }: NodeProps<FlowNode>) {
           {Array.from({ length: boxes }, (_, i) => <span key={i} />)}
         </div>
       )}
-      {/* Connection points: drag from the right dot of one block to the left dot of another. */}
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      {/* A connection point on each side. All are type "source" and the canvas uses ConnectionMode.Loose,
+          so any dot can start or end an edge: it runs from where you start dragging to where you drop. */}
+      {SIDES.map((s) => <Handle key={s} id={s} type="source" position={SIDE_POS[s]} />)}
     </div>
   )
 }
