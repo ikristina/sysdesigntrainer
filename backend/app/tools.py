@@ -135,8 +135,30 @@ async def kill_node(id: str) -> str:
 
 
 @mcp.tool()
+async def kill_replica(id: str, count: int = 1) -> str:
+    """Take `count` replicas of a block down; the rest keep serving (μ = live replicas × capacity_rps).
+    Losing all of them is the same as kill_node. Only for blocks with a `replicas` param."""
+    if "replicas" not in link.node(id)["params"]:
+        raise ToolError(f"{id} has no replicas param")
+    if count < 1:
+        raise ToolError("count must be at least 1")
+    await link.send("kill_replica", id=id, count=count)
+    return f"{count} replica(s) of {id} down"
+
+
+@mcp.tool()
+async def restore_replica(id: str, count: int = 1) -> str:
+    """Bring `count` dead replicas of a block back (see kill_replica)."""
+    link.node(id)
+    if count < 1:
+        raise ToolError("count must be at least 1")
+    await link.send("restore_replica", id=id, count=count)
+    return f"{count} replica(s) of {id} restored"
+
+
+@mcp.tool()
 async def restore_node(id: str) -> str:
-    """Undo kill_node or partition_region for this node."""
+    """Undo kill_node, kill_replica or partition_region for this node."""
     link.node(id)
     await link.send("restore_node", id=id)
     return f"{id} restored"

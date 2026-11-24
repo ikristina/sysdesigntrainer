@@ -24,6 +24,7 @@ type Sim = {
   spikeMultiplier: number
   killed: string[]
   partitioned: string[] // regions whose border is cut
+  down: Record<string, number> // dead replicas per block (the rest keep serving)
   highlight: { ids: string[]; message: string } // drawn on the canvas (Claude, explainers)
   sim: SimState
   history: number[] // p99 per tick, last 60 s
@@ -37,6 +38,7 @@ type Sim = {
   setTraffic: (t: Partial<Pick<Sim, 'rps' | 'readRatio' | 'hotKey' | 'payloadKb' | 'followers' | 'following'>>) => void
   spike: (multiplier?: number, seconds?: number) => void
   setFlag: (list: 'killed' | 'partitioned', id: string, on: boolean) => void
+  killReplicas: (id: string, n: number) => void // n < 0 restores; clamped to 0..replicas
   setHighlight: (ids: string[], message?: string) => void
 }
 
@@ -51,6 +53,7 @@ export const useSim = create<Sim>((set, get) => ({
   spikeMultiplier: SPIKE.multiplier,
   killed: [],
   partitioned: [],
+  down: {},
   highlight: { ids: [], message: '' },
   sim: initialSim(),
   history: [],
@@ -71,7 +74,7 @@ export const useSim = create<Sim>((set, get) => ({
     const { nodes, edges } = useDesign.getState()
     const multiplier = s.sim.t < s.spikeUntil ? s.spikeMultiplier : 1
     const traffic = { rps: s.rps, readRatio: s.readRatio, multiplier, hotKey: s.hotKey, payloadKb: s.payloadKb, followers: s.followers, following: s.following }
-    const sim = step(toDesign(nodes, edges), s.sim, { traffic, killed: s.killed, partitioned: s.partitioned }, TICK_S)
+    const sim = step(toDesign(nodes, edges), s.sim, { traffic, killed: s.killed, partitioned: s.partitioned, down: s.down }, TICK_S)
     return { sim, history: [...s.history, sim.global.p99Ms].slice(-HISTORY_TICKS) }
   }),
 
@@ -82,12 +85,17 @@ export const useSim = create<Sim>((set, get) => ({
   spike: (multiplier = SPIKE.multiplier, seconds = SPIKE.seconds) =>
     set((s) => ({ spikeUntil: s.sim.t + seconds, spikeMultiplier: multiplier })),
   setFlag: (list, id, on) => set((s) => ({ [list]: on ? [...new Set([...s[list], id])] : s[list].filter((k) => k !== id) })),
+  killReplicas: (id, n) => set((s) => {
+    const replicas = useDesign.getState().nodes.find((x) => x.id === id)?.data.params.replicas
+    if (typeof replicas !== 'number') return {}
+    return { down: { ...s.down, [id]: Math.min(replicas, Math.max(0, (s.down[id] ?? 0) + n)) } }
+  }),
   setHighlight: (ids, message = '') => set({ highlight: { ids, message } }),
 }))
 
 // What the canvas blocks and edges read to draw live state. Normally the main sim (useSim); the
 // compare view wraps each of its two canvases in a SimContext with that side's own run.
-export type SimView = Pick<Sim, 'sim' | 'running' | 'killed' | 'partitioned' | 'highlight'> & { nodes?: { id: string; parentId?: string }[] }
+export type SimView = Pick<Sim, 'sim' | 'running' | 'killed' | 'partitioned' | 'highlight'> & { down?: Sim['down']; nodes?: { id: string; parentId?: string }[] }
 export const SimContext = createContext<StoreApi<SimView> | null>(null)
 export function useSimView<T>(select: (s: SimView) => T): T {
   return useStore(useContext(SimContext) ?? (useSim as unknown as StoreApi<SimView>), select)

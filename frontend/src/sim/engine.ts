@@ -5,7 +5,7 @@
 import { registry } from '../blocks'
 import type { Design, SavedEdge } from '../design'
 import { handlers } from './handlers'
-import { CROSS_AZ_MS, CROSS_REGION_MS, NONE, total } from './handlers/common'
+import { CROSS_AZ_MS, CROSS_REGION_MS, NONE, num, total } from './handlers/common'
 import { TRAFFIC_DEFAULTS, type Fanout, type Flow, type HandlerOutput, type NodeMetrics, type NodeState, type SimNode, type Traffic } from './types'
 
 export { CROSS_AZ_MS, CROSS_REGION_MS }
@@ -33,7 +33,8 @@ export type SimState = {
   samples: number[]                  // recent end-to-end latency samples (ms)
   global: GlobalMetrics
 }
-export type SimInputs = { traffic: Traffic; killed: string[]; partitioned?: string[] }
+// down: how many replicas of a block are dead (block id -> count); the rest keep serving.
+export type SimInputs = { traffic: Traffic; killed: string[]; partitioned?: string[]; down?: Record<string, number> }
 
 export const initialSim = (): SimState => ({
   t: 0, seed: 1, nodes: {}, metrics: {}, edges: {}, cut: [], samples: [],
@@ -44,7 +45,7 @@ const behavior = (type: string) => registry[type]?.simBehavior
 // sequentialCalls: calls per request that wait one after another (a sequential fan-out edge); 1 otherwise.
 type Link = { target: string; w: number; edgeMs: number; cut: boolean; sequentialCalls: number }
 
-export function step(design: Design, prev: SimState, { traffic, killed, partitioned = [] }: SimInputs, dt = 0.1): SimState {
+export function step(design: Design, prev: SimState, { traffic, killed, partitioned = [], down = {} }: SimInputs, dt = 0.1): SimState {
   const byId = new Map(design.nodes.map((n) => [n.id, n]))
   const dead = new Set(killed)
   // Walk up the parent chain (block -> AZ -> region).
@@ -66,7 +67,13 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
   const nodes = new Map<string, SimNode>()
   for (const n of design.nodes) {
     if (!handlers[behavior(n.type)]) continue
-    nodes.set(n.id, { id: n.id, type: n.type, params: n.params, killed: ancestors(n.id).some((a) => dead.has(a.id)) })
+    // Dead replicas leave the block with fewer replicas, so every handler sees the smaller μ. All dead = killed.
+    const size = num(n.params.replicas, 1)
+    const alive = n.params.replicas === undefined ? size : size - (down[n.id] ?? 0)
+    nodes.set(n.id, {
+      id: n.id, type: n.type, params: alive === size ? n.params : { ...n.params, replicas: Math.max(1, alive) },
+      killed: alive <= 0 || ancestors(n.id).some((a) => dead.has(a.id)),
+    })
   }
   const order = topoOrder([...nodes.keys()], design.edges.filter((e) => nodes.has(e.source) && nodes.has(e.target)))
   const pos = new Map(order.map((id, i) => [id, i]))

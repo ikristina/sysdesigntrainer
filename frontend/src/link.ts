@@ -39,8 +39,11 @@ const commands: Record<string, (a: Args) => void> = {
   },
   spike: (a) => sim().spike(a.multiplier as number, a.seconds as number),
   kill_node: (a) => sim().setFlag('killed', a.id as string, true),
+  kill_replica: (a) => sim().killReplicas(a.id as string, (a.count as number) ?? 1),
+  restore_replica: (a) => sim().killReplicas(a.id as string, -((a.count as number) ?? 1)),
   restore_node: (a) => {
     sim().setFlag('killed', a.id as string, false)
+    sim().killReplicas(a.id as string, -Infinity)
     sim().setFlag('partitioned', a.id as string, false)
   },
   partition_region: (a) => sim().setFlag('partitioned', a.id as string, true),
@@ -126,7 +129,7 @@ function snapshot() {
     ...JSON.parse(JSON.stringify({
       running: s.running, t: s.sim.t,
       traffic: { rps: s.rps, readRatio: s.readRatio, hotKey: s.hotKey, payloadKb: s.payloadKb, followers: s.followers, following: s.following, spike: s.sim.t < s.spikeUntil ? s.spikeMultiplier : null },
-      killed: s.killed, partitioned: s.partitioned, cutEdges: s.sim.cut,
+      killed: s.killed, replicasDown: s.down, partitioned: s.partitioned, cutEdges: s.sim.cut,
       global: s.sim.global, nodes: metrics, compare: compareState(),
     }, round)),
   }

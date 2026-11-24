@@ -10,7 +10,7 @@ from app.main import app
 from app.tools import link, mcp
 
 STATE = {
-    "design": {"version": 1, "nodes": [{"id": "svc", "type": "service", "params": {}}, {"id": "r1", "type": "region", "params": {}}], "edges": []},
+    "design": {"version": 1, "nodes": [{"id": "svc", "type": "service", "params": {"replicas": 2}}, {"id": "r1", "type": "region", "params": {}}], "edges": []},
     "running": True,
     "global": {"p99Ms": 42},
 }
@@ -42,6 +42,8 @@ def test_mirror_and_commands(client):
 
         call(client, "kill_node", {"id": "svc"})
         assert ws.receive_json() == {"op": "kill_node", "args": {"id": "svc"}}
+        call(client, "kill_replica", {"id": "svc"})
+        assert ws.receive_json() == {"op": "kill_replica", "args": {"id": "svc", "count": 1}}
         call(client, "partition_region", {"id": "r1"})
         assert ws.receive_json() == {"op": "partition_region", "args": {"id": "r1"}}
 
@@ -49,6 +51,8 @@ def test_mirror_and_commands(client):
             call(client, "kill_node", {"id": "nope"})
         with pytest.raises(ToolError, match="not a region"):
             call(client, "partition_region", {"id": "svc"})
+        with pytest.raises(ToolError, match="no replicas"):
+            call(client, "kill_replica", {"id": "r1"})
         with pytest.raises(ToolError, match="rps"):
             call(client, "set_traffic", {"rps": 0})
         with pytest.raises(ToolError, match="followers"):

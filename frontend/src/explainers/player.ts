@@ -14,7 +14,7 @@ function show(e: Explainer, index: number, scene: Scene, reset: boolean) {
   useDesign.getState().open(null, scene.design) // null = never autosave explainer graphs
   sim.setRps(scene.rps)
   sim.setReadRatio(scene.readRatio)
-  useSim.setState({ killed: scene.killed, partitioned: [] })
+  useSim.setState({ killed: scene.killed, partitioned: [], down: {} })
   sim.setHighlight(scene.highlight)
   if (reset) sim.reset()
   const spike = e.steps[index].spike

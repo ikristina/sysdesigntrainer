@@ -7,7 +7,7 @@ import { useMemo } from 'react'
 import { hasPresets, registry, toneOf } from '../blocks'
 import { SIDES, type FlowNode } from '../design'
 import { fmtPct, healthColor, healthOf } from '../display'
-import { isDown, useSimView } from '../simStore'
+import { isDown, useSim, useSimView } from '../simStore'
 import { Gauge } from './Gauge'
 import { gen, roughPath, seedOf } from './rough'
 import { Mark } from './Mark'
@@ -21,7 +21,9 @@ const SIDE_POS = { t: Position.Top, r: Position.Right, b: Position.Bottom, l: Po
 export function BlockNode({ id, data }: NodeProps<FlowNode>) {
   const def = registry[data.blockType]
   const m = useSimView((s) => s.sim.metrics[id])
-  const down = useSimView((s) => isDown(s.killed, id, s.nodes))
+  const size = data.params.replicas
+  const lost = useSimView((s) => s.down?.[id] ?? 0)
+  const down = useSimView((s) => isDown(s.killed, id, s.nodes)) || (typeof size === 'number' && lost >= size)
   const health = healthOf(m, down)
   const lit = useSimView((s) => s.highlight.ids.includes(id))
   const shape = def.shape ?? 'box'
@@ -71,7 +73,8 @@ export function BlockNode({ id, data }: NodeProps<FlowNode>) {
       {/* One line under the label: size, then live status ("×3 · hit 72%"), so two-line labels still fit. */}
       {(replicas !== undefined || stats) && (
         <div className="block-node__sub">
-          {replicas !== undefined && (data.params.read_replicas !== undefined ? `+${replicas} replicas` : `×${replicas}`)}
+          {typeof size === 'number' ? <Pips id={id} size={size} lost={lost} />
+            : replicas !== undefined && `+${replicas} replicas`}
           {replicas !== undefined && stats && ' · '}
           {stats && <b style={{ color: health === 'bad' ? 'var(--coral-text)' : healthColor[health] }}>{stats}</b>}
         </div>
@@ -86,5 +89,24 @@ export function BlockNode({ id, data }: NodeProps<FlowNode>) {
           so any dot can start or end an edge: it runs from where you start dragging to where you drop. */}
       {SIDES.map((s) => <Handle key={s} id={s} type="source" position={SIDE_POS[s]} />)}
     </div>
+  )
+}
+
+const MAX_PIPS = 8
+
+/** One dot per replica: up ones first, then dead ones. Click an up dot to kill a replica, a dead one to bring it back. */
+function Pips({ id, size, lost }: { id: string; size: number; lost: number }) {
+  const shown = Math.min(size, MAX_PIPS)
+  const dead = Math.min(lost, shown)
+  return (
+    <span className="pips nodrag" aria-label={`${size - lost} of ${size} replicas up`}>
+      {Array.from({ length: shown }, (_, i) => {
+        const up = i < shown - dead
+        return <button key={i} type="button" className={`pip${up ? '' : ' pip--dead'}`}
+          title={up ? 'Kill one replica' : 'Restore one replica'}
+          onClick={(e) => { e.stopPropagation(); useSim.getState().killReplicas(id, up ? 1 : -1) }} />
+      })}
+      {size > MAX_PIPS && <span>×{size}{lost > 0 && ` (${lost} down)`}</span>}
+    </span>
   )
 }
