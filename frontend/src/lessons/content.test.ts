@@ -226,11 +226,11 @@ describe('classic-design lessons match the simulator', () => {
   const lesson = (id: string) => lessons.find((l) => l.id === id)!
   const variant = (l: string, v: string) => lesson(l).variants.find((x) => x.id === v)!
   type EdgeSpec = [string, string] | [string, string, EdgeRoute]
-  // Run phases of [seconds, traffic multiplier, killed] back to back, then score the variant on the last state.
-  const after = (d: Design, v: Variant, phases: [number, number, string[]][]) => {
+  // Run phases of [seconds, traffic multiplier, killed, replicas down] back to back, then score the variant on the last state.
+  const after = (d: Design, v: Variant, phases: [number, number, string[], Record<string, number>?][]) => {
     let s = initialSim()
     const full = withDefaults(d), t = simTraffic(v.traffic)
-    for (const [sec, multiplier, killed] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier }, killed })
+    for (const [sec, multiplier, killed, down] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier }, killed, down })
     return checks(s, v.success).every((c) => c.ok)
   }
   const long = { timeout_ms: 60000 }
@@ -423,6 +423,8 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(q(22, n('q', 'sqs'), 45, n('db', 'kv')), platform)).toBe(false) // request pricing
     expect(passes(q(22, n('q', 'kafka', { partitions: 45 }), 45, n('db', 'kv')), platform)).toBe(true)
     expect(passes(q(22, n('q', 'kafka', { partitions: 45 }), 45, n('db', 'kv', { replicas: 2 })), platform)).toBe(false)
+    // Twist: one of 6 workers down 10 s. The 5 left run at ρ 1.0: the backlog holds, no spare.
+    expect(after(q(3, n('q', 'queue'), 6, n('db', 'sql_db')), steady, [[10, 1, []], [10, 1, [], { w: 1 }], [60, 1, []]])).toBe(true)
   })
 
   it('edge-rate-limiter: exact forces one central counter, fast forces one per region', () => {
@@ -766,10 +768,10 @@ describe('classic-design lessons match the simulator', () => {
       [...fe, ['api', 's', { carries: 'write' }], ['s', 'agg'], ['api', 'db', { carries: 'read' }], ...edges])
     const archived = (p: number, w: number, raw = n('raw', 'wide_column')) =>
       logged(p, 5, [n('arch', 'service', { replicas: w }), raw], [['s', 'arch'], ['arch', 'raw']])
-    const at = (d: Design, v: Variant, phases: [number, string[]][] = [[15, []]]) => {
+    const at = (d: Design, v: Variant, phases: [number, string[], Record<string, number>?][] = [[15, []]]) => {
       let s = initialSim()
       const full = withDefaults(d), t = simTraffic(v.traffic)
-      for (const [sec, killed] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed })
+      for (const [sec, killed, down] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed, down })
       return s
     }
     const backlog = (s: SimState) => Math.max(0, ...Object.values(s.metrics).map((m) => m.queue))
@@ -795,7 +797,13 @@ describe('classic-design lessons match the simulator', () => {
     expect(backlog(at(logged(2, 6), dash))).toBeCloseTo(144000, -3) // 2 readers
     const flushed = logged(6, 6, [], [['agg', 'db']]) // the flush drawn as an edge carries every click
     expect(backlog(at(flushed, dash))).toBeGreaterThan(200000)
-    // Twist: aggregators down 10 s. Intake stays green; 5 drain the lag within 40 s, 4 can't catch up.
+    // Twist part 1: one aggregator down 10 s. 5 don't notice; 4 (ρ 0.98) fall 46k behind and drain at 400/s.
+    const one: [number, string[], Record<string, number>?][] = [[10, []], [10, [], { agg: 1 }]]
+    expect(backlog(at(logged(5, 5), dash, one))).toBe(0)
+    expect(backlog(at(logged(4, 4), dash, one))).toBeCloseTo(46000, -3)
+    expect(backlog(at(logged(4, 4), dash, [...one, [60, []]]))).toBeCloseTo(22000, -3)
+    expect(after(logged(4, 4), dash, [[10, 1, []], [10, 1, [], { agg: 1 }], [60, 1, []]])).toBe(false)
+    // Twist part 2: aggregators down 10 s. Intake stays green; 5 drain the lag within 40 s, 4 can't catch up.
     const down = at(logged(5, 5), dash, [[10, []], [10, ['agg']]])
     expect(down.global.errorPct).toBeLessThan(0.001)
     expect(backlog(down)).toBeCloseTo(196000, -3)

@@ -23,7 +23,7 @@ Use when creating or editing files in `lessons/`.
    - the intended design passes with some margin
    - over-provisioning fails the cost limit
    Sanity-check by reasoning through the sim model (μ, ρ, cache hit ratio) and note the math in a `_notes` field.
-5. Add a `twist`: a mid-task change that invalidates part of a good design (traffic ×10, new consistency need, region outage).
+5. Add a `twist`: a mid-task change that invalidates part of a good design (traffic ×10, new consistency need, region outage, one host crashing: `kill_replica`, which tests N+1 sizing).
 6. Hint ladder of 3: a question, a direction, a near-answer. Never the full answer.
 7. Validate the JSON loads (run the lesson loader test).
 
