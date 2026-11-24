@@ -33,6 +33,12 @@ class Link:
             raise ToolError("No lesson is open. Ask the user to pick one from the mode menu in the app header.")
         return lesson
 
+    def quiz(self) -> dict[str, Any]:
+        quiz = self.snapshot().get("quiz")
+        if not quiz:
+            raise ToolError("No quiz question is on screen. Ask the user to open 🧠 Quiz and pick a topic.")
+        return quiz
+
     def compare(self) -> dict[str, Any]:
         compare = self.snapshot().get("compare")
         if not compare:
@@ -60,7 +66,9 @@ mcp = MCPServer(
         "When a lesson is open, get_lesson returns its brief, requirements, current step, the user's "
         "notes and the live pass/fail checks; tutor_notes holds the intended math. Give hints in order. "
         "In the compare view (two designs, same scenario), use get_compare and run_scenario instead: "
-        "there's no overall winner, so challenge the user's verdict against their requirements."
+        "there's no overall winner, so challenge the user's verdict against their requirements. "
+        "When the user asks about a quiz question (\"this question\", \"why is it B?\"), call get_quiz "
+        "for the question on screen; until they answer it, help them think it through without giving the answer."
     ),
 )
 
@@ -212,6 +220,14 @@ async def give_hint(level: int) -> str:
         raise ToolError(f"level must be 1-{len(hints)}")
     await link.send("give_hint", level=level)
     return hints[level - 1]
+
+
+@mcp.tool()
+def get_quiz() -> dict[str, Any]:
+    """The 🧠 Quiz question on screen: topic, question number and count (number, of), the question, choices, the choice the user
+    picked (null until they answer), and after they answer: the right answer, why, and the study
+    note it comes from (docs/study-notes.md). When the topic is finished: done, right, of."""
+    return link.quiz()
 
 
 @mcp.tool()

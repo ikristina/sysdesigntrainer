@@ -99,6 +99,18 @@ def test_lesson_tools(client):
             call(client, "advance_step")
 
 
+def test_get_quiz(client):
+    with client.websocket_connect("/ws") as ws:
+        ws.send_json({"type": "state", "state": {**STATE, "quiz": None}})
+        client.portal.call(_wait_for, lambda: link.state.get("quiz", 1) is None)
+        with pytest.raises(ToolError, match="No quiz"):
+            call(client, "get_quiz")
+        quiz = {"topic": "Caching", "number": 2, "of": 8, "question": "Which redirect?", "picked": None}
+        ws.send_json({"type": "state", "state": {**STATE, "quiz": quiz}})
+        client.portal.call(_wait_for, lambda: link.state.get("quiz"))
+        assert call(client, "get_quiz").structured_content == quiz
+
+
 COMPARE = {
     "id": "x", "scenarios": [{"id": "steady", "label": "Steady", "seconds": 30}],
     "_hints": ["question", "direction", "near-answer"], "verdict": "",

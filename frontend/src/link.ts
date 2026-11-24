@@ -11,6 +11,7 @@ import { usePlayer } from './explainers/player'
 import { checks } from './lessons/content'
 import { active, goStep, HOLD_S, setCustom, setVariant, showHint, useLesson } from './lessons/lessonStore'
 import { useMode } from './mode'
+import { useQuiz } from './quiz/quiz'
 import { isDown, useSim } from './simStore'
 import { useDesign } from './store'
 
@@ -83,6 +84,19 @@ function explainerState() {
   return e && { id: e.id, title: e.title, index, count: e.steps.length, caption: e.steps[index].caption }
 }
 
+// The quiz question on screen, as get_quiz returns it. The answer is left out until the user picks.
+function quizState() {
+  const r = useQuiz.getState().run
+  if (!r) return null
+  if (r.i >= r.questions.length) return { topic: r.topic, done: true, right: r.right, of: r.questions.length }
+  const q = r.questions[r.i]
+  return {
+    topic: r.topic, number: r.i + 1, of: r.questions.length, right_so_far: r.right,
+    question: q.q, choices: q.choices, picked: r.picked === null ? null : q.choices[r.picked],
+    ...(r.picked !== null && { answer: q.choices[q.answer], why: q.why, note: q.note ?? null }),
+  }
+}
+
 // The open lesson, as get_lesson returns it. _hints (all hint texts) is for give_hint; get_lesson drops it.
 function lessonState(simState: ReturnType<typeof sim>['sim']) {
   const st = useLesson.getState()
@@ -108,7 +122,7 @@ function snapshot() {
     [id, { ...m, mu: Number.isFinite(m.mu) ? m.mu : 'unlimited', health: healthOf(m, isDown(s.killed, id)) }]))
   return {
     design: toDesign(nodes, edges), // design and lesson unrounded: their numbers are exact settings
-    mode: useMode.getState().mode, explainer: explainerState(), lesson: lessonState(s.sim),
+    mode: useMode.getState().mode, explainer: explainerState(), lesson: lessonState(s.sim), quiz: quizState(),
     ...JSON.parse(JSON.stringify({
       running: s.running, t: s.sim.t,
       traffic: { rps: s.rps, readRatio: s.readRatio, hotKey: s.hotKey, payloadKb: s.payloadKb, followers: s.followers, following: s.following, spike: s.sim.t < s.spikeUntil ? s.spikeMultiplier : null },

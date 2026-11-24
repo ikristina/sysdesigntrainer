@@ -1,12 +1,12 @@
 // The 🧠 Quiz panel: pick a topic, answer one question at a time, see why after each answer.
-// Replaces the right column while open, like 📓 Notes. Score lives in component state only.
-import { useState } from 'react'
-import { quizzes, shuffled, type Question } from './quiz'
-
-type Run = { topic: string; questions: Question[]; i: number; picked: number | null; right: number }
+// Replaces the right column while open, like 📓 Notes. The run lives in a small store so the
+// tutor link can send it to Claude (get_quiz); closing the panel clears it. Score isn't saved.
+import { useEffect } from 'react'
+import { quizzes, setRun, shuffled, useQuiz } from './quiz'
 
 export function QuizPanel() {
-  const [run, setRun] = useState<Run | null>(null)
+  const run = useQuiz((s) => s.run)
+  useEffect(() => () => setRun(null), [])
   const start = (id: string) => {
     const q = quizzes.find((x) => x.id === id)!
     setRun({ topic: q.topic, questions: shuffled(q.questions), i: 0, picked: null, right: 0 })
