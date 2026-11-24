@@ -35,7 +35,7 @@ describe('content files', () => {
       'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline', 'edge-rate-limiter', 'flash-sale', 'hot-key',
       'job-scheduler', 'leaderboard', 'ledger', 'llm-cost', 'llm-gateway', 'metrics-ingest', 'news-feed',
       'p99-fix', 'payments', 'rag-search', 'rate-limiter', 'reddit-place', 'retry-storm', 'typeahead',
-      'url-shortener', 'webhooks', 'welcome-emails',
+      'url-shortener', 'video-platform', 'webhooks', 'welcome-emails',
     ])
     expect(explainers.map((e) => e.id)).toEqual(['caching-basics', 'load-balancing', 'replication-lag'])
   })
@@ -610,6 +610,35 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(queued(5), batch)).toBe(true)
     expect(passes(queued(6), batch)).toBe(true)
     expect(passes(queued(7), batch)).toBe(false) // over budget
+  })
+
+  it('video-platform: transcode from a queue, not inline; a CDN takes the segment fetches off the origin', () => {
+    const tx = (r: number) => n('w', 'worker', { replicas: r, capacity_rps: 2, base_latency_ms: 20000 })
+    const creators = variant('video-platform', 'creators')
+    const queued = (r: number) => graphOf([n('c', 'client'), n('api', 'service'), n('blob', 'blob'), n('q', 'queue'), tx(r)],
+      [['c', 'api'], ['api', 'blob'], ['api', 'q'], ['q', 'w'], ['w', 'blob']])
+    expect(passes(chain(n('c', 'client'), n('api', 'service'), tx(13), n('blob', 'blob')), creators)).toBe(false) // inline
+    expect(passes(chain(C(), S(), tx(13), n('blob', 'blob')), creators)).toBe(false) // inline, long timeouts
+    expect(after(queued(12), creators, [[120, 1, []]])).toBe(false) // falls behind
+    expect(passes(queued(13), creators)).toBe(true)
+    expect(passes(queued(14), creators)).toBe(true)
+    expect(passes(queued(15), creators)).toBe(false) // over budget
+
+    const viewers = variant('video-platform', 'viewers')
+    const origin = (api: number, front: SavedNode[] = []) => chain(n('c', 'client'), ...front, n('lb', 'load_balancer'), n('api', 'service', { replicas: api }), n('blob', 'blob'))
+    const blobs = Array.from({ length: 5 }, (_, i) => n(`b${i}`, 'blob'))
+    const sharded = graphOf([n('c', 'client'), n('lb', 'load_balancer'), n('api', 'service', { replicas: 55 }), n('lb2', 'load_balancer'), ...blobs],
+      [['c', 'lb'], ['lb', 'api'], ['api', 'lb2'], ...blobs.map((b): E => ['lb2', b.id])])
+    expect(passes(chain(n('c', 'client'), n('api', 'service'), n('blob', 'blob')), viewers)).toBe(false)
+    expect(passes(origin(50), viewers)).toBe(false) // one blob store melts
+    expect(passes(sharded, viewers)).toBe(false) // over budget
+    expect(passes(origin(4, [n('cdn', 'cdn')]), viewers)).toBe(false)
+    expect(passes(origin(6, [n('cdn', 'cdn')]), viewers)).toBe(true)
+    expect(passes(origin(7, [n('cdn', 'cdn')]), viewers)).toBe(true)
+    expect(passes(origin(8, [n('cdn', 'cdn')]), viewers)).toBe(true)
+    expect(passes(origin(9, [n('cdn', 'cdn')]), viewers)).toBe(false) // over budget
+    expect(passes(chain(n('c', 'client'), n('cdn', 'cdn'), n('blob', 'blob')), viewers)).toBe(true) // bucket as origin
+    expect(run(origin(6, [n('cdn', 'cloudfront')]), 50000, 1, [], 15, undefined, simTraffic(viewers.traffic)).global.costHr).toBeCloseTo(15480.68, 1)
   })
 })
 

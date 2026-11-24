@@ -1,0 +1,44 @@
+{
+  "id": "video-platform",
+  "title": "Video platform: queue the transcodes, let the CDN carry the bytes",
+  "mode": "full",
+  "brief": "Design a video sharing site. Creators upload videos; each upload is transcoded into several resolutions (240p to 1080p) and stored in blob storage; viewers watch by fetching the video in segments. Transcoding is slow: model the transcoder as a worker with capacity 2 uploads/s per replica and base latency 20,000 ms (20 s per upload, all resolutions). Uploads are writes, segment fetches are reads.",
+  "variants": [
+    {
+      "id": "creators",
+      "requirements": [
+        "25 uploads/s (writes), each one transcoded into 4 resolutions",
+        "A transcoder replica finishes 2 uploads/s, 20 s each (set it on a worker: capacity 2, base latency 20000 ms)",
+        "upload p99 < 300 ms (the upload call returns; the video shows up as 'processing')",
+        "errors < 0.1%",
+        "transcodes keep up: backlog under 100",
+        "cost < $1.75/hr"
+      ],
+      "traffic": { "rps": 25, "read_ratio": 0 },
+      "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 1.75, "max_backlog": 100 },
+      "twist": "A creator event: uploads triple for a minute. Apply with spike(multiplier=3, seconds=60). Do uploads still return fast? How big does the backlog get, how long does it take to drain, and would you autoscale the transcoders on queue depth?"
+    },
+    {
+      "id": "viewers",
+      "requirements": [
+        "50k segment fetches/s (reads); each fetch is one ~1 MB segment (about 4 s of video at 2 Mbps), so ~50 GB/s leaves the system",
+        "Segments never change once transcoded; 90% of fetches are for videos many people are watching",
+        "One blob store serves about 11k GET/s",
+        "segment p99 < 200 ms",
+        "errors < 0.1%",
+        "cost < $1/hr for the blocks (count the generic CDN block as flat-rate; the twist prices the bytes)"
+      ],
+      "traffic": { "rps": 50000, "read_ratio": 1, "payload_kb": 1000 },
+      "success": { "p99_ms": 200, "error_pct": 0.1, "max_cost_hr": 1 },
+      "twist": "Swap the CDN block for CloudFront, which bills every GB it sends. Same 50k fetches/s of 1 MB: watch the cost meter. Where does the money go, and what brings it down: adaptive bitrate (most viewers on phones get 480p, not 1080p), committed-use pricing, or your own cache boxes inside ISPs? (The sim has one payload size and no bitrate ladder: talk it through.)"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Creators: does the uploader need the 1080p file before the upload returns? Viewers: how many of those 50k fetches are for the same few segments?",
+    "Store the raw upload and hand the transcode to a queue; size the transcoders for uploads/s, not for upload latency. Segments are immutable, so a cache near the viewer can answer most fetches and the origin only sees the misses.",
+    "Creators: service -> blob + queue -> worker (capacity 2, latency 20000) -> blob, with about 13-14 transcoders. Viewers: client -> CDN (hit 0.9) -> load balancer -> about 6-8 services -> blob."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Creators: 25 uploads/s, a transcoder does 2/s, so 12.5 replicas at rho 1. Inline (service -> 13 transcoders -> blob) with default timeouts: 99.7% errors (the 1 s service timeout vs 20 s transcodes); with 60 s timeouts still p99 ~42 s and 2.8% errors. Queued (service -> blob + queue -> worker -> blob): 13 transcoders (rho 0.96) p99 ~95 ms, $1.60; 14: $1.70; 12 falls behind by 1 upload/s (backlog 120 after 120 s); 15 ($1.80) breaks the budget. Viewers: 50k reads/s. No CDN: 2 services collapse (97% errors, p99 5 s); 50 services still melt the one blob store (11k GET/s), 99% errors, $5.08; 5 blob stores behind a load balancer + 55 services pass on latency (p99 ~92 ms) but cost $5.81. CDN (hit 0.9) -> LB -> services -> blob: 5k misses/s. 4 services overload (p99 2.9 s); 6 services p99 ~104 ms, $0.78; 7: $0.88; 8: $0.98; 9 ($1.08) breaks the budget. CDN straight to the blob store (no services) also passes, $0.15: a bucket as the CDN origin is a fine answer. The generic CDN is flat-rate and the blob store prices no egress, so payload_kb (1,000 KB = one segment per request) only shows up with CloudFront: 50k x 1 MB = 180,000 GB/hr x $0.085 plus requests = $15,480.68/hr (the twist). Not modelled, talk-through only: adaptive bitrate (one payload size, no rendition ladder), chunked resumable uploads and presigned direct-to-blob uploads (the upload is one 20 ms call here), per-resolution transcode fan-out (folded into the 2 uploads/s capacity), origin egress pricing. Checked in frontend/src/lessons/content.test.ts."
+}
