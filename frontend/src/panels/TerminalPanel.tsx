@@ -1,10 +1,10 @@
 // Tutor layer: the Claude terminal under the canvas. It's ttyd's web page (http://<host>:7681) in an
-// iframe; ttyd runs `claude` from the repo root (see docs/terminal-ttyd.md). The status line shows
+// iframe; ttyd runs `claude` inside tmux from the repo root, so a reload reattaches (see docs/terminal-ttyd.md). The status line shows
 // whether this tab is linked to the backend, which is how Claude's MCP tools reach the app.
 import { useEffect, useState } from 'react'
 import { TTYD_URL, ttydUp, useLink } from '../link'
 
-const TTYD_CMD = 'ttyd -W -O -i lo0 -p 7681 claude'
+const TTYD_CMD = 'ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude'
 const BACKEND_CMD = 'cd backend && uv run uvicorn app.main:app --reload --port 8000'
 
 export function TerminalPanel({ onClose }: { onClose: () => void }) {

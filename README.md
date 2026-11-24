@@ -66,8 +66,9 @@ Three terminals, plus the frontend above:
 # 1. backend: mirrors the app's state and serves Claude's MCP tools on :8000
 cd backend && uv run uvicorn app.main:app --reload --port 8000
 
-# 2. Claude terminal, from the repo root (that's where claude finds .mcp.json)
-ttyd -W -O -i lo0 -p 7681 claude
+# 2. Claude terminal, from the repo root (that's where claude finds .mcp.json).
+#    tmux keeps the same Claude across page reloads (brew install ttyd tmux).
+ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude
 ```
 
 3. Open (or reload) http://localhost:5173. The terminal panel opens under the canvas by itself once ttyd is running. The violet **✦ Ask Claude** button in the header shows or hides it.

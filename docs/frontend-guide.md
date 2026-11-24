@@ -21,7 +21,7 @@ Backend and Claude terminal (only for Claude coaching; the frontend works fully 
 ```bash
 cd backend && uv run uvicorn app.main:app --reload --port 8000
 curl localhost:8000/health   # {"status":"ok"}
-ttyd -W -O -i lo0 -p 7681 claude   # from the repo root
+ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude   # from the repo root
 ```
 
 ## 2. The big picture
@@ -496,5 +496,5 @@ To add a block, create `blocks/<type>.ts` and add it to the `blocks` list in `bl
 - The backend mirror refreshes once a second, so an MCP call in the first second after switching modes can see the old mode.
 - Claude can't edit the design (add blocks, change params). The spec's tool list doesn't include it; ask if you want it.
 - The backend doesn't serve the built frontend yet. Use `npm run dev` (or any static server for `dist/`).
-- The terminal panel is a fixed 300 px tall. Reloading the app restarts Claude (ttyd starts a new `claude` per connection; see `docs/terminal-ttyd.md` for the tmux workaround).
+- The terminal panel is a fixed 300 px tall. Claude runs inside tmux, so reloading the app reattaches to the same Claude; without tmux, ttyd starts a new `claude` per connection (see `docs/terminal-ttyd.md`).
 - With the backend stopped, the browser console logs a failed WebSocket every 3 s.

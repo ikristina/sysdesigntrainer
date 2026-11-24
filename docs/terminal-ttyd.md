@@ -37,19 +37,21 @@ The terminal is only for you to talk to Claude. Claude acts on the app through t
 
 ### What this means for the app
 
-- **One `claude` per connection.** Two tabs open means two separate Claude sessions.
-- **Reloading the page restarts Claude.** The old session is killed and a fresh one starts. If that becomes annoying, run Claude inside tmux, which keeps the session alive across reloads (needs `brew install tmux`):
+- **ttyd starts a new process per connection.** With plain `claude`, every reload kills the old Claude and starts a fresh one, and two tabs are two separate Claudes.
+- **So we run Claude inside tmux** (`brew install tmux`). tmux keeps the session alive after the browser disconnects:
   ```bash
   ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude
   ```
-  `new -A -s sysdesign` attaches to the tmux session named `sysdesign`, or creates it if it doesn't exist.
+  `new -A -s sysdesign` attaches to the tmux session named `sysdesign`, or creates it if it doesn't exist. A reload, or a second tab, joins the same Claude.
+- **Stopping ttyd doesn't stop Claude.** The tmux session keeps running in the background. End it with `tmux kill-session -t sysdesign` (or `/exit` in Claude). You can also join it from any terminal with `tmux attach -t sysdesign`.
+- **Mouse scrolling** is off in tmux by default. Add `set -g mouse on` to `~/.tmux.conf` if you want it.
 - **The app can't script the terminal.** Port 5173 and port 7681 are different origins, so the browser blocks our page from reading or typing into the iframe. That's fine, because app↔Claude communication goes over MCP.
 - **Embedding works.** ttyd sends no `X-Frame-Options` or CSP `frame-ancestors` headers, so the browser lets our page frame it.
 
 ## The command we use
 
 ```bash
-ttyd -W -O -i lo0 -p 7681 claude     # from the repo root
+ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude     # from the repo root
 ```
 
 | Flag | Meaning |
@@ -58,7 +60,7 @@ ttyd -W -O -i lo0 -p 7681 claude     # from the repo root
 | `-O`, `--check-origin` | Only accept WebSockets opened by ttyd's own page. **Needed:** without it, any website you visit could open a WebSocket to `localhost:7681` and type into Claude (browsers don't apply CORS to WebSockets). Our iframe still works, because the iframe's page is ttyd's own (origin `localhost:7681`). |
 | `-i lo0`, `--interface` | Network interface to bind. `lo0` is macOS's loopback (127.0.0.1), so only this machine can connect. See Security below. |
 | `-p 7681`, `--port` | Port to listen on. 7681 is the default; we pass it to be explicit. |
-| `claude` | The command to run. Anything after the flags is the command plus its arguments. |
+| `tmux new -A -s sysdesign claude` | The command to run. Anything after the flags is the command plus its arguments. Here tmux runs `claude` in a session named `sysdesign` that survives page reloads (see above). |
 
 Other flags you might want:
 
@@ -82,7 +84,7 @@ Other flags you might want:
 
 - **By default ttyd listens on every network interface.** That means other machines on your Wi-Fi can reach it. Always pass `-i lo0`, which every command in this repo does:
   ```bash
-  ttyd -W -O -i lo0 -p 7681 claude
+  ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude
   ```
 - Check what it's listening on (`2>/dev/null` hides harmless macOS lsof warnings):
   ```bash
@@ -100,9 +102,9 @@ Verified 2026-11-20 with ttyd 1.7.7 (Homebrew) on macOS:
 ## Install and check
 
 ```bash
-brew install ttyd
+brew install ttyd tmux
 ttyd --version
-cd <repo root> && ttyd -W -O -i lo0 -p 7681 claude
+cd <repo root> && ttyd -W -O -i lo0 -p 7681 tmux new -A -s sysdesign claude
 # open http://localhost:7681 directly first, to check it works outside the app
 ```
 
