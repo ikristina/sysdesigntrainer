@@ -32,8 +32,9 @@ const chain = (...nodes: SavedNode[]): Design => ({
 describe('content files', () => {
   it('found the files', () => {
     expect(lessons.map((l) => l.id)).toEqual([
-      'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline', 'driver-locations',
-      'edge-rate-limiter', 'file-sync', 'flash-sale', 'hot-key', 'job-scheduler', 'leaderboard', 'ledger', 'llm-cost',
+      'ad-click-aggregation', 'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline',
+      'driver-locations', 'edge-rate-limiter', 'file-sync', 'flash-sale', 'hot-key', 'job-scheduler',
+      'leaderboard', 'ledger', 'llm-cost',
       'llm-gateway', 'metrics-ingest', 'news-feed', 'p99-fix', 'payments', 'rag-search', 'rate-limiter',
       'reddit-place', 'retry-storm', 'typeahead', 'url-shortener', 'video-platform', 'web-crawler',
       'webhooks', 'welcome-emails',
@@ -754,6 +755,82 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(crawl(fetcher(3), n('blob', 'blob'), n('s', 'redis')), fresh)).toBe(true)
     expect(passes(graphOf([n('c', 'client'), n('api', 'service'), n('q', 'queue'), fetcher(3), n('blob', 'blob'), n('s', 'cache')],
       [['c', 'api'], ['api', 'q'], ['q', 'f'], ['f', 'blob'], ['f', 's']]), fresh)).toBe(false) // no fan-out edge
+  })
+
+  it('ad-click-aggregation: count clicks in memory behind a log; billing adds a raw-click consumer group', () => {
+    const agg = (r: number) => n('agg', 'service', { replicas: r, capacity_rps: 5000 })
+    const perClick = (store: SavedNode) => graphOf([...lbApi(25), store], [...fe, ['api', store.id]])
+    // services -> Kafka (clicks) -> aggregators (no edge out: the flush isn't modeled); services -> SQL (dashboard reads)
+    const logged = (p: number, r: number, nodes: SavedNode[] = [], edges: EdgeSpec[] = []) => graphOf(
+      [...lbApi(25), n('s', 'kafka', { partitions: p }), agg(r), n('db', 'sql_db'), ...nodes],
+      [...fe, ['api', 's', { carries: 'write' }], ['s', 'agg'], ['api', 'db', { carries: 'read' }], ...edges])
+    const archived = (p: number, w: number, raw = n('raw', 'wide_column')) =>
+      logged(p, 5, [n('arch', 'service', { replicas: w }), raw], [['s', 'arch'], ['arch', 'raw']])
+    const at = (d: Design, v: Variant, phases: [number, string[]][] = [[15, []]]) => {
+      let s = initialSim()
+      const full = withDefaults(d), t = simTraffic(v.traffic)
+      for (const [sec, killed] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed })
+      return s
+    }
+    const backlog = (s: SimState) => Math.max(0, ...Object.values(s.metrics).map((m) => m.queue))
+    const crash: [number, number, string[]][] = [[10, 1, []], [10, 1, ['agg']], [60, 1, []]]
+
+    const dash = variant('ad-click-aggregation', 'dashboards')
+    expect(at(chain(n('c', 'client'), n('api', 'service'), n('db', 'sql_db')), dash).global.errorPct).toBeGreaterThan(90) // naive
+    expect(at(perClick(n('db', 'sql_db')), dash).global.errorPct).toBeGreaterThan(90) // a row per click
+    const ddb = at(perClick(n('db', 'dynamodb')), dash)
+    expect(ddb.global.errorPct).toBeLessThan(0.001)
+    expect(ddb.global.costHr).toBeCloseTo(46.72, 2) // write request pricing
+    expect(backlog(at(logged(3, 3), dash))).toBeCloseTo(69000, -3)
+    expect(passes(logged(3, 3), dash)).toBe(false)
+    for (const k of [4, 5, 6, 7, 8]) expect(passes(logged(k, k), dash)).toBe(true)
+    expect(at(logged(4, 4), dash).metrics.agg.rho).toBeCloseTo(0.98, 2)
+    const ok = at(logged(5, 5), dash)
+    expect(ok.metrics.api.rho).toBeCloseTo(0.8, 2)
+    expect(ok.metrics.db.rho).toBeCloseTo(0.08, 2)
+    expect(at(logged(4, 4), dash).global.costHr).toBeCloseTo(4.06, 2)
+    expect(at(logged(8, 8), dash).global.costHr).toBeCloseTo(4.46, 2)
+    expect(at(logged(9, 9), dash).global.costHr).toBeCloseTo(4.56, 2)
+    expect(passes(logged(9, 9), dash)).toBe(false) // over budget
+    expect(backlog(at(logged(2, 6), dash))).toBeCloseTo(144000, -3) // 2 readers
+    const flushed = logged(6, 6, [], [['agg', 'db']]) // the flush drawn as an edge carries every click
+    expect(backlog(at(flushed, dash))).toBeGreaterThan(200000)
+    // Twist: aggregators down 10 s. Intake stays green; 5 drain the lag within 40 s, 4 can't catch up.
+    const down = at(logged(5, 5), dash, [[10, []], [10, ['agg']]])
+    expect(down.global.errorPct).toBeLessThan(0.001)
+    expect(backlog(down)).toBeCloseTo(196000, -3)
+    expect(backlog(at(logged(5, 5), dash, [[10, []], [10, ['agg']], [40, []]]))).toBe(0)
+    expect(after(logged(5, 5), dash, crash)).toBe(true)
+    expect(backlog(at(logged(4, 4), dash, [[10, []], [10, ['agg']], [60, []]]))).toBeCloseTo(172000, -3)
+    expect(after(logged(4, 4), dash, crash)).toBe(false)
+    const direct = graphOf([...lbApi(25), agg(5), n('db', 'sql_db')], [...fe, ['api', 'agg', { carries: 'write' }], ['api', 'db', { carries: 'read' }]])
+    expect(passes(direct, dash)).toBe(true) // no log: passes steady...
+    expect(at(direct, dash).global.costHr).toBeCloseTo(3.53, 2)
+    expect(at(direct, dash, [[10, []], [10, ['agg']]]).global.errorPct).toBeGreaterThan(97) // ...not the crash
+    expect(passes(perClick(n('db', 'wide_column')), dash)).toBe(true) // query-time scans aren't modeled
+    expect(at(perClick(n('db', 'wide_column')), dash).global.costHr).toBeCloseTo(3.73, 2)
+
+    const bill = variant('ad-click-aggregation', 'billing')
+    expect(passes(chain(n('c', 'client'), n('api', 'service'), n('db', 'sql_db')), bill)).toBe(false)
+    expect(backlog(at(archived(6, 6), bill))).toBeCloseTo(204000, -3) // dashboards' partition count: 6 archivers read
+    expect(backlog(at(archived(18, 18), bill))).toBeCloseTo(24000, -3)
+    expect(passes(archived(18, 18), bill)).toBe(false)
+    expect(after(archived(19, 19), bill, [[60, 1, []]])).toBe(false) // 600/s short
+    for (const k of [20, 21, 22, 23, 24, 25, 26]) expect(passes(archived(k, k), bill)).toBe(true)
+    expect(at(archived(20, 20), bill).global.costHr).toBeCloseTo(7.36, 2)
+    expect(at(archived(26, 26), bill).global.costHr).toBeCloseTo(7.96, 2)
+    expect(at(archived(28, 28), bill).global.costHr).toBeCloseTo(8.16, 2)
+    expect(passes(archived(28, 28), bill)).toBe(false) // over budget
+    expect(at(archived(26, 26), bill).metrics.raw.rho).toBeCloseTo(0.65, 2)
+    expect(backlog(at(archived(26, 26, n('raw', 'sql_db')), bill))).toBeGreaterThan(200000)
+    const s3 = graphOf([...lbApi(25), n('db', 's3', { capacity_rps: 30000 })], [...fe, ['api', 'db', { carries: 'write' }]])
+    expect(at(s3, bill).global.costHr - 2.53).toBeCloseTo(352.8, 1) // PUT fees for 19.6k clicks/s (LB + 25 services = $2.53); capacity raised as if over more key prefixes, so nothing is retried
+    expect(at(archived(26, 26, n('raw', 's3')), bill).global.costHr).toBeGreaterThan(400)
+    expect(passes(logged(5, 5), bill)).toBe(true) // the sim can't see the missing archive
+    expect(at(logged(5, 5), bill).global.costHr).toBeCloseTo(4.16, 2)
+    const dual = logged(5, 5, [n('raw', 'wide_column')], [['api', 'raw', { carries: 'write' }]])
+    expect(passes(dual, bill)).toBe(true)
+    expect(at(dual, bill).global.costHr).toBeCloseTo(5.36, 2)
   })
 })
 
