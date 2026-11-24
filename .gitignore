@@ -4,3 +4,5 @@ node_modules/
 dist/
 .venv/
 __pycache__/
+# Your weak-spot questions, written by Claude (see CLAUDE.md). Kept local: the repo is public.
+quizzes/weak-spots.json

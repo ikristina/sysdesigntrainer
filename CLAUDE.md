@@ -53,6 +53,7 @@ When the user gets something wrong or is clearly unsure, add 1-3 questions on th
 - Same format as the other quizzes (`frontend/src/quiz/quiz.ts`). Test the idea from a new angle; don't copy the missed question. Vary the answer index.
 - Facts must match `docs/study-notes.md` and the lessons. Set `note` to the exact study-note title when one covers it. If nothing covers it, verify the fact first and keep `why` to what you checked.
 - Append only. Don't delete or rewrite questions there unless asked.
+- The file is gitignored (the repo is public): never commit it. If it doesn't exist, create it as `{ "topic": "My weak spots (Claude adds these)", "questions": [] }` plus your questions, and tell the user to restart the dev server once (new quiz files are only picked up at startup).
 - After editing, run `cd frontend && npx vitest run src/quiz`. The open app reloads with the new questions.
 
 ## Commands

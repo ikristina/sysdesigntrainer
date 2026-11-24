@@ -22,8 +22,7 @@ describe('quizzes', () => {
     }
   })
 
-  it('every hand-written topic has at least 3 questions; weak-spots may be empty', () => {
-    expect(all.some(([p]) => p.endsWith('/weak-spots.json'))).toBe(true)
+  it('every hand-written topic has at least 3 questions; weak-spots (local, gitignored) may be empty or missing', () => {
     for (const [path, quiz] of all) if (!path.endsWith('/weak-spots.json')) expect(quiz.questions.length, path).toBeGreaterThanOrEqual(3)
   })
 

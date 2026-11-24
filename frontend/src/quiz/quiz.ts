@@ -1,7 +1,8 @@
 // Quick quizzes: one file per topic in quizzes/<id>.json at the repo root, bundled at build time
 // like lessons. Each question has choices, the index of the right one, and why it's right.
 // `note` names the study note (docs/study-notes.md "## Title") the question comes from.
-// weak-spots.json is the one Claude writes to as it sees you struggle (see CLAUDE.md); it may be empty.
+// weak-spots.json is the one Claude writes to as it sees you struggle (see CLAUDE.md). It's gitignored
+// (the repo is public), so it may be missing or empty.
 import { create } from 'zustand'
 
 export type Question = { q: string; choices: string[]; answer: number; why: string; note?: string }
