@@ -1,12 +1,10 @@
 // The 🧠 Quiz panel: pick a topic, answer one question at a time, see why after each answer.
-// Replaces the right column while open, like 📓 Notes. The run lives in a small store so the
-// tutor link can send it to Claude (get_quiz); closing the panel clears it. Score isn't saved.
-import { useEffect } from 'react'
-import { quizzes, setRun, shuffled, useQuiz } from './quiz'
+// Replaces the right column while open, like 📓 Notes. The run lives in a small store (quiz.ts) so
+// the tutor link can send it to Claude (get_quiz) and a refresh resumes it; closing the panel clears it.
+import { quizzes, recordAnswer, setRun, shuffled, useQuiz } from './quiz'
 
 export function QuizPanel() {
   const run = useQuiz((s) => s.run)
-  useEffect(() => () => setRun(null), [])
   const start = (id: string) => {
     const q = quizzes.find((x) => x.id === id)!
     setRun({ topic: q.topic, questions: shuffled(q.questions), i: 0, picked: null, right: 0 })
@@ -26,7 +24,11 @@ export function QuizPanel() {
 
   const done = run.i >= run.questions.length
   const q = run.questions[run.i]
-  const pick = (c: number) => run.picked === null && setRun({ ...run, picked: c, right: run.right + (c === q.answer ? 1 : 0) })
+  const pick = (c: number) => {
+    if (run.picked !== null) return
+    recordAnswer(run.topic, q, c)
+    setRun({ ...run, picked: c, right: run.right + (c === q.answer ? 1 : 0) })
+  }
   return (
     <aside className="inspector quiz" aria-label="Quiz">
       <div className="inspector__title">🧠 {run.topic}</div>

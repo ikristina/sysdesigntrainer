@@ -15,6 +15,7 @@ import { active, useLesson } from './lessons/lessonStore'
 import { go, hashOf, parseHash, useMode } from './mode'
 import { NotesPanel } from './notes/NotesPanel'
 import { QuizPanel } from './quiz/QuizPanel'
+import { setRun, useQuiz } from './quiz/quiz'
 import { MetricsPanel } from './panels/MetricsPanel'
 import { Palette } from './panels/Palette'
 import { ParamPanel } from './panels/ParamPanel'
@@ -29,7 +30,9 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [terminal, setTerminal] = useState(false)
-  const [side, setSide] = useState<'notes' | 'quiz' | null>(null) // swaps the right column
+  const [side, setSideRaw] = useState<'notes' | 'quiz' | null>(() => (useQuiz.getState().run ? 'quiz' : null)) // swaps the right column
+  // Closing the quiz (or switching to Notes) ends the run; a refresh with a run saved reopens the quiz.
+  const setSide = (next: 'notes' | 'quiz' | null) => { if (side === 'quiz' && next !== 'quiz') setRun(null); setSideRaw(next) }
   useEffect(() => { ttydUp().then((up) => up && setTerminal(true)) }, []) // open it if ttyd is running
   const lessonState = useLesson()
   const mode = useMode((s) => s.mode)

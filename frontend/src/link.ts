@@ -11,7 +11,7 @@ import { usePlayer } from './explainers/player'
 import { checks } from './lessons/content'
 import { active, goStep, HOLD_S, setCustom, setVariant, showHint, useLesson } from './lessons/lessonStore'
 import { useMode } from './mode'
-import { useQuiz } from './quiz/quiz'
+import { misses, useQuiz } from './quiz/quiz'
 import { isDown, useSim } from './simStore'
 import { useDesign } from './store'
 
@@ -122,7 +122,7 @@ function snapshot() {
     [id, { ...m, mu: Number.isFinite(m.mu) ? m.mu : 'unlimited', health: healthOf(m, isDown(s.killed, id)) }]))
   return {
     design: toDesign(nodes, edges), // design and lesson unrounded: their numbers are exact settings
-    mode: useMode.getState().mode, explainer: explainerState(), lesson: lessonState(s.sim), quiz: quizState(),
+    mode: useMode.getState().mode, explainer: explainerState(), lesson: lessonState(s.sim), quiz: quizState(), quiz_misses: misses(),
     ...JSON.parse(JSON.stringify({
       running: s.running, t: s.sim.t,
       traffic: { rps: s.rps, readRatio: s.readRatio, hotKey: s.hotKey, payloadKb: s.payloadKb, followers: s.followers, following: s.following, spike: s.sim.t < s.spikeUntil ? s.spikeMultiplier : null },

@@ -48,6 +48,13 @@ docs/         SPEC.md and design notes
 - Verify library APIs against current docs before using them (React Flow, MCP SDK, ttyd flags change).
 - If unsure about something, say so. Don't guess.
 
+## Weak-spots quiz
+When the user gets something wrong or is clearly unsure, add 1-3 questions on that idea to `quizzes/weak-spots.json` without asking, then say so in one line. Signals: `misses` from the `get_quiz` MCP tool (check it whenever you're helping with the app), a wrong estimate or design choice in a lesson, asking about the same idea twice.
+- Same format as the other quizzes (`frontend/src/quiz/quiz.ts`). Test the idea from a new angle; don't copy the missed question. Vary the answer index.
+- Facts must match `docs/study-notes.md` and the lessons. Set `note` to the exact study-note title when one covers it. If nothing covers it, verify the fact first and keep `why` to what you checked.
+- Append only. Don't delete or rewrite questions there unless asked.
+- After editing, run `cd frontend && npx vitest run src/quiz`. The open app reloads with the new questions.
+
 ## Commands
 - Backend: `cd backend && uv run uvicorn app.main:app --reload --port 8000`
 - Frontend: `cd frontend && npm run dev` (http://localhost:5173). Build: `npm run build`. Lint: `npm run lint` (oxlint)

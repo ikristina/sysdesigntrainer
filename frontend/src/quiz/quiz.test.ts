@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { parseNotes } from '../notes/notes'
 import { quizzes, shuffled } from './quiz'
 
+const all = Object.entries(import.meta.glob<{ topic: string; questions: unknown[] }>('../../../quizzes/*.json', { eager: true, import: 'default' }))
+
 const raw = Object.values(import.meta.glob<string>('../../../docs/study-notes.md', { eager: true, query: '?raw', import: 'default' }))[0] ?? ''
 const noteTitles = parseNotes(raw).map((n) => n.title)
 
@@ -10,7 +12,6 @@ describe('quizzes', () => {
     expect(quizzes.length).toBeGreaterThan(0)
     for (const quiz of quizzes) {
       expect(quiz.topic).toBeTruthy()
-      expect(quiz.questions.length).toBeGreaterThanOrEqual(3)
       for (const q of quiz.questions) {
         expect(q.choices.length, q.q).toBeGreaterThanOrEqual(2)
         expect(new Set(q.choices).size, q.q).toBe(q.choices.length)
@@ -19,6 +20,11 @@ describe('quizzes', () => {
         if (q.note) expect(noteTitles, q.q).toContain(q.note)
       }
     }
+  })
+
+  it('every hand-written topic has at least 3 questions; weak-spots may be empty', () => {
+    expect(all.some(([p]) => p.endsWith('/weak-spots.json'))).toBe(true)
+    for (const [path, quiz] of all) if (!path.endsWith('/weak-spots.json')) expect(quiz.questions.length, path).toBeGreaterThanOrEqual(3)
   })
 
   it('shuffled keeps every item', () => {

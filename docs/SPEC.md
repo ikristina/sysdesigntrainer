@@ -198,7 +198,7 @@ Works for any two saved designs too, not just presets.
 - `kill_node(id)`, `restore_node(id)`, `partition_region(id)`
 - `highlight(node_ids, message)` → draws attention on canvas
 - `advance_step()`, `give_hint(level)`
-- `get_quiz()` → the 🧠 Quiz question on screen (answer only after the user picks)
+- `get_quiz()` → the 🧠 Quiz question on screen (answer only after the user picks) and the user's recent wrong answers
 
 ## Phases
 1. **Canvas**: scaffold repo, block registry, drag-drop palette, connect edges, param panel, save/load designs to JSON (localStorage + export file). Hand-drawn style.

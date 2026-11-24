@@ -33,12 +33,6 @@ class Link:
             raise ToolError("No lesson is open. Ask the user to pick one from the mode menu in the app header.")
         return lesson
 
-    def quiz(self) -> dict[str, Any]:
-        quiz = self.snapshot().get("quiz")
-        if not quiz:
-            raise ToolError("No quiz question is on screen. Ask the user to open 🧠 Quiz and pick a topic.")
-        return quiz
-
     def compare(self) -> dict[str, Any]:
         compare = self.snapshot().get("compare")
         if not compare:
@@ -68,7 +62,9 @@ mcp = MCPServer(
         "In the compare view (two designs, same scenario), use get_compare and run_scenario instead: "
         "there's no overall winner, so challenge the user's verdict against their requirements. "
         "When the user asks about a quiz question (\"this question\", \"why is it B?\"), call get_quiz "
-        "for the question on screen; until they answer it, help them think it through without giving the answer."
+        "for the question on screen; until they answer it, help them think it through without giving the answer. "
+        "get_quiz also lists the quiz questions they got wrong: use them, and anything they struggle with in a "
+        "lesson or in chat, to add questions to quizzes/weak-spots.json (rules in CLAUDE.md, 'Weak-spots quiz')."
     ),
 )
 
@@ -224,10 +220,14 @@ async def give_hint(level: int) -> str:
 
 @mcp.tool()
 def get_quiz() -> dict[str, Any]:
-    """The 🧠 Quiz question on screen: topic, question number and count (number, of), the question, choices, the choice the user
-    picked (null until they answer), and after they answer: the right answer, why, and the study
-    note it comes from (docs/study-notes.md). When the topic is finished: done, right, of."""
-    return link.quiz()
+    """on_screen: the 🧠 Quiz question on screen, or null. It has topic, number and of (question
+    count), the question, choices, the choice the user picked (null until they answer), and after
+    they answer: the right answer, why, and the study note it comes from (docs/study-notes.md).
+    When the topic is finished: done, right, of.
+    misses: questions the user got wrong (topic, q, picked, answer, at), oldest first, up to 30. A
+    question leaves the list once they answer it right. Write weak-spot questions from these."""
+    state = link.snapshot()
+    return {"on_screen": state.get("quiz"), "misses": state.get("quiz_misses", [])}
 
 
 @mcp.tool()

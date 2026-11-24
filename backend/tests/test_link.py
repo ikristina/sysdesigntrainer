@@ -103,12 +103,12 @@ def test_get_quiz(client):
     with client.websocket_connect("/ws") as ws:
         ws.send_json({"type": "state", "state": {**STATE, "quiz": None}})
         client.portal.call(_wait_for, lambda: link.state.get("quiz", 1) is None)
-        with pytest.raises(ToolError, match="No quiz"):
-            call(client, "get_quiz")
+        assert call(client, "get_quiz").structured_content == {"on_screen": None, "misses": []}
         quiz = {"topic": "Caching", "number": 2, "of": 8, "question": "Which redirect?", "picked": None}
-        ws.send_json({"type": "state", "state": {**STATE, "quiz": quiz}})
+        miss = {"topic": "Caching", "q": "Which redirect?", "picked": "301", "answer": "302", "at": "2026-11-24T10:00:00Z"}
+        ws.send_json({"type": "state", "state": {**STATE, "quiz": quiz, "quiz_misses": [miss]}})
         client.portal.call(_wait_for, lambda: link.state.get("quiz"))
-        assert call(client, "get_quiz").structured_content == quiz
+        assert call(client, "get_quiz").structured_content == {"on_screen": quiz, "misses": [miss]}
 
 
 COMPARE = {
