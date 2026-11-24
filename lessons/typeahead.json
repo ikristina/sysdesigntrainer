@@ -1,0 +1,44 @@
+{
+  "id": "typeahead",
+  "title": "Search autocomplete: precompute per prefix, serve from memory",
+  "mode": "full",
+  "brief": "Design search autocomplete (typeahead): as the user types, show the top 10 suggestions for the prefix. Every keystroke is a request: 10k searches/s × about 6 keystrokes each is about 60k prefix lookups/s, and suggestions must arrive before the next keystroke. A search index answers about 2k queries/s per node at about 30 ms ($0.40/hr per node).",
+  "variants": [
+    {
+      "id": "global",
+      "requirements": [
+        "60k prefix lookups/s (10k searches/s × ~6 keystrokes), all reads",
+        "Suggestions are the same for every user and may be up to an hour old: 90% of lookups repeat a prefix someone asked for in the last hour",
+        "95% of lookups are for a prefix that appears in yesterday's query logs; the rest are long tail",
+        "p99 < 100 ms",
+        "errors < 0.1%",
+        "cost < $2/hr"
+      ],
+      "traffic": { "rps": 60000, "read_ratio": 1 },
+      "success": { "p99_ms": 100, "error_pct": 0.1, "max_cost_hr": 2 },
+      "twist": "A breaking story makes a new query trend within minutes, but the suggestions only change when the offline job reruns, and the edge keeps a prefix for an hour. Trending queries must show up within a minute: set the CDN's hit_ratio to 0.6 (a 60 s TTL). What do you scale, what does it cost, and how would trending queries reach the prefix table faster than an hourly batch job? (The sim has no batch job or stream aggregator: talk it through.)"
+    },
+    {
+      "id": "personal",
+      "requirements": [
+        "60k prefix lookups/s, all reads",
+        "Suggestions mix in the user's own recent searches, so every response is per user: an edge cache can't share them (CDN hit 0)",
+        "The app sends the user's recent searches with each request; the global part is shared: 95% of lookups are for a prefix that appears in yesterday's query logs",
+        "p99 < 100 ms",
+        "errors < 0.1%",
+        "cost < $8/hr"
+      ],
+      "traffic": { "rps": 60000, "read_ratio": 1 },
+      "success": { "p99_ms": 100, "error_pct": 0.1, "max_cost_hr": 8 },
+      "twist": "Recent searches must follow users across devices, so the service reads them from a store on every keystroke: add a KV store the service also calls. How many nodes do 60k reads/s need, and could you load the history once per session instead? Would client-side debouncing (send only after ~100 ms without a keystroke) help? The sim can't debounce: lower the rps with set_traffic to try what it would save."
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "Every keystroke is a request. Which part of the answer for \"ne\" is the same for everyone, and when could you work it out?",
+    "Don't search on every keystroke: a job over the query logs can precompute the top 10 per prefix, so a lookup becomes a read from a small in-memory table. If everyone gets the same answer, how close to the user could that answer be cached?",
+    "Global: a CDN (hit 0.9) in front, a cache (hit 0.95) as the prefix table, and the search index behind it only for the long tail. How many services does the 6k/s that gets past the CDN need? Personal: no CDN, so all 60k/s reach the prefix table. How many cache nodes is that, and how many services?"
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Sim: a search index node does 2k/s at 30 ms ($0.40/hr), a service replica 1k/s ($0.10), a cache node 50k/s at 1 ms ($0.15), the CDN $0.10 flat at 20 ms. Graph: client -> (CDN) -> service -> cache (hit 0.95: the precomputed prefix table) -> search index (long tail only). Global: the naive client -> service -> search index collapses at default sizes (97% errors); sized for 60k/s (62 services, 32 index nodes) it holds (p99 61 ms) but costs $19. CDN 0.9 with no prefix table leaves 6k/s on the index: 4 nodes, p99 79 ms, $2.40. Prefix table with no CDN: 64 services + 2 cache nodes, p99 56 ms, $7.50. CDN + table: 7, 8 and 9 services pass (p99 47 ms, $1.75 / $1.85 / $1.95); 10 ($2.05) breaks the budget; 6 runs the services at full utilization, no margin. Personal: the global design with the CDN at hit 0 collapses (90% errors). One cache node gets 60k/s against 50k capacity: 67% errors. 2 cache nodes + 62 to 69 services pass (p99 56 ms, $7.30 to $8.00); 70 ($8.10) breaks the budget. Not modelled, talk it through: the trie or sorted prefix table and its memory size, the offline job that turns query logs into top-k per prefix and how often it reruns, getting trending queries in via a stream aggregator, client-side debouncing and browser caching, filtering bad suggestions. In the sim a cache with nothing behind it drops its misses silently, so CDN -> service -> cache with no fallback passes too: ask where a long-tail prefix's answer comes from. A KV store holding every precomputed prefix is a fair alternative to cache + search fallback. Checked in frontend/src/lessons/content.test.ts."
+}

@@ -34,8 +34,8 @@ describe('content files', () => {
     expect(lessons.map((l) => l.id)).toEqual([
       'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline', 'edge-rate-limiter', 'flash-sale', 'hot-key',
       'job-scheduler', 'leaderboard', 'ledger', 'llm-cost', 'llm-gateway', 'metrics-ingest', 'news-feed',
-      'p99-fix', 'payments', 'rag-search', 'rate-limiter', 'reddit-place', 'retry-storm', 'url-shortener',
-      'webhooks', 'welcome-emails',
+      'p99-fix', 'payments', 'rag-search', 'rate-limiter', 'reddit-place', 'retry-storm', 'typeahead',
+      'url-shortener', 'webhooks', 'welcome-emails',
     ])
     expect(explainers.map((e) => e.id)).toEqual(['caching-basics', 'load-balancing', 'replication-lag'])
   })
@@ -484,6 +484,30 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(site([], 34, [n('db', 'redis', { replicas: 4 })]), live)).toBe(false) // over budget
     expect(passes(site([], 34, [n('db', 'kv')]), live)).toBe(false)
     expect(passes(site([n('cdn', 'cdn')], 26, [n('db', 'kv')]), live)).toBe(true) // the sim can't tell a hash from a sorted set
+  })
+
+  it('typeahead: per-keystroke search is too dear; global suggestions cache at the edge, personal ones need a bigger in-memory tier', () => {
+    const naive = chain(n('c', 'client'), n('api', 'service', { replicas: 62 }), n('ix', 'search', { replicas: 32 }))
+    const suggest = (edge: SavedNode[], api: number, table = 1) => chain(n('c', 'client'), ...edge, n('api', 'service', { replicas: api }),
+      n('k', 'cache', { hit_ratio: 0.95, replicas: table }), n('ix', 'search'))
+    const cdn = n('cdn', 'cdn', { hit_ratio: 0.9 })
+    const global = variant('typeahead', 'global')
+    expect(passes(chain(n('c', 'client'), n('api', 'service'), n('ix', 'search')), global)).toBe(false) // collapses
+    expect(passes(naive, global)).toBe(false) // sized for 60k: over budget
+    expect(passes(chain(n('c', 'client'), cdn, n('api', 'service', { replicas: 7 }), n('ix', 'search', { replicas: 4 })), global)).toBe(false) // no prefix table
+    expect(passes(suggest([], 64, 2), global)).toBe(false) // no CDN: over budget
+    expect(passes(suggest([cdn], 7), global)).toBe(true)
+    expect(passes(suggest([cdn], 8), global)).toBe(true)
+    expect(passes(suggest([cdn], 9), global)).toBe(true)
+    expect(passes(suggest([cdn], 10), global)).toBe(false) // over budget
+    const personal = variant('typeahead', 'personal')
+    expect(passes(naive, personal)).toBe(false)
+    expect(passes(suggest([n('cdn', 'cdn', { hit_ratio: 0 })], 7), personal)).toBe(false) // the global design: CDN can't hit
+    expect(passes(suggest([], 64), personal)).toBe(false) // one cache node: 60k/s on 50k capacity
+    expect(passes(suggest([], 62, 2), personal)).toBe(true)
+    expect(passes(suggest([], 63, 2), personal)).toBe(true)
+    expect(passes(suggest([], 69, 2), personal)).toBe(true)
+    expect(passes(suggest([], 70, 2), personal)).toBe(false) // over budget
   })
 
   const withParams = (d: Design, extra: Record<string, Record<string, number | string>>) => ({
