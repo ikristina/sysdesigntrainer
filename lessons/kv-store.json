@@ -1,0 +1,48 @@
+{
+  "id": "kv-store",
+  "title": "Distributed key-value store: replicas, quorums and losing an AZ",
+  "mode": "full",
+  "brief": "Design a distributed key-value store, Dynamo-style: get(key) and put(key, value), spread over many nodes, still serving when a node or a whole availability zone (AZ) dies. How the sim models it: a KV block (about 10k ops/s per node, an estimate) stands for all the nodes it holds, and killing it kills them all, so use one KV block per AZ. A load balancer in front of them stands for the hash ring: it spreads keys evenly over the nodes (what consistent hashing with virtual nodes aims for), and when an AZ dies it sends that AZ's share, all 3 copies of each write included, to the others at once (like hinted handoff; a strict quorum would write only 2). A real store first has to notice, through timeouts and gossip. Each key lives on N = 3 nodes, one per AZ: the lesson sets followers = 3, so mark the write edge into the router fan-out on write and each write costs 3 node operations. The sim counts that load but stores no data: KV blocks never return an old value and two writes never conflict. Only a cache (or a SQL read replica) counts as a stale read, so your R and W choice and conflict handling are talked through, not measured.",
+  "variants": [
+    {
+      "id": "shopping-cart",
+      "requirements": [
+        "30k rps: 50% reads (view cart), 50% writes (add or remove an item)",
+        "N = 3 copies of every cart, one per AZ (followers = 3: mark the write edge into the router fan-out on write)",
+        "Adding to the cart must always work; a read may briefly miss the latest change",
+        "Lose one AZ (kill it during the load test): checks stay green while it's down",
+        "p99 < 25 ms",
+        "errors < 0.1%",
+        "cost < $5/hr"
+      ],
+      "traffic": { "rps": 30000, "read_ratio": 0.5, "followers": 3, "following": 1 },
+      "success": { "p99_ms": 25, "error_pct": 0.1, "max_cost_hr": 5, "needs_fanout": true },
+      "twist": "During a network partition, two phones change the same cart through different replicas: one adds a book, the other removes a charger. With last-write-wins, what does the cart end up with, and what can clock skew do? With vector clocks the store keeps both versions: who merges them, and why can the removed charger come back? (The sim has no conflicts: talk it through.)"
+    },
+    {
+      "id": "account-settings",
+      "requirements": [
+        "40k rps: 90% reads (every login reads the user's settings), 10% writes (turn on 2-step login, change email)",
+        "N = 3 copies, one per AZ (followers = 3, as in the cart)",
+        "Once a write is acknowledged, reads should see it: pick R and W with R + W > N. That makes every read overlap the replicas that took the latest write, so in the normal case it sees it (not a full guarantee: sloppy quorums during failures, concurrent writes and a read racing a write can still return an older or conflicting value)",
+        "A read that asks 2 replicas: mark the router-to-node edges fan-out on read (the lesson sets following = 2). The sim can't see stale replicas, so it charges for the R you pick but can't tell if R is too small",
+        "No cache on the read path (no stale reads)",
+        "Lose one AZ (kill it during the load test): checks stay green while it's down",
+        "p99 < 25 ms",
+        "errors < 0.1%",
+        "cost < $6/hr"
+      ],
+      "traffic": { "rps": 40000, "read_ratio": 0.9, "followers": 3, "following": 2 },
+      "success": { "p99_ms": 25, "error_pct": 0.1, "max_cost_hr": 6, "max_stale_pct": 0, "needs_fanout": true },
+      "twist": "Logins grow: set_traffic(rps=60000), so you add nodes. If keys were placed by hash(key) mod node count, about what share of keys would move when you add one node? With a hash ring, and with virtual nodes? Then size it: how many nodes per AZ hold 60k with one AZ down?"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "If every key lived on one node and that node's AZ died, what would happen to those keys? And how many node operations does one write cost once every key lives on 3 nodes?",
+    "Spread the nodes over 3 AZs behind a router, copy each write to all three, and size so two AZs can carry everything while one is down. For settings, a read has to ask enough replicas to overlap the ones that acknowledged the last write.",
+    "Count node operations: reads × R + writes × 3, all landing on two AZs during an AZ loss, at 10k per node. Keep each AZ under about ρ 0.85 and check the router's own ρ. Cart: R = W = 1. Settings: the smallest R and W with R + W > 3 that still work with one replica down."
+  ],
+  "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
+  "_notes": "Sim: KV node 10k ops/s, $0.30/hr; router = load balancer, 50k/s, $0.03. The write edge into the router fans out x3, so the router carries reads + 3 x writes. Cart (30k, 50% reads): 15k + 45k = 60k node ops; the router needs 2 replicas (1 replica: 60k on 50k, fails). Naive client -> service -> SQL: errors over 90%. One KV block (12 nodes, no AZs) passes steady at $3.66, but killing it fails every request. 3 AZs x 3 nodes passes steady (rho 0.67) but not an AZ loss: 60k on 2 AZs is 60k on 60k of capacity, p99 over 40 ms. 4 per AZ: rho 0.75 with an AZ down, p99 under 10 ms, $3.66. 5 per AZ: $4.56. 6 per AZ: $5.46, over $5. An app tier (38 services) in front adds 20 ms base latency and $3.80: p99 over 30 ms, $7.46. A cache (hit 0.9) in front passes at 3 per AZ ($2.91, 45% stale, allowed): ask whether a cart cache could really hit 90% when every add changes the cart. Settings (40k, 90% reads, R = 2): 36k x 2 + 4k x 3 = 84k node ops. 4 per AZ: rho 0.7 steady, but with an AZ down it's 84k on 80k, fails. 5 per AZ: rho 0.84, $4.56. 6 per AZ: rho 0.7, $5.46. 7 per AZ: $6.36, over $6. A cache in front: 81% stale, fails. R = 1 (no read fan-out) passes the sim at 3 per AZ ($2.76): the sim can't see the stale read, so grade R + W > N yourself; $1.80/hr is the measured price of the quorum read here. Twist at 60k (3 router replicas, R = 2): 6 per AZ fails with an AZ down, 7 per AZ holds (rho 0.9, $6.39). Not modeled: waiting for the slower of R replicas or W acks (a parallel fan-out counts as one call), failure-detection delay, hot keys (the router splits evenly). Grade beyond the sim: (1) API: get(key) returns the value, or several conflicting versions, plus a context (version / vector clock); put(key, context, value) passes that context back so the store knows which version it replaces. (2) On-node storage: e.g. an LSM tree (append to a commit log, write to an in-memory memtable, flush to immutable SSTables, compact them, bloom filters to skip SSTables on reads) for write-heavy loads, or a B-tree. (3) Partitioning: hash each key onto a ring; each physical node owns many virtual nodes. Adding a node moves only about 1/N of the keys (mod-N hashing moves most of them); virtual nodes spread load evenly and spread a dead node's share over many nodes. (4) Placement: a key's preference list is the next N distinct physical nodes clockwise; AZ-aware placement (e.g. Cassandra's rack-aware strategy) skips nodes until the copies sit in different AZs, so one AZ loss leaves 2 of 3. A coordinator (any node, or a partition-aware client) sends to all N and waits for W acks; reads ask R. (5) Trade-offs: cart R = W = 1 is fastest and most available but can read old data and create conflicts; settings R = W = 2 overlap and still work with one replica down; W = 3, R = 1 also overlaps but one AZ down blocks every write. Quorums alone aren't linearizable: sloppy quorums (writes to stand-in nodes during failures) break the overlap, and concurrent writes or a read racing a write can still return conflicting or out-of-order values; locks or compare-and-set need consensus (Raft / Paxos, e.g. etcd). (6) Failures: sloppy quorum + hinted handoff keep writes available (a stand-in node keeps the write and hands it back when the owner returns); read repair fixes replicas a read finds behind; anti-entropy compares Merkle trees per key range so replicas exchange only the keys that differ; gossip spreads membership and failure suspicion. (7) Conflicts: last-write-wins by timestamp (e.g. Cassandra, per column) is simple but silently drops one of two concurrent writes, and clock skew can drop the newer one; vector clocks (Dynamo, e.g. Riak) keep both versions and the app merges them (a cart union, so a removed item can come back); deletes need tombstones. Checked in frontend/src/lessons/content.test.ts."
+}

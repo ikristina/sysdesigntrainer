@@ -34,7 +34,7 @@ describe('content files', () => {
     expect(lessons.map((l) => l.id)).toEqual([
       'ad-click-aggregation', 'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline',
       'driver-locations', 'edge-rate-limiter', 'file-sync', 'flash-sale', 'hot-key', 'job-scheduler',
-      'leaderboard', 'ledger', 'llm-cost',
+      'kv-store', 'leaderboard', 'ledger', 'llm-cost',
       'llm-gateway', 'metrics-ingest', 'news-feed', 'p99-fix', 'payments', 'rag-search', 'rate-limiter',
       'reddit-place', 'retry-storm', 'typeahead', 'url-shortener', 'video-platform', 'web-crawler',
       'webhooks', 'welcome-emails',
@@ -831,6 +831,73 @@ describe('classic-design lessons match the simulator', () => {
     const dual = logged(5, 5, [n('raw', 'wide_column')], [['api', 'raw', { carries: 'write' }]])
     expect(passes(dual, bill)).toBe(true)
     expect(at(dual, bill).global.costHr).toBeCloseTo(5.36, 2)
+  })
+
+  it('kv-store: N = 3 across AZs sized for an AZ loss; quorum reads (R = 2) cost the settings store more nodes', () => {
+    // client -> [api] -> [cache] -> router (writes x3) -> one KV block per AZ (reads x R when quorum)
+    const store = (k: number, o: { quorum?: boolean; router?: number; api?: number; cache?: boolean } = {}) => {
+      const nodes: SavedNode[] = [n('c', 'client'), n('ring', 'load_balancer', { replicas: o.router ?? 2 })], edges: EdgeSpec[] = []
+      const front = ['c', ...(o.api ? ['api'] : []), ...(o.cache ? ['k'] : [])]
+      if (o.api) nodes.push(n('api', 'service', { replicas: o.api }))
+      if (o.cache) nodes.push(n('k', 'cache', { hit_ratio: 0.9 }))
+      front.slice(1).forEach((id, i) => edges.push([front[i], id]))
+      edges.push([front[front.length - 1], 'ring', { fanout: 'write' }])
+      for (const a of ['a', 'b', 'c']) {
+        nodes.push(n(`az_${a}`, 'az', { name: `az-${a}` }), { ...n(`kv_${a}`, 'kv', { replicas: k }), parentId: `az_${a}` })
+        edges.push(['ring', `kv_${a}`, ...(o.quorum ? [{ fanout: 'read' } as EdgeRoute] : [])] as EdgeSpec)
+      }
+      return graphOf(nodes, edges)
+    }
+    const azDown = (d: Design, v: Variant) => after(d, v, [[10, 1, []], [10, 1, ['az_a']]])
+    const sim = (d: Design, v: Variant, killed: string[] = []) => run(d, v.traffic.rps, v.traffic.read_ratio, killed, 15, undefined, simTraffic(v.traffic))
+
+    const cart = variant('kv-store', 'shopping-cart')
+    const naive = chain(n('c', 'client'), n('api', 'service'), n('db', 'sql_db'))
+    expect(sim(naive, cart).global.errorPct).toBeGreaterThan(90)
+    const oneBlock = graphOf([n('c', 'client'), n('ring', 'load_balancer', { replicas: 2 }), n('kv', 'kv', { replicas: 12 })], [['c', 'ring', { fanout: 'write' }], ['ring', 'kv']])
+    expect(passes(oneBlock, cart)).toBe(true)
+    expect(after(oneBlock, cart, [[10, 1, []], [10, 1, ['kv']]])).toBe(false) // one block = every node dies together
+    expect(passes(store(4, { router: 1 }), cart)).toBe(false) // router carries 60k
+    expect(passes(store(3), cart)).toBe(true)
+    expect(azDown(store(3), cart)).toBe(false) // 2 AZs at rho 1
+    expect(azDown(store(4), cart)).toBe(true)
+    expect(azDown(store(5), cart)).toBe(true)
+    expect(passes(store(6), cart)).toBe(false) // over budget
+    expect(passes(store(4, { api: 38 }), cart)).toBe(false) // +20 ms and $3.80
+    expect(azDown(store(3, { cache: true }), cart)).toBe(true) // stale allowed: ask about the 90% hit ratio
+    const four = sim(store(4), cart, ['az_a'])
+    expect(four.metrics.kv_b.rho).toBeCloseTo(0.75)
+    expect(four.global.p99Ms).toBeLessThan(10)
+    expect(sim(store(3), cart, ['az_a']).global.p99Ms).toBeGreaterThan(40)
+    const cached = sim(store(3, { cache: true }), cart, ['az_a'])
+    expect(cached.global.stalePct).toBeCloseTo(45)
+    expect(cached.global.costHr).toBeCloseTo(2.91)
+    const apiTier = sim(store(4, { api: 38 }), cart)
+    expect(apiTier.global.p99Ms).toBeGreaterThan(30)
+    expect(apiTier.global.costHr).toBeCloseTo(7.46)
+    for (const [k, cost] of [[4, 3.66], [5, 4.56], [6, 5.46], [7, 6.36]]) expect(sim(store(k), cart).global.costHr).toBeCloseTo(cost)
+
+    const settings = variant('kv-store', 'account-settings')
+    expect(sim(naive, settings).global.errorPct).toBeGreaterThan(90)
+    expect(azDown(store(4, { quorum: true }), settings)).toBe(false) // 84k on 2 AZs: rho 1.05
+    expect(azDown(store(5, { quorum: true }), settings)).toBe(true)
+    expect(azDown(store(6, { quorum: true }), settings)).toBe(true)
+    expect(passes(store(7, { quorum: true }), settings)).toBe(false) // over budget
+    expect(passes(store(4, { quorum: true, cache: true }), settings)).toBe(false) // stale
+    expect(sim(store(4, { quorum: true, cache: true }), settings).global.stalePct).toBeCloseTo(81)
+    expect(sim(store(4, { quorum: true }), settings).metrics.kv_b.rho).toBeCloseTo(0.7)
+    expect(sim(store(5, { quorum: true }), settings, ['az_a']).metrics.kv_b.rho).toBeCloseTo(0.84)
+    expect(sim(store(6, { quorum: true }), settings, ['az_a']).metrics.kv_b.rho).toBeCloseTo(0.7)
+    // The sim can't see a stale replica: R = 1 passes on fewer nodes. The tutor grades R + W > N.
+    expect(azDown(store(3), settings)).toBe(true)
+    expect(sim(store(3), settings).global.costHr).toBeCloseTo(2.76)
+    // Twist: 60k, 3 router replicas.
+    const grown = { ...settings, traffic: { ...settings.traffic, rps: 60000 }, success: { ...settings.success, max_cost_hr: Infinity } }
+    expect(azDown(store(6, { quorum: true, router: 3 }), grown)).toBe(false)
+    expect(azDown(store(7, { quorum: true, router: 3 }), grown)).toBe(true)
+    const big = sim(store(7, { quorum: true, router: 3 }), grown, ['az_a'])
+    expect(big.metrics.kv_b.rho).toBeCloseTo(0.9)
+    expect(big.global.costHr).toBeCloseTo(6.39)
   })
 })
 
