@@ -6,3 +6,5 @@ dist/
 __pycache__/
 # Your weak-spot questions, written by Claude (see CLAUDE.md). Kept local: the repo is public.
 quizzes/weak-spots.json
+# Saved copies of source articles (copyrighted): keep local, the repo is public.
+docs/*.pdf

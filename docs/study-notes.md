@@ -355,6 +355,18 @@ Alternatives:
 | UUID v7 (RFC 9562, 2024) | Starts with a ms timestamp, so sortable; no machine ids | 128 bits, twice the size |
 | Database auto-increment | Simple, strictly ordered | One database is a bottleneck and single point of failure |
 | Ticket servers (Flickr) | Two DBs, one hands out odd IDs, the other even | Still a central service; order is only rough across the two |
+| IDs made inside each DB shard (Instagram) | Snowflake's idea with no new service: the database builds the ID on insert | Tied to the sharding scheme; the shard id lives in the ID |
+
+**Instagram's version (2012):** sharded Postgres with several thousand logical shards (Postgres
+schemas) mapped onto far fewer physical servers, so a shard moves between servers without
+re-bucketing data. Each table's default ID comes from a PL/pgSQL function that builds a 64-bit
+number:
+- 41 bits: milliseconds since a custom epoch. (The post says "41 years"; 2^41 ms is actually about 69 years.)
+- 13 bits: logical shard id, e.g. user id 31341 % 2000 shards = shard 1341. Up to 8,192 shards.
+- 10 bits: the table's auto-increment sequence mod 1024, so 1,024 IDs per shard per millisecond.
+- Bonus: the shard is readable from the ID, so you know where a photo lives without a lookup.
+
+Why not Snowflake: it would add moving parts (ZooKeeper, Snowflake servers) for a small team.
 
 ## Collaborative editing (Google Docs): OT vs CRDT
 lesson:
@@ -642,3 +654,14 @@ https://redis.io/docs/latest/commands/geoadd/
 https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation
 
 How Redis stores a geohash as a sorted-set score, and the cell sizes by geohash length used in the proximity note.
+
+## Instagram: Sharding & IDs at Instagram (2012)
+lesson:
+category: References
+
+https://medium.com/instagram-engineering/sharding-ids-at-instagram-1cf5a71e5a5c
+
+How Instagram generates sortable 64-bit IDs inside sharded Postgres: thousands of logical shards
+as Postgres schemas, and a PL/pgSQL function per shard (41 bits time, 13 bits shard, 10 bits
+sequence). Also compares UUIDs, Snowflake and Flickr's ticket servers. Backs the note "Unique ID
+generator (Snowflake IDs)".

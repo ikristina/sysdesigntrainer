@@ -192,6 +192,18 @@
       "answer": 3,
       "why": "Reddit expected to be network-bound, but the 8-core instances ran out of CPU on many small messages, so they doubled the instances.",
       "note": "r/place: how Reddit actually built it (2017)"
+    },
+    {
+      "q": "Instagram needed time-sortable 64-bit IDs across thousands of Postgres shards, without running a new service. What did it do?",
+      "choices": [
+        "Ran Twitter's Snowflake with ZooKeeper",
+        "Used random UUID v4 keys",
+        "Built each ID inside the shard's own Postgres: 41 bits time, 13 bits shard id, 10 bits sequence",
+        "Used one central auto-increment database"
+      ],
+      "answer": 2,
+      "why": "A PL/pgSQL function is each table's default ID: Snowflake's layout with the shard id instead of a machine id, and no extra moving parts. You can read the shard from the ID.",
+      "note": "Unique ID generator (Snowflake IDs)"
     }
   ]
 }
