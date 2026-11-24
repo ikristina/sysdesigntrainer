@@ -479,7 +479,7 @@ describe('classic-design lessons match the simulator', () => {
     for (const api of [33, 34]) expect(passes(site([], api, [n('db', 'redis')]), live)).toBe(true)
     for (const store of ['cache', 'valkey']) expect(passes(site([], 34, [n('db', store)]), live)).toBe(true)
     const shards = graphOf([...lbApi(34), n('router', 'load_balancer'), ...Array.from({ length: 7 }, (_, i) => n(`s${i}`, 'sql_db'))],
-      [...fe, ['api', 'router'], ...Array.from({ length: 7 }, (_, i) => ['router', `s${i}`] as E)])
+      [...fe, ['api', 'router'], ...Array.from({ length: 7 }, (_, i) => ['router', `s${i}`] as EdgeSpec)])
     expect(passes(shards, live)).toBe(false) // over budget
     expect(passes(site([], 34, [n('db', 'redis', { replicas: 4 })]), live)).toBe(false) // over budget
     expect(passes(site([], 34, [n('db', 'kv')]), live)).toBe(false)
