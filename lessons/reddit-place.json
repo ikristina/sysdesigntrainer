@@ -1,0 +1,78 @@
+{
+  "id": "reddit-place",
+  "title": "r/place: one shared pixel board, live for everyone",
+  "mode": "full",
+  "brief": "Design an app in the style of Reddit's r/place: an N×M pixel grid where a user picks one pixel and paints it one of 15 colors (4 bits). After placing, that user can't place again for 5 minutes. Pixels can be overwritten. At least 100,000 people use it at once, and every placement has to show up on every viewer's screen. Viewers hold a websocket to a connection server: use a Service for those with capacity_rps 1,000,000 (pushes per second per server, an estimate). Mark the edge into the connection servers as fan-out on write (the lesson sets followers = 100,000): one placement becomes a push to every viewer. Same app, two board sizes: 100×100, then the follow-up, 1000×1000.",
+  "variants": [
+    {
+      "id": "small",
+      "requirements": [
+        "100×100 board, 4 bits per pixel: the whole board is 5 KB",
+        "100k users, one placement each per 5 min: about 333 placements/s",
+        "Every placement reaches every viewer: 333 × 100k = 33M pushes/s (fan-out on write into the connection servers)",
+        "Board loads: 10k/s at peak (100k viewers reconnecting within 10 s)",
+        "p99 < 200 ms",
+        "errors < 0.1%",
+        "cost < $6.50/hr"
+      ],
+      "traffic": {
+        "rps": 10333,
+        "read_ratio": 0.9678,
+        "payload_kb": 5,
+        "followers": 100000
+      },
+      "success": {
+        "p99_ms": 200,
+        "error_pct": 0.1,
+        "max_cost_hr": 6.5,
+        "needs_fanout": true
+      },
+      "twist": "Launch day brings 300k users: 1k placements/s, each pushed to 300k viewers. Apply with set_traffic(rps=31000, followers=300000). That's 300M pushes/s, 300 connection servers, past the 100 you can run. Send each viewer one message per tick instead (the last second's changes, batched): how many pushes/s is that, and what does a viewer lose? (The sim pushes every placement on its own and can't batch: talk it through.)"
+    },
+    {
+      "id": "big",
+      "requirements": [
+        "1000×1000 board, 4 bits per pixel: the whole board is 500 KB",
+        "Same users: 100k, about 333 placements/s, 33M pushes/s",
+        "Board loads: 10k/s at peak, now 500 KB each",
+        "The store serves the board in 5 KB chunks, so one load is 100 chunk reads: mark the edge into the board store as fan-out on read (the lesson sets following = 100)",
+        "p99 < 200 ms",
+        "errors < 0.1%",
+        "cost < $6.50/hr"
+      ],
+      "traffic": {
+        "rps": 10333,
+        "read_ratio": 0.9678,
+        "payload_kb": 500,
+        "followers": 100000,
+        "following": 100
+      },
+      "success": {
+        "p99_ms": 200,
+        "error_pct": 0.1,
+        "max_cost_hr": 6.5,
+        "needs_fanout": true
+      },
+      "twist": "On a 1000×1000 board most viewers are zoomed in and see about 1% of it. What if each connection subscribed only to the tiles on its screen? How many pushes/s would a placement cost then, and what happens when a viewer pans? (The sim sends every placement to every viewer: talk it through.)"
+    }
+  ],
+  "starter_graph": null,
+  "hints": [
+    "One placement is one small write. How many messages does it turn into, and how many bytes does a new viewer download before they see anything?",
+    "Keep the board as one byte array in memory (4 bits a pixel) and push each placement to the connection servers on a writes-only, fan-out-on-write edge. For the big board: does every 500 KB load have to reach your servers, or can a copy that's a second old answer most of them?",
+    "Small: LB -> about 13 services -> one cache node holding the board, plus the fan-out edge to about 40 connection servers. Big: the same push path, with a CDN in front of the LB for board loads and a few cache nodes behind the fan-out read edge."
+  ],
+  "steps": [
+    "requirements",
+    "estimation",
+    "api_and_data_model",
+    "design",
+    "load_test",
+    "twist",
+    "postmortem"
+  ],
+  "explainers": [
+    "caching-basics"
+  ],
+  "_notes": "Sim: 10,333 rps at 0.9678 reads = 10k board loads + 333 placements/s. Placements go api -> board store and api -> connection servers (carries write, fan-out write, followers 100k): 33.3M pushes/s on Services at 1M/s each. Naive (client -> 14 services -> one SQL DB, no fan-out): SQL rho 2.8, p99 ~7 s, 82% errors, and no fan-out edge, on both boards. Small: LB -> api -> one cache node (the board, rho 0.21) + 40 connection servers (rho 0.83): 13 services $5.48, 14 services $5.58, p99 ~45 ms. The same design with SQL as the store fails (rho 2.8). 14 services + 60 connection servers: $7.58, over the $6.50 budget. Big: fan-out read edge into the store (following 100) makes 10k loads = 1M chunk reads. Small's design melts the cache (rho 27, 98% errors); 22 cache nodes carry it (rho 0.91) but cost $8.73. CDN (generic block, hit 0.9) in front of the LB: 1k loads/s reach the origin = 100k chunk reads; 3 services + 3 cache nodes (rho 0.67) + 40 connection servers: p99 ~63 ms, $4.88; 4 cache nodes $5.03; 60 connection servers $6.88, over budget. With CloudFront as the CDN the same design costs ~$1,572/hr: it bills per GB and the sim prices the 10 s reconnect peak (5 GB/s) as if it lasted the hour; use the generic CDN block or Cloudflare. Talk-through (not modeled): the 5-minute cooldown (ask in api_and_data_model: a per-user key with a 300 s TTL, SET NX EX, checked before the write; the sim can't tell users apart), batching pushes into 1 s ticks (small twist), websockets themselves (a Service with a high capacity stands in), and per-tile subscriptions (big twist). The 1M pushes/s per connection server is an estimate. Valid store answer: one in-memory byte array per board (Redis BITFIELD is one option, any KV storing a blob works); don't require a product. In big, check the user marked the fan-out read edge into the store: without it the 100 chunk reads aren't counted. Checked in frontend/src/lessons/content.test.ts."
+}

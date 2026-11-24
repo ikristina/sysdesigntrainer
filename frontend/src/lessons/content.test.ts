@@ -34,7 +34,7 @@ describe('content files', () => {
     expect(lessons.map((l) => l.id)).toEqual([
       'agent-backend', 'bank-aggregator', 'chat', 'consumer-lag', 'doc-pipeline', 'edge-rate-limiter', 'flash-sale', 'hot-key',
       'job-scheduler', 'ledger', 'llm-cost', 'llm-gateway', 'metrics-ingest', 'news-feed', 'p99-fix', 'payments', 'rag-search',
-      'rate-limiter', 'retry-storm', 'url-shortener', 'webhooks', 'welcome-emails',
+      'rate-limiter', 'reddit-place', 'retry-storm', 'url-shortener', 'webhooks', 'welcome-emails',
     ])
     expect(explainers.map((e) => e.id)).toEqual(['caching-basics', 'load-balancing', 'replication-lag'])
   })
@@ -500,6 +500,31 @@ describe('classic-design lessons match the simulator', () => {
     expect(after(start, b, spikeThenNormal)).toBe(false)
     expect(after(gated, b, spikeThenNormal)).toBe(true)
     expect(after(withParams(start, { api: { replicas: 6 } }), b, spikeThenNormal)).toBe(false) // recovers, over budget
+  })
+
+  it('reddit-place: 33M pushes/s size the connection tier; the big board needs a CDN in front of board loads', () => {
+    const naive = chain(n('c', 'client'), n('api', 'service', { replicas: 14 }), n('db', 'sql_db'))
+    const cache = (replicas: number) => n('k', 'cache', { replicas })
+    // client [-> CDN] -> LB -> api -> board store (fan-out read = 5 KB chunks) + api -> connection servers (fan-out write)
+    const place = (api: number, gw: number, store: SavedNode, cdn?: string, chunks = false) => graphOf(
+      [n('c', 'client'), ...(cdn ? [n('cdn', cdn)] : []), n('lb', 'load_balancer'), n('api', 'service', { replicas: api }), store,
+        n('gw', 'service', { replicas: gw, capacity_rps: 1000000 })],
+      [...(cdn ? [['c', 'cdn'], ['cdn', 'lb']] as EdgeSpec[] : [['c', 'lb']] as EdgeSpec[]), ['lb', 'api'],
+        ['api', store.id, chunks ? { fanout: 'read' } : {}], ['api', 'gw', { carries: 'write', fanout: 'write' }]])
+    const small = variant('reddit-place', 'small')
+    expect(passes(naive, small)).toBe(false)
+    expect(passes(place(14, 40, n('db', 'sql_db')), small)).toBe(false)
+    expect(passes(place(13, 40, cache(1)), small)).toBe(true)
+    expect(passes(place(14, 40, cache(1)), small)).toBe(true)
+    expect(passes(place(14, 60, cache(1)), small)).toBe(false) // over budget
+    const big = variant('reddit-place', 'big')
+    expect(passes(naive, big)).toBe(false)
+    expect(passes(place(14, 40, cache(1), undefined, true), big)).toBe(false) // chunk reads melt the store
+    expect(passes(place(14, 40, cache(22), undefined, true), big)).toBe(false) // over budget
+    expect(passes(place(3, 40, cache(3), 'cdn', true), big)).toBe(true)
+    expect(passes(place(3, 40, cache(4), 'cdn', true), big)).toBe(true)
+    expect(passes(place(3, 60, cache(3), 'cdn', true), big)).toBe(false) // over budget
+    expect(passes(place(3, 40, cache(3), 'cloudfront', true), big)).toBe(false) // billed per GB
   })
 
   it('consumer-lag: consumers past the partition count sit idle; more partitions (and batching) fix it', () => {
