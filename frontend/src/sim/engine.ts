@@ -237,7 +237,7 @@ export function costPerHour(design: Design) {
   for (const n of design.nodes) {
     const def = registry[n.type]
     if (!def) continue
-    const p = n.params, num = (v: unknown, d: number) => (typeof v === 'number' ? v : d)
+    const p = n.params
     const count = def.costPer === 'partition' ? num(p.partitions, 1)
       : num(p.replicas, 1) * (1 + num(p.read_replicas, 0)) * (p.replication === 'replica' ? 2 : 1)
     sum += def.cost * count

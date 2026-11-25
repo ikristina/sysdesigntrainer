@@ -4,7 +4,7 @@
 // Primary down: writes fail fast, reads spread over the read replicas only (none = reads fail too).
 // ponytail: no automatic failover; restore_node stands for "a replica was promoted".
 import type { Handler } from '../types'
-import { DEFAULT_TIMEOUT_MS, latencyOf, mixOf, num, queueStep, total } from './common'
+import { asFlow, DEFAULT_TIMEOUT_MS, latencyOf, mixOf, num, queueStep, total } from './common'
 
 // ponytail: lag rule is an estimate: +(ρ - 0.8) s per s above ρ 0.8, recovers at 0.5 s/s.
 const LAG_FROM_RHO = 0.8
@@ -38,7 +38,7 @@ export const sql: Handler = ({ node, inbound, children, state, dt }) => {
   const served = prim.out + repl.out
   // Requests dropped by a side with no capacity at all (dead primary, no read replicas) fail on every retry.
   const stuck = (primCap > 0 ? 0 : prim.dropped) + (replicas * perNode > 0 ? 0 : repl.dropped)
-  const out = { read: served * mix, write: served * (1 - mix) }
+  const out = asFlow(served, mix)
   return {
     out: children.map(() => out),
     fanout: 'all',
