@@ -27,16 +27,12 @@ export const useLink = create(() => ({ connected: false }))
 
 type Args = Record<string, unknown>
 const sim = () => useSim.getState()
+// set_traffic argument -> simStore field. Arguments left out keep their current value.
+const TRAFFIC_ARGS = { rps: 'rps', read_ratio: 'readRatio', hot_key: 'hotKey', payload_kb: 'payloadKb', followers: 'followers', following: 'following' } as const
 const commands: Record<string, (a: Args) => void> = {
   run: (a) => (a.on ? sim().play() : sim().pause()),
-  set_traffic: (a) => {
-    if (typeof a.rps === 'number') sim().setTraffic({ rps: a.rps })
-    if (typeof a.read_ratio === 'number') sim().setTraffic({ readRatio: a.read_ratio })
-    if (typeof a.hot_key === 'number') sim().setTraffic({ hotKey: a.hot_key })
-    if (typeof a.payload_kb === 'number') sim().setTraffic({ payloadKb: a.payload_kb })
-    if (typeof a.followers === 'number') sim().setTraffic({ followers: a.followers })
-    if (typeof a.following === 'number') sim().setTraffic({ following: a.following })
-  },
+  set_traffic: (a) => sim().setTraffic(Object.fromEntries(Object.entries(TRAFFIC_ARGS)
+    .filter(([arg]) => typeof a[arg] === 'number').map(([arg, key]) => [key, a[arg]]))),
   spike: (a) => sim().spike(a.multiplier as number, a.seconds as number),
   kill_node: (a) => sim().setFlag('killed', a.id as string, true),
   kill_replica: (a) => sim().setReplicasDown(a.id as string, (sim().replicasDown[a.id as string] ?? 0) + ((a.count as number) ?? 1)),
