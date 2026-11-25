@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import tokens from '../tokens.css?raw'
-import { drawShape, SHAPES } from '../canvas/shapes'
+import { drawShape } from '../canvas/shapes'
 import { blocks, categories, defaultParams, registry, toneOf } from '.'
 import { validateParam } from './types'
 
@@ -29,7 +29,6 @@ describe('block looks (docs/STYLE.md)', () => {
   it('every block maps to a drawable shape and to fill and flow tokens that exist', () => {
     for (const b of blocks.filter((x) => x.category !== 'grouping')) {
       const shape = b.shape ?? 'box', tone = toneOf(b)
-      expect(SHAPES, b.type).toContain(shape)
       expect(drawShape(shape, {}, {}).length, b.type).toBeGreaterThan(0)
       expect(tone, b.type).not.toBeNull()
       expect(tokens, b.type).toContain(`--fill-${tone}:`)

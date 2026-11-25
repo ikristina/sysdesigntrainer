@@ -6,9 +6,6 @@ import type { Drawable, Options } from 'roughjs/bin/core'
 import type { Shape } from '../blocks/types'
 import { gen } from './rough'
 
-
-export const SHAPES: Shape[] = ['box', 'lambda', 'sparkle', 'cloud', 'diamond', 'cylinder', 'bucket', 'pipe', 'lanes']
-
 export function drawShape(shape: Shape, body: Options, mark: Options): Drawable[] {
   const faint = { ...mark, stroke: mark.stroke === 'none' ? 'none' : 'var(--ink-faint)', strokeWidth: 1 }
   const box = gen.rectangle(2, 2, 146, 68, body)
