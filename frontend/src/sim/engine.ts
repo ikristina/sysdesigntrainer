@@ -9,7 +9,6 @@ import { handlers } from './handlers'
 import { CROSS_AZ_MS, CROSS_REGION_MS, failAll, NONE, num, total } from './handlers/common'
 import { TRAFFIC_DEFAULTS, type Fanout, type Flow, type HandlerOutput, type NodeMetrics, type NodeState, type SimNode, type Traffic } from './types'
 
-export { CROSS_AZ_MS, CROSS_REGION_MS }
 const SAMPLES_PER_TICK = 100
 const SAMPLE_WINDOW = 2000 // last 20 ticks = 2 s of sim time
 

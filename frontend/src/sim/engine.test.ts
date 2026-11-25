@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { defaultParams, registry } from '../blocks'
 import type { Design, SavedNode } from '../design'
-import { CROSS_REGION_MS, initialSim, step } from './engine'
-import { erlangC } from './handlers/common'
+import { initialSim, step } from './engine'
+import { CROSS_REGION_MS, erlangC } from './handlers/common'
 
 const node = (id: string, type: string, params: Record<string, number | string> = {}, parentId?: string): SavedNode =>
   ({ id, type, position: { x: 0, y: 0 }, parentId, params: { ...defaultParams(type), ...params } })
