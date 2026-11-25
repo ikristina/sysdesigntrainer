@@ -9,7 +9,7 @@ Use when adding or changing a block type in the System Design Trainer repo.
 
 ## Steps
 1. Read `docs/SPEC.md` (Blocks + Simulator sections) and look at 1-2 existing files in `frontend/src/blocks/` to match the pattern.
-2. Create `frontend/src/blocks/<type>.ts` with: `type`, `label`, `icon`, `category`, `params` (name, default, min, max, unit), `simBehavior`, `cost` (USD per replica-hour). Copy the shape of an existing file and use the param helpers in `types.ts`.
+2. Create `frontend/src/blocks/<type>.ts` with: `type`, `label`, `category`, `params` (name, default, min, max, unit), `simBehavior`, `cost` (USD per replica-hour). Copy the shape of an existing file and use the param helpers in `types.ts`.
 3. Add it to the `blocks` list in `frontend/src/blocks/index.ts`.
 4. Pick a `simBehavior`:
    - Reuse an existing handler if the block behaves like one (e.g. a new KV store can reuse `kv`).

@@ -23,7 +23,6 @@ export type ParamDef = {
 export type BlockDef = {
   type: string
   label: string
-  icon: string
   category: Category
   params: ParamDef[]
   simBehavior: string  // which simulator handler runs this block (stub until Phase 2)

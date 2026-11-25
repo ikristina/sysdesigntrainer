@@ -28,7 +28,7 @@ Project `.mcp.json` registers the server so `claude` picks it up automatically:
 ```
 
 ## Blocks
-Each block = registry entry: `type`, `label`, `icon`, `category`, `params` (with defaults, min/max), `simBehavior` (which sim handler), `cost` per replica-hour.
+Each block = registry entry: `type`, `label`, `category`, `params` (with defaults, min/max), `simBehavior` (which sim handler), `cost` per replica-hour.
 
 Initial set:
 - Edge: client, DNS, CDN

@@ -427,7 +427,7 @@ Each block is data, not code. See `blocks/service.ts`:
 
 ```ts
 export const service: BlockDef = {
-  type: 'service', label: 'Service', icon: '⚙️', category: 'compute', simBehavior: 'service', cost: 0.1,
+  type: 'service', label: 'Service', category: 'compute', simBehavior: 'service', cost: 0.1,
   params: [replicas(2), capacity(1000), latency(20), timeout(1000)],
 }
 ```
