@@ -4,7 +4,7 @@
 import { useInternalNode, ViewportPortal } from '@xyflow/react'
 import { useMemo } from 'react'
 import { useSim } from '../simStore'
-import { roughLine, roughPath } from './rough'
+import { gen } from './rough'
 import { RoughPaths } from './RoughPaths'
 
 export function HighlightNote() {
@@ -16,7 +16,7 @@ export function HighlightNote() {
   // arrow runs from under the note down onto the block's top edge.
   const arrow = useMemo(() => {
     const o = { seed: 7, roughness: 1, strokeWidth: 1.8, stroke: 'var(--violet)' }
-    return [roughPath('M 22 2 Q 18 18 34 30', o), roughLine(34, 30, 22, 28, o), roughLine(34, 30, 30, 19, o)]
+    return [gen.path('M 22 2 Q 18 18 34 30', o), gen.line(34, 30, 22, 28, o), gen.line(34, 30, 30, 19, o)]
   }, [])
   if (!message) return null
   const note = (

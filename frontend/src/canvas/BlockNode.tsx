@@ -10,7 +10,7 @@ import { fmtPct, healthColor, healthOf } from '../display'
 import { liveReplicas } from '../sim/engine'
 import { isDown, SimContext, useSim, useSimView } from '../simStore'
 import { Gauge } from './Gauge'
-import { gen, roughPath, seedOf } from './rough'
+import { gen, seedOf } from './rough'
 import { Mark } from './Mark'
 import { drawShape } from './shapes'
 import { RoughPaths } from './RoughPaths'
@@ -35,7 +35,7 @@ export function BlockNode({ id, data }: NodeProps<FlowNode>) {
     const mark = { ...o, strokeWidth: 1.4, stroke: 'var(--ink)' }
     if (health === 'dead') {
       return [...drawShape(shape, { ...o, strokeWidth: 1.7, stroke: 'var(--ink-faint)', fill: 'var(--fill-dead)', fillStyle: 'solid' }, { ...mark, stroke: 'var(--ink-faint)' }),
-        roughPath('M 70 2 L 82 22 L 72 38 L 90 56 L 84 70', { ...o, stroke: 'var(--ink-muted)', strokeWidth: 1.5 })]
+        gen.path('M 70 2 L 82 22 L 72 38 L 90 56 L 84 70', { ...o, stroke: 'var(--ink-muted)', strokeWidth: 1.5 })]
     }
     if (health === 'bad') {
       // Pink base with the outline, then coral hachure over it (no outline, so the stroke isn't doubled).

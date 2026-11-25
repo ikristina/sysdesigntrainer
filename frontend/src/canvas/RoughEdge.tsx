@@ -11,7 +11,7 @@ import { registry, toneOf } from '../blocks'
 import type { FlowNode } from '../design'
 import { isDown, useSimView } from '../simStore'
 import type { EdgeRoute } from '../design'
-import { roughLine, roughPath, seedOf } from './rough'
+import { gen, seedOf } from './rough'
 import { RoughPaths } from './RoughPaths'
 
 // Unit vector pointing out of the target block from the side the edge enters.
@@ -36,7 +36,7 @@ export function RoughEdge(p: EdgeProps) {
     const o = { seed: seedOf(id), roughness: 1, strokeWidth: 2, stroke }
     // Arrowhead at the target, pointing into the block from whichever side the edge enters.
     const bx = x + dx * 10, by = y + dy * 10
-    return [roughPath(d, o), roughLine(bx - dy * 6, by + dx * 6, x, y, o), roughLine(bx + dy * 6, by - dx * 6, x, y, o)]
+    return [gen.path(d, o), gen.line(bx - dy * 6, by + dx * 6, x, y, o), gen.line(bx + dy * 6, by - dx * 6, x, y, o)]
   }, [id, d, x, y, dx, dy, stroke])
 
   const r = (p.data ?? {}) as EdgeRoute

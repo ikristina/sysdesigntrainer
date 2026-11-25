@@ -5,7 +5,7 @@ import { useMemo } from 'react'
 import { registry } from '../blocks'
 import { isDown, useSimView } from '../simStore'
 import type { FlowNode } from '../design'
-import { roughPath, roughRect, seedOf } from './rough'
+import { gen, roughRect, seedOf } from './rough'
 import { RoughPaths } from './RoughPaths'
 
 export function ContainerNode({ id, data, selected, width = 0, height = 0 }: NodeProps<FlowNode>) {
@@ -16,7 +16,7 @@ export function ContainerNode({ id, data, selected, width = 0, height = 0 }: Nod
     () => {
       const o = { seed: seedOf(id), roughness: 1.5, strokeWidth: 2, strokeLineDash: [8, 8],
         stroke: selected ? 'var(--violet)' : down ? 'var(--coral)' : cut ? 'var(--amber)' : 'var(--ink-faint)' }
-      return data.blockType === 'region' ? roughPath(cloudFrame(width, height), o) : roughRect(width, height, o)
+      return data.blockType === 'region' ? gen.path(cloudFrame(width, height), o) : roughRect(width, height, o)
     },
     [id, data.blockType, width, height, selected, down, cut],
   )

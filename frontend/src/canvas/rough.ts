@@ -12,5 +12,3 @@ export function seedOf(id: string) {
 }
 
 export const roughRect = (w: number, h: number, o: Options) => gen.rectangle(2, 2, w - 4, h - 4, o)
-export const roughPath = (d: string, o: Options) => gen.path(d, o)
-export const roughLine = (x1: number, y1: number, x2: number, y2: number, o: Options) => gen.line(x1, y1, x2, y2, o)
