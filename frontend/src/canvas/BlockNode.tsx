@@ -52,7 +52,7 @@ export function BlockNode({ id, data }: NodeProps<FlowNode>) {
   })], [id, badge])
 
   const replicas = data.params.replicas ?? data.params.read_replicas
-  const stats = health === 'dead' ? 'down'
+  const stats = health === 'dead' ? (m?.note?.startsWith('down') ? m.note : 'down') // "down: bypassed" (cache when_down)
     : m && m.lambda > 0 ? [
       m.dropped / m.lambda > 0.005 ? `${fmtPct((100 * m.dropped) / m.lambda)} err` : '',
       m.note ?? '',
