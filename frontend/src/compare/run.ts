@@ -81,7 +81,7 @@ export function runScenario(design: Design, sc: Scenario, watch?: string): Run {
   return r
 }
 
-export type Row = { label: string; values: [string, string]; raw: [number, number]; winner: 0 | 1 | null; about: string }
+export type Row = { label: string; values: [string, string]; winner: 0 | 1 | null; about: string }
 
 /** The compare table. Each row picks a winner (null when within 2%, or within `eps`, or both infinite).
  *  Recovery is measured from the first kill, spike or param change; a traffic change is a new
@@ -92,11 +92,10 @@ export function summarize([a, b]: [Run, Run], sc: Scenario): Row[] {
   const te = disrupt.length ? Math.min(...disrupt) : null
   const rows: Row[] = []
   const add = (label: string, about: string, f: (r: Run) => number, fmt: (n: number) => string, better: 'high' | 'low', eps: number) => {
-    const raw: [number, number] = [f(a), f(b)]
-    const [x, y] = raw
+    const [x, y] = [f(a), f(b)]
     const close = x === y || Math.abs(x - y) <= Math.max(eps, 0.02 * Math.max(Math.abs(x), Math.abs(y)))
     const winner = close ? null : (better === 'high' ? x > y : x < y) ? 0 : 1
-    rows.push({ label, about, raw, values: [fmt(x), fmt(y)], winner })
+    rows.push({ label, about, values: [fmt(x), fmt(y)], winner })
   }
   const after = (r: Run) => r.history.filter((s) => s.t > 1) // skip the first second while queues fill
   const max = (xs: number[]) => Math.max(0, ...xs)
