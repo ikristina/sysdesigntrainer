@@ -24,7 +24,7 @@ export function ParamPanel() {
       <div>
         <div className="caps">Selected</div>
         <div className="inspector__title">{def.label}</div>
-        <div className="muted mono">{node.id} · {priceOf(def)}</div>
+        <div className="muted">{node.id} · {priceOf(def)}</div>
       </div>
       {def.product && <ProductInfo def={def} />}
       {def.params.map((p) => (
@@ -51,7 +51,7 @@ function ProductInfo({ def }: { def: BlockDef }) {
       <details>
         <summary>Sources and estimates</summary>
         <ul className="product__sources">
-          {Object.entries(p.sources).map(([k, v]) => <li key={k}><b className="mono">{k}</b> {linkify(v)}</li>)}
+          {Object.entries(p.sources).map(([k, v]) => <li key={k}><b>{k}</b> {linkify(v)}</li>)}
         </ul>
         <p className="muted">{p.notes}</p>
       </details>
@@ -111,7 +111,7 @@ function EdgePanel({ edge }: { edge: Edge }) {
       <div>
         <div className="caps">Selected</div>
         <div className="inspector__title">Connection</div>
-        <div className="muted mono">{edge.source} → {edge.target}</div>
+        <div className="muted">{edge.source} → {edge.target}</div>
       </div>
       <label className="field">
         <span className="field__row"><span>Carries</span></span>

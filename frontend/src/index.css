@@ -7,11 +7,10 @@ body { margin: 0; background: var(--paper); }
 .sk { border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px; }
 .caps { font-size: 13px; font-weight: 600; color: var(--ink-muted); }
 .muted { color: var(--ink-muted); font-size: 12px; }
-.mono { font-family: var(--font); }
 
 .app { height: 100vh; display: flex; flex-direction: column; }
 .header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px 24px; border-bottom: 2px solid var(--ink); }
-.logo { font-family: var(--font); font-size: 26px; font-weight: 700; color: inherit; text-decoration: none; }
+.logo { font-size: 26px; font-weight: 700; color: inherit; text-decoration: none; }
 .logo span { color: var(--violet); }
 .header__actions { display: flex; gap: 8px; }
 .btn { font: 600 14px var(--font); padding: 8px 16px; border: 2px solid var(--ink); background: var(--panel); cursor: pointer; }
@@ -70,7 +69,7 @@ body { margin: 0; background: var(--paper); }
 
 .inspector { width: 300px; padding: 18px; border-left: 2px solid var(--ink); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; gap: 18px; }
 .stack { display: flex; flex-direction: column; gap: 14px; }
-.inspector__title { font-family: var(--font); font-size: 18px; font-weight: 800; }
+.inspector__title { font-size: 18px; font-weight: 800; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .field__row { display: flex; justify-content: space-between; }
 .field input, .field select { font: 14px var(--font); padding: 6px 8px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--panel); }
@@ -99,7 +98,7 @@ body { margin: 0; background: var(--paper); }
 .pip--dead { border-color: var(--ink-faint); background: var(--fill-dead); }
 button.pip { cursor: pointer; }
 button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
-.container-node__label { position: absolute; left: 14px; top: 8px; font-family: var(--font); font-size: 15px; color: var(--ink-muted); }
+.container-node__label { position: absolute; left: 14px; top: 8px; font-size: 15px; color: var(--ink-muted); }
 
 /* React Flow draws its own box around custom nodes by default; we draw ours with rough.js. */
 .react-flow__node-block, .react-flow__node-container { background: none; border: none; padding: 0; }
@@ -112,7 +111,7 @@ button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 .react-flow__handle.connectable:hover, .react-flow__handle.connectingto { background: var(--violet); }
 
 /* Live sim state on blocks. */
-.util { position: absolute; left: 14px; right: 14px; bottom: 7px; height: 4px; background: var(--line-faint); border-radius: 2px; overflow: hidden; }
+.util { height: 8px; margin-top: 4px; background: var(--line-faint); border-radius: 2px; overflow: hidden; }
 .util > div { height: 100%; }
 .qstack { position: absolute; right: 8px; bottom: calc(100% + 2px); display: flex; flex-direction: column-reverse; gap: 2px; }
 .qstack span { width: 14px; height: 7px; border: 1.5px solid var(--flow-async); background: var(--fill-async); border-radius: 2px; }
@@ -158,11 +157,11 @@ button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 
 /* Phase 4: mode picker, explainer, lesson, success panel. */
 .mode-select { font: 600 14px var(--font); padding: 6px 8px; border: 2px solid var(--ink); background: var(--panel); }
-.explainer__caption { font-family: var(--font); font-size: 19px; line-height: 1.35; margin: 0; }
+.explainer__caption { font-size: 19px; line-height: 1.35; margin: 0; }
 .explainer__nav { display: flex; gap: 8px; }
 .explainer__nav .btn { flex: 1; padding: 8px 10px; }
 .explainer__steps { margin: 0; padding-left: 20px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
-.explainer__steps button { all: unset; cursor: pointer; color: var(--ink-muted); }
+.explainer__steps button { all: unset; cursor: pointer; color: var(--ink-muted); vertical-align: top; text-align: left; }
 .explainer__steps button.is-current { color: var(--ink); font-weight: 700; }
 .explainer a, .lesson a { color: var(--violet); font-size: 13px; }
 .explainer a:hover, .lesson a:hover { color: var(--violet-hover); }
@@ -175,7 +174,7 @@ button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 .lesson__reqs { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
 .lesson__changed { color: var(--violet); font-weight: 600; }
 .lesson__step { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1.5px dashed var(--line-faint); }
-.lesson__twist { font-family: var(--font); font-size: 17px; }
+.lesson__twist { font-size: 17px; }
 .lesson__notes { font: 13px var(--font); padding: 6px; border: 1.5px solid var(--ink); border-radius: 4px; resize: vertical; }
 .lesson__hint { background: var(--amber-soft); padding: 6px 8px; }
 .steps { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -187,9 +186,7 @@ button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 .success { font-size: 13px; }
 .success .ok { color: var(--ok-text); font-weight: 700; }
 .success .bad { color: var(--coral-text); font-weight: 700; }
-.util--wide { position: static; height: 8px; margin-top: 4px; }
 .palette.explainer { width: 280px; }
-.explainer__steps button { vertical-align: top; text-align: left; }
 /* Shapes with a lid (cylinders, bucket): start the label below it. */
 .shape--cylinder .block-node__label, .shape--bucket .block-node__label { padding-top: 19px; }
 
@@ -220,14 +217,14 @@ button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 .compare__side { flex: 1; min-height: 0; display: flex; flex-direction: column; border: 2px solid; background: var(--panel); }
 .compare__side .react-flow { flex: 1; }
 .compare__head { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1.5px dashed var(--line-faint); font-size: 12px; flex-wrap: wrap; }
-.compare__head b { font-family: var(--font); font-size: 18px; }
+.compare__head b { font-size: 18px; }
 .compare__charts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .compare__chart svg { height: 90px; }
 .compare__table { border-collapse: collapse; font-size: 13px; width: 100%; }
 .compare__table th, .compare__table td { padding: 5px 4px; border-bottom: 1px solid var(--line-faint); text-align: right; }
 .compare__table tbody th { text-align: left; font-weight: 400; }
 .compare__table td.win { font-weight: 800; background: var(--ok-soft); }
-.compare-panel__sides { display: flex; flex-direction: column; gap: 2px; font-family: var(--font); font-size: 17px; }
+.compare-panel__sides { display: flex; flex-direction: column; gap: 2px; font-size: 17px; }
 .compare__watch { margin: 6px 0 0; padding: 6px 8px; background: var(--amber-soft); border-radius: 6px; }
 .compare__next { padding: 8px 10px; border: 2px solid var(--ink); border-radius: 8px; background: var(--panel); }
 .compare__next p { margin: 6px 0 0; }
@@ -250,4 +247,4 @@ button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 .quiz__choice--right { background: var(--ok-soft); }
 .quiz__choice--wrong { background: var(--coral-soft); }
 .quiz__why { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border: 1.5px dashed var(--line-faint); font-size: 13px; line-height: 1.45; }
-.quiz__score { font-family: var(--font); font-size: 22px; margin: 4px 0; }
+.quiz__score { font-size: 22px; margin: 4px 0; }

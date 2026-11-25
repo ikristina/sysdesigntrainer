@@ -34,7 +34,7 @@ export function CompareBar() {
           <option value={1}>1×</option><option value={5}>5×</option><option value={20}>20×</option>
         </select>
       </label>
-      <b className="traffic__val mono">{t.toFixed(1)} / {sc.seconds} s</b>
+      <b className="traffic__val">{t.toFixed(1)} / {sc.seconds} s</b>
       <button className="btn sk btn--dark" onClick={st.running ? pause : play}>{st.running ? '❚❚ Pause' : '▶ Run both'}</button>
       <button className="btn sk" onClick={reset}>Reset</button>
     </div>
@@ -133,7 +133,7 @@ function MiniCanvas({ i }: { i: number }) {
     <div className="compare__side" style={{ borderColor: SIDE_COLORS[i] }}>
       <div className="compare__head">
         <b style={{ color: SIDE_COLORS[i] }}>{label}</b>
-        <span className="muted mono">p99 {fmtMs(g.p99Ms)} · err {fmtPct(g.errorPct)} · {fmtRps(g.throughput)} · ${g.costHr.toFixed(2)}/hr</span>
+        <span className="muted">p99 {fmtMs(g.p99Ms)} · err {fmtPct(g.errorPct)} · {fmtRps(g.throughput)} · ${g.costHr.toFixed(2)}/hr</span>
       </div>
       <SimContext.Provider value={sides[i] as unknown as StoreApi<SimView>}>
         {/* Its own provider: each canvas is a separate React Flow instance. key: refit when the design is replaced. */}

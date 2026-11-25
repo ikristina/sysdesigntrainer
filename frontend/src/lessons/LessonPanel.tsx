@@ -94,7 +94,7 @@ export function SuccessPanel() {
       ))}
       <div>
         <div className="field__row"><span>Cost</span><span>${g.costHr.toFixed(2)} of ${success.max_cost_hr}/hr</span></div>
-        <div className="util util--wide" role="meter" aria-label="Cost against budget"
+        <div className="util" role="meter" aria-label="Cost against budget"
           aria-valuenow={g.costHr} aria-valuemax={success.max_cost_hr}>
           <div style={{ width: `${costShare * 100}%`, background: g.costHr > success.max_cost_hr ? 'var(--error)' : 'var(--ok)' }} />
         </div>
