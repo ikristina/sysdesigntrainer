@@ -14,11 +14,7 @@ export type Preset = {
   params?: Record<string, ParamValue>  // new defaults for params (the base's or addParams)
   addParams?: ParamDef[]               // params the generic block doesn't have
   dropParams?: string[]                // params the product doesn't have (Memcached: no persistence)
-  cost: number                         // USD per replica-hour (or per partition, with costPer)
-  costPer?: 'partition'
-  requestCost?: { read: number; write: number }
-  transferCost?: number
-} & Omit<Product, 'base' | 'logo' | 'badge'>
+} & Pick<BlockDef, 'cost' | 'costPer' | 'requestCost' | 'transferCost'> & Omit<Product, 'base' | 'logo' | 'badge'>
 
 export function presetBlock(p: Preset): BlockDef {
   const params = [...p.base.params.filter((d) => !p.dropParams?.includes(d.key)), ...(p.addParams ?? [])]
