@@ -49,7 +49,8 @@
    "type": "redis",
    "params": {
     "hit_ratio": 0.9,
-    "replicas": 1
+    "replicas": 1,
+    "when_down": "fail"
    }
   },
   {

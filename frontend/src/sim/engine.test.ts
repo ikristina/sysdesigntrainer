@@ -257,6 +257,14 @@ describe('simulator', () => {
       expect(restart({ persistence: 'aof' })).toBeCloseTo(0.9)
     })
 
+    it('when_down bypass: a dead cache sends everything on to the DB instead of failing it', () => {
+      const down = (when_down: string) => run(d({ when_down }), { from: run(d({ when_down })), killed: ['cache'], seconds: 1 })
+      expect(down('fail').global.errorPct).toBeGreaterThan(99)
+      const bypass = down('bypass')
+      expect(bypass.global.errorPct).toBeLessThan(0.1)
+      expect(bypass.metrics.db.lambda).toBeCloseTo(1000) // every request, not just the 10% misses
+    })
+
     it('warms back up over about 30 s', () => {
       const p = { persistence: 'none' }
       const down = run(d(p), { from: run(d(p)), killed: ['cache'], seconds: 1 })

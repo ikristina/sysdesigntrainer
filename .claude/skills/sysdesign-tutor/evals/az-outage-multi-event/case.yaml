@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: az-outage-multi-event
 expected_outcome: |
-  Splits the twist into three events and maps each to a block: kill_primary('db'), kill_replica('api', 2). Leaves the cache up: a dead in-line cache fails every request in the sim, while real cache-aside falls through to the DB, so it talks that through and logs the gap. No partition_region (the design has no region blocks), no kill_node on db or api. Doesn't log no-failover.
+  Splits the twist into three events and maps each to a block: kill_primary('db'), kill_replica('api', 2). Leaves the cache up: a dead in-line cache fails every request in the sim, while real cache-aside falls through to the DB, so it asks how her app handles a cache error (When down: bypass models a fallback) and doesn't kill it yet. No partition_region (the design has no region blocks), no kill_node on db or api. Doesn't log no-failover.
 context:
   scaffold_script: place-files.sh

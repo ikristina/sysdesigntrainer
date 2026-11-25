@@ -30,6 +30,10 @@ export const cache: Handler = ({ node, inbound, children, state, dt }) => {
     if (replicas !== before && node.params.replication !== 'replica') warm *= Math.min(before, replicas) / Math.max(before, replicas)
     warm += ((1 - warm) * dt) / WARM_S
   }
+  if (node.killed && node.params.when_down === 'bypass') return {
+    out: children.map(() => inbound), fanout: 'all', state: { queue: 0, mix, warm, replicas },
+    metrics: { lambda, mu: Infinity, rho: 0, queue: 0, served: lambda, dropped: 0, baseMs: 0, latencyMs: 0, hit: 0, stale: 0, note: 'down: bypassed' },
+  }
   const hit = num(node.params.hit_ratio, 0) * warm * (node.params.write_mode === 'invalidate' ? mix : 1)
   const reads = q.out * mix, writes = q.out * (1 - mix)
   const out = { read: reads * (1 - hit), write: writes }

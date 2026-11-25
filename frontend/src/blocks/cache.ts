@@ -13,5 +13,8 @@ export const cache: BlockDef = {
     { key: 'persistence', label: 'Persistence', default: 'none', options: ['none', 'rdb', 'aof'] },
     // A replica per node: failover keeps the keys, costs 2×.
     { key: 'replication', label: 'Replication', default: 'none', options: ['none', 'replica'] },
+    // While it's down: fail every request (in the request path, or the store itself), or bypass:
+    // the app treats it as a miss and goes to the next block (cache-aside), so all reads land there.
+    { key: 'when_down', label: 'When down', default: 'fail', options: ['fail', 'bypass'] },
   ],
 }
