@@ -7,9 +7,8 @@ import { useDesign } from '../store'
 const toRps = (x: number) => Number((10 ** x).toPrecision(2))
 
 export function TrafficBar() {
-  const { running, rps, readRatio, hotKey, payloadKb, followers, following, play, pause, reset, setTraffic, spike, setFlag } = useSim()
+  const { running, rps, readRatio, hotKey, payloadKb, followers, following, play, pause, reset, setTraffic, spike, setFlag, killed, partitioned } = useSim()
   const spiking = useSim((s) => s.sim.t < s.spikeUntil)
-  const { killed, partitioned } = useSim()
   const selected = useDesign((s) => s.nodes.find((n) => n.selected))
   const read = Math.round(readRatio * 100)
 
