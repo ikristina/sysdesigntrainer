@@ -3,6 +3,7 @@
 // localStorage, and so is the lesson's design (a separate key from the sandbox design).
 import { create } from 'zustand'
 import { TICK_S, useSim } from '../simStore'
+import { load, save } from '../storage'
 import { useDesign } from '../store'
 import { checks, graph, lessons, simTraffic, type Lesson, type Requirements, type StepName } from './content'
 
@@ -42,8 +43,7 @@ const update = (fn: (p: Progress) => Partial<Progress>, newRequirements = false)
 export function startLesson(id: string) {
   const lesson = lessons.find((l) => l.id === id)
   if (!lesson) return
-  let progress = fresh(lesson)
-  try { progress = { ...progress, ...JSON.parse(localStorage.getItem(progressKey(id)) ?? '{}') } } catch { /* start fresh */ }
+  const progress = { ...fresh(lesson), ...load(progressKey(id), {}) }
   useLesson.setState({ lesson, progress, heldS: 0 })
   useDesign.getState().open(`sysdesign.lesson.${id}`, lesson.starter_graph ? graph(lesson.starter_graph) : undefined)
   setLessonTraffic()
@@ -77,7 +77,7 @@ export const showHint = (level: number) => update((p) => ({ hints: Math.max(p.hi
 
 // Save progress whenever it changes.
 useLesson.subscribe((s, prev) => {
-  if (s.lesson && s.progress !== prev.progress) localStorage.setItem(progressKey(s.lesson.id), JSON.stringify(s.progress))
+  if (s.lesson && s.progress !== prev.progress) save(progressKey(s.lesson.id), s.progress)
 })
 
 // Every sim tick: are all checks green, at the required traffic? Count how long; pass at HOLD_S.

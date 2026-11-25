@@ -4,6 +4,7 @@
 // weak-spots.json is the one Claude writes to as it sees you struggle (see CLAUDE.md). It's gitignored
 // (the repo is public), so it may be missing or empty.
 import { create } from 'zustand'
+import { load, save } from '../storage'
 
 export type Question = { q: string; choices: string[]; answer: number; why: string; note?: string }
 export type Quiz = { id: string; topic: string; questions: Question[] }
@@ -25,9 +26,6 @@ export function shuffled<T>(xs: T[], rand = Math.random): T[] {
   return a
 }
 
-// localStorage, wrapped: it can be blocked (private mode), and then nothing is remembered.
-const load = <T>(key: string, fallback: T): T => { try { return JSON.parse(localStorage.getItem(key) ?? '') ?? fallback } catch { return fallback } }
-const save = (key: string, v: unknown) => { try { localStorage.setItem(key, JSON.stringify(v)) } catch { /* not remembered */ } }
 
 // The run on screen (null = topic list or panel closed). In a store so the tutor link can send it to
 // Claude, and saved so a page refresh picks up on the same question.

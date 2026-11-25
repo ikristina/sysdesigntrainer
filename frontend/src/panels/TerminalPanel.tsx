@@ -4,19 +4,19 @@
 // Drag the top bar to resize; the height is remembered in localStorage (per browser).
 import { useEffect, useState, type PointerEvent } from 'react'
 import { TTYD_URL, ttydUp, useLink } from '../link'
+import { load, save } from '../storage'
 
 const TTYD_CMD = 'ttyd -W -O -i lo0 -p 7681 -t fontSize=15 tmux new -A -s sysdesign claude'
 const BACKEND_CMD = 'cd backend && uv run uvicorn app.main:app --reload --port 8000'
 const HEIGHT_KEY = 'terminal-height'
 const clampHeight = (h: number) => Math.round(Math.min(Math.max(h, 120), window.innerHeight - 120))
-const savedHeight = () => { try { return Number(localStorage.getItem(HEIGHT_KEY)) || 300 } catch { return 300 } }
 
 export function TerminalPanel({ onClose }: { onClose: () => void }) {
   const connected = useLink((s) => s.connected)
   const [up, setUp] = useState<boolean | null>(null)
   const check = () => { setUp(null); ttydUp().then(setUp) }
   useEffect(() => { ttydUp().then(setUp) }, [])
-  const [height, setHeight] = useState(() => clampHeight(savedHeight()))
+  const [height, setHeight] = useState(() => clampHeight(load(HEIGHT_KEY, 300)))
   // Pointer capture keeps the drag going while the pointer is over the iframe, which would
   // otherwise swallow the move events.
   const drag = (e: PointerEvent<HTMLDivElement>) => {
@@ -27,7 +27,7 @@ export function TerminalPanel({ onClose }: { onClose: () => void }) {
     bar.onpointermove = (m) => setHeight(clampHeight(startH + startY - m.clientY))
     bar.onpointerup = (u) => {
       bar.onpointermove = bar.onpointerup = null
-      try { localStorage.setItem(HEIGHT_KEY, String(clampHeight(startH + startY - u.clientY))) } catch { /* private mode: not remembered */ }
+      save(HEIGHT_KEY, clampHeight(startH + startY - u.clientY))
     }
   }
 

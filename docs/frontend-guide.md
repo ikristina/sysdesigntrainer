@@ -121,6 +121,7 @@ frontend/
     simStore.ts           Zustand store for the run: traffic (incl. hot key), killed/partitioned, highlight, tick loop,
                           latest SimState; SimContext + useSimView so canvas parts can read a compare side instead
     display.ts            number formatting + green/amber/red health scale
+    storage.ts            load/save JSON in localStorage, never throwing (private mode); quiz, lessons, terminal height
     design.ts             saved-design JSON format: toDesign / fromDesign / localStorage helpers
     design.test.ts        save/load round-trip + bad-input tests
     blocks/
