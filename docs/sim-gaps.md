@@ -11,9 +11,3 @@ Entry format (append, newest last):
 - real system: <what would happen>
 - suggest: lesson change: <new twist wording> | capability: <smallest sim change that models it>
 ```
-
-## url-shortener: promotion keeps the read replica
-- twist: "the postgres primary dies" (custom twist), then promote the replica to recover
-- sim does: `kill_primary("db")` fails writes; reads go to the read replica. `restore_node("db")` brings the primary back with `read_replicas` unchanged.
-- real system: promoting the only replica leaves a new primary with 0 replicas, so every cache-miss read hits the primary until a replacement replica catches up. With async replication, the last writes that never reached the replica are lost (RPO > 0).
-- suggest: capability: `promote_replica(id)` = clear `primaryDown` and lower `read_replicas` by 1

@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: primary-dies-custom-twist
 expected_outcome: |
-  Applies the failure with kill_primary('db') (not kill_node, which would also take the read replica down), does not log the known no-failover gap, gets metrics after it runs, asks Kristina what she sees or expects before explaining, and restores with restore_node later.
+  Applies the failure with kill_primary('db') (not kill_node, which would also take the read replica down), does not log the known no-failover gap, gets metrics after it runs, asks Kristina what she sees or expects before explaining, and recovers later with promote_replica or restore_node.
 context:
   scaffold_script: place-files.sh

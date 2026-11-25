@@ -105,6 +105,7 @@
 get_lesson(), get_design(), get_metrics(), run(on=True), set_traffic(rps, read_ratio, hot_key, payload_kb, followers, following),
 spike(multiplier=3, seconds=10), kill_node(id), kill_replica(id, count=1), restore_replica(id, count=1),
 kill_primary(id)  # single-primary SQL only (blocks with a read_replicas param)
+promote_replica(id)  # fail over: a read replica becomes the primary, read_replicas - 1
 restore_node(id), partition_region(id), highlight(node_ids, message=""), set_requirements(...), advance_step(), give_hint(level)
 ```
 

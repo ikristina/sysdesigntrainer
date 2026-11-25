@@ -53,6 +53,8 @@ def test_mirror_and_commands(client):
             call(client, "partition_region", {"id": "svc"})
         with pytest.raises(ToolError, match="not a single-primary SQL DB"):
             call(client, "kill_primary", {"id": "svc"})
+        with pytest.raises(ToolError, match="no read replica"):
+            call(client, "promote_replica", {"id": "svc"})
         with pytest.raises(ToolError, match="no replicas"):
             call(client, "kill_replica", {"id": "r1"})
         with pytest.raises(ToolError, match="no replicas"):

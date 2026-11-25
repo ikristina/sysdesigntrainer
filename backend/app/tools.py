@@ -162,11 +162,22 @@ async def restore_replica(id: str, count: int = 1) -> str:
 @mcp.tool()
 async def kill_primary(id: str) -> str:
     """Kill an SQL DB's primary: writes fail, reads keep going to its read replicas (none = reads fail too).
-    No automatic failover: restore_node stands for a replica being promoted."""
+    No automatic failover: promote_replica fails over, restore_node brings the old primary back."""
     if "read_replicas" not in link.node(id)["params"]:  # single-primary SQL: SQL DB, Postgres, MySQL. Not the type: CockroachDB is SQL with no single primary, and drops this param
         raise ToolError(f"{id} is not a single-primary SQL DB")
     await link.send("kill_primary", id=id)
     return f"{id} primary down"
+
+
+@mcp.tool()
+async def promote_replica(id: str) -> str:
+    """Fail an SQL DB over: one read replica becomes the primary, so writes work again and
+    read_replicas drops by 1 (raise it to add a new replica). Writes the replica never got aren't lost in the sim."""
+    replicas = link.node(id)["params"].get("read_replicas")
+    if not isinstance(replicas, int) or replicas < 1:
+        raise ToolError(f"{id} has no read replica to promote")
+    await link.send("promote_replica", id=id)
+    return f"{id}: a replica is the new primary, {replicas - 1} read replica(s) left"
 
 
 @mcp.tool()

@@ -44,6 +44,11 @@ const commands: Record<string, (a: Args) => void> = {
     sim().setFlag('partitioned', a.id as string, false)
   },
   kill_primary: (a) => sim().setFlag('primaryDown', a.id as string, true),
+  promote_replica: (a) => {
+    const id = a.id as string, node = useDesign.getState().nodes.find((n) => n.id === id)
+    sim().setFlag('primaryDown', id, false)
+    if (node) useDesign.getState().setParam(id, 'read_replicas', Number(node.data.params.read_replicas) - 1)
+  },
   partition_region: (a) => sim().setFlag('partitioned', a.id as string, true),
   highlight: (a) => sim().setHighlight(a.node_ids as string[], a.message as string),
   // Lesson tools. The backend has already checked a lesson is open and the arguments are valid.
