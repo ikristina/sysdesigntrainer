@@ -134,14 +134,19 @@ async def kill_node(id: str) -> str:
     return f"{id} killed"
 
 
+def _replica_count(id: str, count: int) -> None:
+    replicas = link.node(id)["params"].get("replicas")
+    if not isinstance(replicas, int):
+        raise ToolError(f"{id} has no replicas param")
+    if not 1 <= count <= replicas:
+        raise ToolError(f"count must be 1..{replicas} ({id} has {replicas} replicas)")
+
+
 @mcp.tool()
 async def kill_replica(id: str, count: int = 1) -> str:
     """Take `count` replicas of a block down; the rest keep serving (μ = live replicas × capacity_rps).
     Losing all of them is the same as kill_node. Only for blocks with a `replicas` param."""
-    if "replicas" not in link.node(id)["params"]:
-        raise ToolError(f"{id} has no replicas param")
-    if count < 1:
-        raise ToolError("count must be at least 1")
+    _replica_count(id, count)
     await link.send("kill_replica", id=id, count=count)
     return f"{count} replica(s) of {id} down"
 
@@ -149,9 +154,7 @@ async def kill_replica(id: str, count: int = 1) -> str:
 @mcp.tool()
 async def restore_replica(id: str, count: int = 1) -> str:
     """Bring `count` dead replicas of a block back (see kill_replica)."""
-    link.node(id)
-    if count < 1:
-        raise ToolError("count must be at least 1")
+    _replica_count(id, count)
     await link.send("restore_replica", id=id, count=count)
     return f"{count} replica(s) of {id} restored"
 
@@ -160,7 +163,7 @@ async def restore_replica(id: str, count: int = 1) -> str:
 async def kill_primary(id: str) -> str:
     """Kill an SQL DB's primary: writes fail, reads keep going to its read replicas (none = reads fail too).
     No automatic failover: restore_node stands for a replica being promoted."""
-    if "read_replicas" not in link.node(id)["params"]:  # single-primary SQL: SQL DB, Postgres, MySQL
+    if "read_replicas" not in link.node(id)["params"]:  # single-primary SQL: SQL DB, Postgres, MySQL. Not the type: CockroachDB is SQL with no single primary, and drops this param
         raise ToolError(f"{id} is not a single-primary SQL DB")
     await link.send("kill_primary", id=id)
     return f"{id} primary down"

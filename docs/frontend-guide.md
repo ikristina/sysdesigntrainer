@@ -243,7 +243,7 @@ Select it and press Backspace (React Flow's default). Deleting a region also del
 4. The store saves it, so every component that reads metrics re-renders: blocks recolor, edges change width and speed, and the metrics panel updates.
 
 **...move the Traffic slider / press Spike / Kill / Partition**
-They only change `simStore` (rps, read ratio, spike end time, killed and partitioned lists). The next tick picks them up. Kill applies to the selected block; killing a region or AZ kills everything inside it. Partition appears when a region is selected. Reset clears queues, lag and the chart, not your design or settings.
+They only change `simStore` (rps, read ratio, spike end time, killed and partitioned lists). The next tick picks them up. Kill applies to the selected block; the dots under a block's label kill or restore one replica (`setReplicasDown`; read-only in compare view, whose runs are scripted); killing a region or AZ kills everything inside it. Partition appears when a region is selected. Reset clears queues, lag and the chart, not your design or settings.
 
 **...ask Claude to do something (e.g. "kill the cache")**
 1. Claude (running in ttyd) calls the MCP tool `kill_node(id="cache_x1")` on `http://localhost:8000/mcp`.

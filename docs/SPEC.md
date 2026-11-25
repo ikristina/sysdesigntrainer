@@ -108,7 +108,7 @@ Behaviors:
 - SQL DB: writes → primary only, reads → spread across replicas. Replication lag grows with primary ρ and write rate. Connection pool caps concurrent requests. Primary down: writes fail, reads go to the read replicas only; no automatic failover (restore stands for a promotion).
 - Queue/stream: accepts up to its ingest limit, depth grows if consumers < producers, consumers drain at their μ. Producer latency stays low (this is the lesson).
 - Cross-region edges add fixed latency (e.g. 70 ms).
-- Killed node: μ = 0. Dead replicas: μ = (replicas − down) × capacity_rps; all down = killed. Partitioned region: edges across it drop.
+- Killed node: μ = 0. Dead replicas: μ = (replicas − down) × capacity_rps; all down = killed. Editing a block's `replicas` brings them all back (a redeploy). A sharded cache loses the dead replica's share of warm keys, and again when it comes back (keys remap to an empty node). SQL read replicas can't be killed one by one (`read_replicas` isn't `replicas`). Partitioned region: edges across it drop.
 
 Traffic profile (global controls): total rps, read/write ratio, payload size, hot-key skew, spike button (×N for T seconds).
 

@@ -3,11 +3,12 @@
 // a ρ gauge at the top-right, coral stroke with coral hachure when saturated or failing,
 // a stack of boxes for queue depth, faint with a crack when killed, a glow when Claude highlights it.
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { useMemo } from 'react'
+import { useContext, useMemo } from 'react'
 import { hasPresets, registry, toneOf } from '../blocks'
 import { SIDES, type FlowNode } from '../design'
 import { fmtPct, healthColor, healthOf } from '../display'
-import { isDown, useSim, useSimView } from '../simStore'
+import { liveReplicas } from '../sim/engine'
+import { isDown, SimContext, useSim, useSimView } from '../simStore'
 import { Gauge } from './Gauge'
 import { gen, roughPath, seedOf } from './rough'
 import { Mark } from './Mark'
@@ -22,8 +23,8 @@ export function BlockNode({ id, data }: NodeProps<FlowNode>) {
   const def = registry[data.blockType]
   const m = useSimView((s) => s.sim.metrics[id])
   const size = data.params.replicas
-  const lost = useSimView((s) => s.down?.[id] ?? 0)
-  const down = useSimView((s) => isDown(s.killed, id, s.nodes)) || (typeof size === 'number' && lost >= size)
+  const deadReplicas = useSimView((s) => s.replicasDown?.[id] ?? 0)
+  const down = useSimView((s) => isDown(s.killed, id, s.nodes)) || liveReplicas(data.params, deadReplicas) === 0
   const health = healthOf(m, down)
   const lit = useSimView((s) => s.highlight.ids.includes(id))
   const shape = def.shape ?? 'box'
@@ -73,7 +74,7 @@ export function BlockNode({ id, data }: NodeProps<FlowNode>) {
       {/* One line under the label: size, then live status ("×3 · hit 72%"), so two-line labels still fit. */}
       {(replicas !== undefined || stats) && (
         <div className="block-node__sub">
-          {typeof size === 'number' ? <Pips id={id} size={size} lost={lost} />
+          {typeof size === 'number' ? <Pips id={id} size={size} dead={deadReplicas} />
             : replicas !== undefined && `+${replicas} replicas`}
           {replicas !== undefined && stats && ' · '}
           {stats && <b style={{ color: health === 'bad' ? 'var(--coral-text)' : healthColor[health] }}>{stats}</b>}
@@ -94,19 +95,22 @@ export function BlockNode({ id, data }: NodeProps<FlowNode>) {
 
 const MAX_PIPS = 8
 
-/** One dot per replica: up ones first, then dead ones. Click an up dot to kill a replica, a dead one to bring it back. */
-function Pips({ id, size, lost }: { id: string; size: number; lost: number }) {
+/** One dot per replica: up ones first, then dead ones. Click an up dot to kill a replica, a dead one to bring it back.
+ *  Read-only in the compare view: its runs are scripted, and clicks would reach the main sim. */
+function Pips({ id, size, dead }: { id: string; size: number; dead: number }) {
+  const scripted = useContext(SimContext) !== null
   const shown = Math.min(size, MAX_PIPS)
-  const dead = Math.min(lost, shown)
+  const deadShown = Math.min(dead, shown)
   return (
-    <span className="pips nodrag" aria-label={`${size - lost} of ${size} replicas up`}>
+    <span className="pips nodrag" aria-label={`${size - dead} of ${size} replicas up`}>
       {Array.from({ length: shown }, (_, i) => {
-        const up = i < shown - dead
-        return <button key={i} type="button" className={`pip${up ? '' : ' pip--dead'}`}
-          title={up ? 'Kill one replica' : 'Restore one replica'}
-          onClick={(e) => { e.stopPropagation(); useSim.getState().killReplicas(id, up ? 1 : -1) }} />
+        const up = i < shown - deadShown
+        const cls = `pip${up ? '' : ' pip--dead'}`
+        return scripted ? <span key={i} className={cls} />
+          : <button key={i} type="button" className={cls} title={up ? 'Kill one replica' : 'Restore one replica'}
+            onClick={(e) => { e.stopPropagation(); useSim.getState().setReplicasDown(id, dead + (up ? 1 : -1)) }} />
       })}
-      {size > MAX_PIPS && <span>×{size}{lost > 0 && ` (${lost} down)`}</span>}
+      {size > MAX_PIPS && <span>×{size}{dead > 0 && ` (${dead} down)`}</span>}
     </span>
   )
 }

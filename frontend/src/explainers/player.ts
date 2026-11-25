@@ -2,7 +2,7 @@
 // sandbox stores (design, traffic, killed, highlight). The sim keeps running live underneath.
 import { create } from 'zustand'
 import { explainers, type Explainer } from '../lessons/content'
-import { useSim } from '../simStore'
+import { NO_FAULTS, useSim } from '../simStore'
 import { useDesign } from '../store'
 import { applyStep, sceneAt, type Scene } from './ops'
 
@@ -14,7 +14,7 @@ function show(e: Explainer, index: number, scene: Scene, reset: boolean) {
   useDesign.getState().open(null, scene.design) // null = never autosave explainer graphs
   sim.setRps(scene.rps)
   sim.setReadRatio(scene.readRatio)
-  useSim.setState({ killed: scene.killed, partitioned: [], down: {}, primaryDown: [] })
+  useSim.setState({ ...NO_FAULTS, killed: scene.killed })
   sim.setHighlight(scene.highlight)
   if (reset) sim.reset()
   const spike = e.steps[index].spike

@@ -118,7 +118,7 @@ describe('simulator', () => {
 
   it('dead replicas shrink μ; all dead = killed', () => {
     const d = simple({ replicas: 4, capacity_rps: 100 }, { retries: 0 })
-    const go = (n: number) => { let s = initialSim(); for (let i = 0; i < 50; i++) s = step(d, s, { traffic: { rps: 350, readRatio: 0.9, multiplier: 1 }, killed: [], down: { s: n } }); return s }
+    const go = (n: number) => { let s = initialSim(); for (let i = 0; i < 50; i++) s = step(d, s, { traffic: { rps: 350, readRatio: 0.9, multiplier: 1 }, killed: [], replicasDown: { s: n } }); return s }
     expect(go(0).metrics.s.rho).toBeCloseTo(0.875)
     expect(go(1).metrics.s.mu).toBeCloseTo(300) // N+1: lose one of 4 and 350 rps no longer fits
     expect(go(1).metrics.s.rho).toBeGreaterThan(1)

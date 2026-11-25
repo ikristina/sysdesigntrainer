@@ -3,6 +3,7 @@
 // for p50/p99. Pure: step(design, previous state, inputs) -> next state.
 // Per-block logic lives in ./handlers; this file never needs to change for a new block.
 import { registry } from '../blocks'
+import type { ParamValue } from '../blocks/types'
 import type { Design, SavedEdge } from '../design'
 import { handlers } from './handlers'
 import { CROSS_AZ_MS, CROSS_REGION_MS, failAll, NONE, num, total } from './handlers/common'
@@ -35,9 +36,14 @@ export type SimState = {
   samples: number[]                  // recent end-to-end latency samples (ms)
   global: GlobalMetrics
 }
-// down: how many replicas of a block are dead (block id -> count); the rest keep serving.
+// replicasDown: how many replicas of a block are dead (block id -> count); the rest keep serving.
 // primaryDown: SQL blocks whose primary is dead.
-export type SimInputs = { traffic: Traffic; killed: string[]; partitioned?: string[]; down?: Record<string, number>; primaryDown?: string[] }
+export type SimInputs = { traffic: Traffic; killed: string[]; partitioned?: string[]; replicasDown?: Record<string, number>; primaryDown?: string[] }
+
+/** Replicas still up, or undefined for a block with no `replicas` param. 0 = the block is down (same as killed). */
+export function liveReplicas(params: Record<string, ParamValue>, dead = 0) {
+  return params.replicas === undefined ? undefined : Math.max(0, num(params.replicas, 1) - dead)
+}
 
 export const initialSim = (): SimState => ({
   t: 0, seed: 1, nodes: {}, metrics: {}, edges: {}, cut: [], samples: [],
@@ -46,9 +52,10 @@ export const initialSim = (): SimState => ({
 
 const behavior = (type: string) => registry[type]?.simBehavior
 // sequentialCalls: calls per request that wait one after another (a sequential fan-out edge); 1 otherwise.
+const CUT = { pathMs: 0, pathFail: 1, pathStuck: 1 } // what a sender sees across a cut edge
 type Link = { target: string; w: number; edgeMs: number; cut: boolean; sequentialCalls: number }
 
-export function step(design: Design, prev: SimState, { traffic, killed, partitioned = [], down = {}, primaryDown = [] }: SimInputs, dt = 0.1): SimState {
+export function step(design: Design, prev: SimState, { traffic, killed, partitioned = [], replicasDown = {}, primaryDown = [] }: SimInputs, dt = 0.1): SimState {
   const byId = new Map(design.nodes.map((n) => [n.id, n]))
   const dead = new Set(killed)
   // Walk up the parent chain (block -> AZ -> region).
@@ -71,11 +78,10 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
   for (const n of design.nodes) {
     if (!handlers[behavior(n.type)]) continue
     // Dead replicas leave the block with fewer replicas, so every handler sees the smaller μ. All dead = killed.
-    const size = num(n.params.replicas, 1)
-    const alive = n.params.replicas === undefined ? size : size - (down[n.id] ?? 0)
+    const alive = liveReplicas(n.params, replicasDown[n.id])
     nodes.set(n.id, {
-      id: n.id, type: n.type, params: alive === size ? n.params : { ...n.params, replicas: Math.max(1, alive) },
-      killed: alive <= 0 || ancestors(n.id).some((a) => dead.has(a.id)),
+      id: n.id, type: n.type, params: alive === undefined || alive === n.params.replicas ? n.params : { ...n.params, replicas: Math.max(1, alive) },
+      killed: alive === 0 || ancestors(n.id).some((a) => dead.has(a.id)),
       ...(primaryDown.includes(n.id) ? { primaryDown: true } : {}),
     })
   }
@@ -139,19 +145,21 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
       w: m.served > 0 ? Math.min(1, total(routed.get(id)![i]) / m.served) : 0,
     }))
     links.set(id, ls)
-    // Same combination for the stuck part, which only comes from dead targets (and cut edges).
-    let downMs = 0, downFail = 0, survive = 1, downStuck = 0, surviveStuck = 1
-    for (const l of ls) {
-      const c = l.cut ? { pathMs: 0, pathFail: 1, pathStuck: 1 } : metrics[l.target]
-      const fail = 1 - (1 - c.pathFail) ** l.sequentialCalls
-      const stuck = 1 - (1 - c.pathStuck) ** l.sequentialCalls
-      downMs += l.w * (c.pathMs + l.edgeMs) * l.sequentialCalls
-      downFail += l.w * fail
-      survive *= 1 - l.w * fail
-      downStuck += l.w * stuck
-      surviveStuck *= 1 - l.w * stuck
+    const below = (l: Link) => l.cut ? CUT : metrics[l.target]
+    // Share of requests failing downstream: weighted by traffic, or for fan-out to all, any call failing.
+    // Used for every failure and for the stuck part (dead targets and cut edges only).
+    const downShare = (share: (c: typeof CUT) => number) => {
+      let sum = 0, survive = 1
+      for (const l of ls) {
+        const p = 1 - (1 - share(below(l))) ** l.sequentialCalls
+        sum += l.w * p
+        survive *= 1 - l.w * p
+      }
+      return r.fanout === 'all' ? 1 - survive : sum
     }
-    if (r.fanout === 'all') { downFail = 1 - survive; downStuck = 1 - surviveStuck }
+    const downMs = ls.reduce((ms, l) => ms + l.w * (below(l).pathMs + l.edgeMs) * l.sequentialCalls, 0)
+    let downFail = downShare((c) => c.pathFail)
+    const downStuck = downShare((c) => c.pathStuck)
     // A node gives up on downstream calls slower than its timeout (exponential tail estimate).
     const timeout = node.params.timeout_ms
     if (typeof timeout === 'number' && downMs > 0) downFail += (1 - downFail) * Math.exp(-timeout / downMs)

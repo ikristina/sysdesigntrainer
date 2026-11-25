@@ -194,6 +194,7 @@ describe('lessons match the simulator', () => {
     expect(primaryGone(0).global.errorPct).toBeCloseTo(18.8, 0)
     expect(primaryGone(1).global.errorPct).toBeCloseTo(5, 0) // only the writes
     expect(passes(grown(1), growth)).toBe(false) // over budget
+    expect(run(grown(1), growth.traffic.rps, growth.traffic.read_ratio).global.costHr).toBeCloseTo(3.08, 2)
   })
 
   it('rate-limiter scraper: the starter collapses; a 5k limit passes; too tight, too loose and scaling fail', () => {
@@ -243,7 +244,7 @@ describe('classic-design lessons match the simulator', () => {
   const after = (d: Design, v: Variant, phases: [number, number, string[], Record<string, number>?][]) => {
     let s = initialSim()
     const full = withDefaults(d), t = simTraffic(v.traffic)
-    for (const [sec, multiplier, killed, down] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier }, killed, down })
+    for (const [sec, multiplier, killed, down] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier }, killed, replicasDown: down })
     return checks(s, v.success).every((c) => c.ok)
   }
   const long = { timeout_ms: 60000 }
@@ -438,6 +439,10 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(q(22, n('q', 'kafka', { partitions: 45 }), 45, n('db', 'kv', { replicas: 2 })), platform)).toBe(false)
     // Twist: one of 6 workers down 10 s. The 5 left run at ρ 1.0: the backlog holds, no spare.
     expect(after(q(3, n('q', 'queue'), 6, n('db', 'sql_db')), steady, [[10, 1, []], [10, 1, [], { w: 1 }], [60, 1, []]])).toBe(true)
+    let s = initialSim()
+    const full = withDefaults(q(3, n('q', 'queue'), 6, n('db', 'sql_db'))), t = simTraffic(steady.traffic)
+    for (let i = 0; i < 100; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed: [], replicasDown: { w: 1 } })
+    expect(s.metrics.w.rho).toBeCloseTo(1, 1)
   })
 
   it('edge-rate-limiter: exact forces one central counter, fast forces one per region', () => {
@@ -784,7 +789,7 @@ describe('classic-design lessons match the simulator', () => {
     const at = (d: Design, v: Variant, phases: [number, string[], Record<string, number>?][] = [[15, []]]) => {
       let s = initialSim()
       const full = withDefaults(d), t = simTraffic(v.traffic)
-      for (const [sec, killed, down] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed, down })
+      for (const [sec, killed, down] of phases) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed, replicasDown: down })
       return s
     }
     const backlog = (s: SimState) => Math.max(0, ...Object.values(s.metrics).map((m) => m.queue))
@@ -828,6 +833,7 @@ describe('classic-design lessons match the simulator', () => {
     expect(passes(direct, dash)).toBe(true) // no log: passes steady...
     expect(at(direct, dash).global.costHr).toBeCloseTo(3.53, 2)
     expect(at(direct, dash, [[10, []], [10, ['agg']]]).global.errorPct).toBeGreaterThan(97) // ...not the crash
+    expect(at(direct, dash, one).global.errorPct).toBeLessThan(0.001) // one aggregator down doesn't hurt 5 without a log either
     expect(passes(perClick(n('db', 'wide_column')), dash)).toBe(true) // query-time scans aren't modeled
     expect(at(perClick(n('db', 'wide_column')), dash).global.costHr).toBeCloseTo(3.73, 2)
 

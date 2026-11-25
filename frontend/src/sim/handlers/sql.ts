@@ -36,6 +36,8 @@ export const sql: Handler = ({ node, inbound, children, state, dt }) => {
     : 0
   const mix = mixOf(inbound, state)
   const served = prim.out + repl.out
+  // Requests dropped by a side with no capacity at all (dead primary, no read replicas) fail on every retry.
+  const stuck = (primCap > 0 ? 0 : prim.dropped) + (replicas * perNode > 0 ? 0 : repl.dropped)
   const out = { read: served * mix, write: served * (1 - mix) }
   return {
     out: children.map(() => out),
@@ -43,7 +45,7 @@ export const sql: Handler = ({ node, inbound, children, state, dt }) => {
     state: { queue: prim.queue, replicaQueue: repl.queue, lagS, mix },
     metrics: {
       lambda, mu: primCap + perNode * replicas, rho: Math.max(rhoP, rhoR),
-      queue: prim.queue + repl.queue, served, dropped: prim.dropped + repl.dropped, stuck: (primCap > 0 ? 0 : prim.dropped) + (replicas * perNode > 0 ? 0 : repl.dropped), baseMs,
+      queue: prim.queue + repl.queue, served, dropped: prim.dropped + repl.dropped, stuck, baseMs,
       latencyMs: lambda > 0 ? (toPrimary * latP + toReplicas * latR) / lambda : baseMs,
       lagS: replicas > 0 ? lagS : undefined,
       stale: repl.out, // read replicas apply writes asynchronously, so any replica read can be stale

@@ -95,9 +95,10 @@ body { margin: 0; background: var(--paper); }
 .block-node__sub { position: relative; text-align: center; font-size: 12px; color: var(--ink-muted); margin-top: 2px; padding: 0 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .block-node__sub b { font-weight: 600; }
 .pips { display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; }
-.pip { width: 8px; height: 8px; padding: 0; border-radius: 50%; border: 1.3px solid var(--ink); background: var(--ok); cursor: pointer; }
+.pip { display: inline-block; box-sizing: border-box; width: 8px; height: 8px; padding: 0; border-radius: 50%; border: 1.3px solid var(--ink); background: var(--ok); }
 .pip--dead { border-color: var(--ink-faint); background: var(--fill-dead); }
-.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
+button.pip { cursor: pointer; }
+button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 .container-node__label { position: absolute; left: 14px; top: 8px; font-family: var(--font); font-size: 15px; color: var(--ink-muted); }
 
 /* React Flow draws its own box around custom nodes by default; we draw ours with rough.js. */

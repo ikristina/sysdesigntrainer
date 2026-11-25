@@ -55,6 +55,10 @@ def test_mirror_and_commands(client):
             call(client, "kill_primary", {"id": "svc"})
         with pytest.raises(ToolError, match="no replicas"):
             call(client, "kill_replica", {"id": "r1"})
+        with pytest.raises(ToolError, match="no replicas"):
+            call(client, "restore_replica", {"id": "r1"})
+        with pytest.raises(ToolError, match=r"1\.\.2"):
+            call(client, "kill_replica", {"id": "svc", "count": 3})
         with pytest.raises(ToolError, match="rps"):
             call(client, "set_traffic", {"rps": 0})
         with pytest.raises(ToolError, match="followers"):

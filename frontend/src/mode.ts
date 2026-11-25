@@ -7,7 +7,7 @@ import { startCompare, stopCompare } from './compare/compareStore'
 import { startExplainer, stopExplainer } from './explainers/player'
 import { compareLessons, explainers, lessons } from './lessons/content'
 import { startLesson, stopLesson } from './lessons/lessonStore'
-import { useSim } from './simStore'
+import { NO_FAULTS, useSim } from './simStore'
 import { useDesign } from './store'
 
 export type Mode = { kind: 'sandbox' } | { kind: 'explainer' | 'lesson' | 'compare'; id: string } // compare id '' = two saved designs
@@ -28,7 +28,7 @@ function enter(mode: Mode) {
   const sim = useSim.getState()
   sim.pause()
   sim.reset()
-  useSim.setState({ killed: [], partitioned: [], down: {}, primaryDown: [], highlight: { ids: [], message: '' } })
+  useSim.setState({ ...NO_FAULTS, highlight: { ids: [], message: '' } })
   stopExplainer()
   stopLesson()
   stopCompare()
