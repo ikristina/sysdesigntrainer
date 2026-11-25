@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: bad-deploy-is-a-gap
+expected_outcome: |
+  Recognizes the sim has no way to make live hosts return errors (kill_replica models crashed hosts: capacity drops, nothing returns 500), says in one line what the sim leaves out, talks it through with Kristina, appends a sim-gaps.md entry with twist / sim does / real system / suggest fields, tells her in one line it was logged, and edits no lesson or code file.
+context:
+  scaffold_script: place-files.sh

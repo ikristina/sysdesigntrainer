@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: known-gap-not-relogged
+expected_outcome: |
+  Confirms the rebalance pause isn't modeled and talks it through, but does not add a sim-gaps.md entry, because the lesson's _notes already name it.
+context:
+  scaffold_script: place-files.sh

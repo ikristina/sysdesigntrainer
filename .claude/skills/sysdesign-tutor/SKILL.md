@@ -21,9 +21,9 @@ Use when Kristina asks to start, continue, or get feedback on a lesson in the Sy
 - **postmortem**: she summarizes. Add only what she missed.
 
 ## Twist check
-Before applying a twist, split its text into events and map each one to a tool call on a real block from `get_design()` (e.g. `kill_replica` needs a `replicas` param on that block, so one SQL read replica dying is a gap). An event with no faithful mapping is a **gap**: the sim would show something different from the real system (no automatic failover, consumer rebalance pause, or lost in-memory state outside caches; a cache with no persistence does come back cold after `kill_node` and rewarms over ~30 s).
+Before applying a twist, split its text into events and map each one to a tool call on a real block from `get_design()` (e.g. `kill_replica` needs a `replicas` param on that block, so one SQL read replica dying is a gap). An event with no faithful mapping is a **gap**: the sim would show something different from the real system. **Known gaps** (already in SPEC): no automatic failover, no consumer rebalance pause, no lost in-memory state outside caches. A cache with no persistence does come back cold after `kill_node` and rewarms over ~30 s.
 1. Apply the events that map. Talk through each gap with her, and say in one line what the sim leaves out.
-2. Log each gap in `docs/sim-gaps.md`, unless that file or the lesson's `_notes` already names it. Format and fields are in the file's header. Suggest the smaller fix: reword the lesson's twist to what the sim can do, or name the smallest sim capability that would model it.
+2. Log each new gap in `docs/sim-gaps.md`: one that isn't a known gap above and isn't already named in that file or the lesson's `_notes`. Format and fields are in the file's header. Suggest the smaller fix: reword the lesson's twist to what the sim can do, or name the smallest sim capability that would model it.
 3. Tell her in one line that you logged it. Lesson files and code stay as they are mid-lesson; she picks gaps up later in a dev session.
 
 Done when every event in the twist was either applied or logged as a gap.

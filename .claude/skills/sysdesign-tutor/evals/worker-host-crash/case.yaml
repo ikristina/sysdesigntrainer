@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: worker-host-crash
+expected_outcome: |
+  Applies kill_replica('w', 1) (not kill_node('w'), which kills all 45 workers), later restore_replica, and asks Kristina one question (e.g. what happens to the in-flight job) instead of lecturing.
+context:
+  scaffold_script: place-files.sh
