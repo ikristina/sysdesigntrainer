@@ -71,7 +71,7 @@ A product block is a preset of a generic block: same sim handler, product-specif
 Behavior flags model what makes the product different, e.g.:
 - Redis: single-threaded command execution per node, persistence (none / RDB / AOF), replication, cluster mode
 - Memcached: multi-threaded, no persistence, no replication (a node loss = cold keys)
-- Kafka: partitions cap consumer parallelism, ordering per partition, retention, consumer lag
+- Kafka: partitions cap consumer parallelism (one owner per partition, so an uneven split puts the busiest owner behind first), ordering per partition, retention, consumer lag
 - SQS: no ordering (standard) vs FIFO throughput cap, visibility timeout, at-least-once
 - DynamoDB: per-partition throughput limit, so hot keys throttle
 - Postgres: single writer, connection limit, replica lag

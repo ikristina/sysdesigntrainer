@@ -331,7 +331,7 @@ What each behavior does:
 | `cache` | Cache, CDN | Serves `hit_ratio` of reads; misses and writes go downstream. With `invalidate`, writes lower the effective hit ratio. |
 | `sql` | SQL DB | Writes go to the primary only; reads spread over primary + read replicas. The connection pool caps throughput at `pool_size / base latency`. Replication lag grows while the primary is above ρ 0.8. |
 | `queue` | Queue | Accepts up to its capacity; children are competing consumers. The producer only waits for the enqueue, so its latency stays low while the backlog grows. At least once: messages a consumer failed (its `pathFail` last tick) go back on the queue (`redelivered` metric, shown as ↻ N/s), so a broken consumer shows up as backlog, not lost work. Redeliveries use the queue's `capacity_rps` before new sends do. |
-| `stream` | Stream | Each child is a consumer group that reads **every** message. A group can use at most `partitions` of its replicas. Failed messages are redelivered per group, like the queue. |
+| `stream` | Stream | Each child is a consumer group that reads **every** message. A group can use at most `partitions` of its replicas, and each partition has one owner: spread over fewer replicas, some own one more partition and fall behind first. Failed messages are redelivered per group, like the queue. |
 | `partitioned` | DynamoDB preset | Like `kv`, but the hot-key share of reads and writes all lands on one partition. Above `partition_read_rps` / `partition_write_rps` that share is throttled (errors). |
 | `consensus` | CockroachDB preset | Like a service, but every write is done `replication_factor` times (each replica applies it) and waits for a quorum: +1 ms within a region, +70 ms when `regions` ≥ 3. |
 

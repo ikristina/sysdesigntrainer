@@ -209,6 +209,13 @@ describe('simulator', () => {
     expect(s.metrics.g2.lambda).toBeCloseTo(600) // keeps up, gets everything
   })
 
+  it('stream: partitions split unevenly over fewer consumers; the busiest one falls behind', () => {
+    const lag = (workers: number) => run(design([node('c', 'client'), node('st', 'stream', { partitions: 45, capacity_rps: 1000 }),
+      node('w', 'worker', { replicas: workers, capacity_rps: 200 })], [['c', 'st'], ['st', 'w']]), { rps: 8000, seconds: 10 }).metrics.st.queue
+    expect(lag(44)).toBeCloseTo(1556, -1) // one owner of 2 partitions: 356/s in, 200/s out
+    expect(lag(45)).toBe(0)
+  })
+
   it('cross-region edges add latency; killing a region kills what is inside', () => {
     const nodes = [node('east', 'region'), node('west', 'region'),
       node('c', 'client', {}, 'east'), node('s', 'service', { replicas: 100 }, 'west')]

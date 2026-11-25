@@ -443,6 +443,12 @@ describe('classic-design lessons match the simulator', () => {
     const full = withDefaults(q(3, n('q', 'queue'), 6, n('db', 'sql_db'))), t = simTraffic(steady.traffic)
     for (let i = 0; i < 100; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed: [], replicasDown: { w: 1 } })
     expect(s.metrics.w.rho).toBeCloseTo(1, 1)
+    // Platform twist: one of 45 workers down 10 s. One survivor owns 2 of the 45 partitions and falls ~156/s behind.
+    const kafka = withDefaults(q(22, n('q', 'kafka', { partitions: 45 }), 45, n('db', 'kv'))), pt = simTraffic(platform.traffic)
+    s = initialSim()
+    for (let i = 0; i < 100; i++) s = step(kafka, s, { traffic: { ...pt, multiplier: 1 }, killed: [] })
+    for (let i = 0; i < 100; i++) s = step(kafka, s, { traffic: { ...pt, multiplier: 1 }, killed: [], replicasDown: { w: 1 } })
+    expect(s.metrics.q.queue).toBeCloseTo(1556, -2)
   })
 
   it('edge-rate-limiter: exact forces one central counter, fast forces one per region', () => {
@@ -815,11 +821,15 @@ describe('classic-design lessons match the simulator', () => {
     expect(backlog(at(logged(2, 6), dash))).toBeCloseTo(144000, -3) // 2 readers
     const flushed = logged(6, 6, [], [['agg', 'db']]) // the flush drawn as an edge carries every click
     expect(backlog(at(flushed, dash))).toBeGreaterThan(200000)
-    // Twist part 1: one aggregator down 10 s. 5 don't notice; 4 (ρ 0.98) fall 46k behind and drain at 400/s.
+    // Twist part 1: one aggregator down 10 s. With 5 on 5 partitions, one survivor owns 2 (7.8k/s on 5k): 28k behind,
+    // gone after the restore. 4 (ρ 0.98) fall 48k behind and drain at 400/s. 8 partitions split evenly over 4 or 5: no lag.
     const one: [number, string[], Record<string, number>?][] = [[10, []], [10, [], { agg: 1 }]]
-    expect(backlog(at(logged(5, 5), dash, one))).toBe(0)
-    expect(backlog(at(logged(4, 4), dash, one))).toBeCloseTo(46000, -3)
-    expect(backlog(at(logged(4, 4), dash, [...one, [60, []]]))).toBeCloseTo(22000, -3)
+    expect(backlog(at(logged(5, 5), dash, one))).toBeCloseTo(28400, -2)
+    expect(backlog(at(logged(5, 5), dash, [...one, [60, []]]))).toBe(0)
+    expect(backlog(at(logged(8, 5), dash, one))).toBe(0)
+    expect(backlog(at(logged(6, 5), dash))).toBeGreaterThan(0) // 6 over 5: one owns 2 even with all up
+    expect(backlog(at(logged(4, 4), dash, one))).toBeCloseTo(48000, -3)
+    expect(backlog(at(logged(4, 4), dash, [...one, [60, []]]))).toBeCloseTo(24000, -3)
     expect(after(logged(4, 4), dash, [[10, 1, []], [10, 1, [], { agg: 1 }], [60, 1, []]])).toBe(false)
     // Twist part 2: aggregators down 10 s. Intake stays green; 5 drain the lag within 40 s, 4 can't catch up.
     const down = at(logged(5, 5), dash, [[10, []], [10, ['agg']]])
