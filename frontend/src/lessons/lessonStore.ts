@@ -11,7 +11,7 @@ import { checks, graph, lessons, simTraffic, type Lesson, type Requirements, typ
 export const HOLD_S = 10 // checks must stay green this long to pass
 
 type Custom = { requirements?: string[]; traffic?: Partial<Requirements['traffic']>; success?: Partial<Requirements['success']> }
-export type Progress = {
+type Progress = {
   variantId: string
   custom: Custom | null // set by Claude's set_requirements (custom) or a twist
   step: number
@@ -52,7 +52,7 @@ export function startLesson(id: string) {
 export const stopLesson = () => useLesson.setState({ lesson: null, heldS: 0 })
 
 /** Point the traffic controls at the active requirements. */
-export function setLessonTraffic() {
+function setLessonTraffic() {
   const { traffic } = active(useLesson.getState())
   useSim.getState().setTraffic(simTraffic(traffic))
 }

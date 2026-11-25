@@ -4,7 +4,7 @@
 import type { SimpleIcon } from 'simple-icons'
 import type { BlockDef, ParamDef, ParamValue, Product } from '../types'
 
-export type Preset = {
+type Preset = {
   id: string
   base: BlockDef
   label: string

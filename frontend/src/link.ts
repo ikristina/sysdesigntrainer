@@ -15,7 +15,7 @@ import { misses, useQuiz } from './quiz/quiz'
 import { isDown, useSim } from './simStore'
 import { useDesign } from './store'
 
-export const BACKEND_WS = `ws://${location.hostname}:8000/ws`
+const BACKEND_WS = `ws://${location.hostname}:8000/ws`
 const SEND_EVERY_MS = 1000
 const RETRY_MS = 3000
 

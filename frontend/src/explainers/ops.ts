@@ -12,7 +12,7 @@ export type Scene = {
   resetSim: boolean // this step loaded a new graph: start the sim fresh
 }
 
-export const emptyScene = (): Scene =>
+const emptyScene = (): Scene =>
   ({ design: { version: 1, nodes: [], edges: [] }, rps: 1000, readRatio: 0.9, killed: [], highlight: [], resetSim: true })
 
 export function applyStep(prev: Scene, step: ExplainerStep): Scene {

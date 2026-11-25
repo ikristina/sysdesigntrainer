@@ -5,7 +5,7 @@ import type { Connection, Edge, Node } from '@xyflow/react'
 import { defaultParams, registry } from './blocks'
 import type { ParamValue } from './blocks/types'
 
-export type BlockData = { blockType: string; params: Record<string, ParamValue> }
+type BlockData = { blockType: string; params: Record<string, ParamValue> }
 // 'block' = normal box, 'container' = region/AZ that other nodes sit inside.
 export type FlowNode = Node<BlockData, 'block' | 'container'>
 
@@ -26,8 +26,8 @@ export type EdgeRoute = {
 /** Which side of a block an edge leaves (`sourceHandle`) or enters (`targetHandle`). Absent = 'r' / 'l'. */
 export type Side = 't' | 'r' | 'b' | 'l'
 export const SIDES: Side[] = ['t', 'r', 'b', 'l']
-export const DEFAULT_OUT: Side = 'r'
-export const DEFAULT_IN: Side = 'l'
+const DEFAULT_OUT: Side = 'r'
+const DEFAULT_IN: Side = 'l'
 export type SavedEdge = { id: string; source: string; target: string; sourceHandle?: Side; targetHandle?: Side } & EdgeRoute
 export type Design = {
   version: 1

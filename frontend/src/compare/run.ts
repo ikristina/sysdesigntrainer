@@ -80,7 +80,7 @@ export function runScenario(design: Design, sc: Scenario, watch?: string): Run {
   return r
 }
 
-export type Row = { label: string; values: [string, string]; winner: 0 | 1 | null; about: string }
+type Row = { label: string; values: [string, string]; winner: 0 | 1 | null; about: string }
 
 /** The compare table. Each row picks a winner (null when within 2%, or within `eps`, or both infinite).
  *  Recovery is measured from the first kill, spike or param change; a traffic change is a new

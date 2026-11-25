@@ -232,7 +232,7 @@ const fan = (f: Flow, e: SavedEdge, t: Traffic): Flow =>
 
 /** $/hour for running the blocks: cost × replicas (SQL: primary + read replicas; × 2 with a
  *  replica per node; per partition for blocks billed per shard). Request pricing is separate. */
-export function costPerHour(design: Design) {
+function costPerHour(design: Design) {
   let sum = 0
   for (const n of design.nodes) {
     const def = registry[n.type]

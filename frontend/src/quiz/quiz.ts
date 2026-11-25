@@ -45,7 +45,7 @@ export const ordered = (questions: Question[]) => rightLast(questions, new Set(l
 
 // Questions answered wrong, newest last, so Claude can write weak-spot questions (get_quiz).
 // Answering one right later takes it off the list.
-export type Miss = { topic: string; q: string; picked: string; answer: string; at: string }
+type Miss = { topic: string; q: string; picked: string; answer: string; at: string }
 const MISSES_KEY = 'quiz-misses', MAX_MISSES = 30
 export const misses = () => load<Miss[]>(MISSES_KEY, [])
 export function recordAnswer(topic: string, q: Question, picked: number) {

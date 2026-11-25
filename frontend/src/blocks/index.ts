@@ -51,7 +51,7 @@ export const hasPresets = (type: string) => blocks.some((b) => b.product?.base =
 
 /** A block's color family (docs/STYLE.md "Category fills"): fill var(--fill-<tone>), flow dots var(--flow-<tone>).
  *  Mostly the category, but the client stands apart from DNS/CDN, and SQL from the other data stores. */
-export type Tone = 'client' | 'traffic' | 'compute' | 'cache' | 'async' | 'sql' | 'nosql' | 'ai'
+type Tone = 'client' | 'traffic' | 'compute' | 'cache' | 'async' | 'sql' | 'nosql' | 'ai'
 export function toneOf(def: BlockDef): Tone | null {
   const base = def.product?.base ?? def.type
   if (base === 'client') return 'client'

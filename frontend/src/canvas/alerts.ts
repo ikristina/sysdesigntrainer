@@ -4,7 +4,7 @@ import { registry } from '../blocks'
 import type { FlowNode } from '../design'
 import type { SimState } from '../sim/engine'
 
-export type Level = 'red' | 'amber' | null
+type Level = 'red' | 'amber' | null
 type In = { nodes: Pick<FlowNode, 'id' | 'data'>[]; sim: Pick<SimState, 'metrics' | 'global'>; killed: string[]; partitioned: string[] }
 
 export function alerts({ nodes, sim: { metrics, global: g }, killed, partitioned }: In): { label: string; level: Level }[] {

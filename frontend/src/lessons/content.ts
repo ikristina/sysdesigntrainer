@@ -89,7 +89,7 @@ export function graph(path: string): Design {
   return d
 }
 
-export type Check = { label: string; ok: boolean }
+type Check = { label: string; ok: boolean }
 /** The variant's success criteria against the sim's output. */
 export function checks({ global: g, metrics }: Pick<SimState, 'global' | 'metrics'>, s: Success): Check[] {
   const list = [
