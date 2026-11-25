@@ -1,22 +1,23 @@
 // Client: where traffic starts. Sends its share of the global rps, plus retries.
-// With failure share f last tick and r retries, it wants to resend offered × (f + f² + … + f^r):
+// With failure share f last tick and r retries, it wants to resend offered × (f + f² + … + f^r)
+// (retry k is sent if the first k tries failed; a stuck share, from a dead target, fails every try):
 // that feedback is what turns an overload into a retry storm. Two client policies tame it:
 // - retry_budget: retries never exceed a share of requests (10% / 20%). The rest fail at once.
 // - backoff 'exponential': retry k waits a random 0 to 2^(k-1) s (full jitter), so retries
 //   land spread over the next seconds instead of all in the next tick.
 import type { Handler, NodeState } from '../types'
-import { asFlow, num } from './common'
+import { asFlow, failAll, num } from './common'
 
 const RING = 200 // ticks of scheduled retries kept (20 s at dt 0.1; the longest wait is 2^4 = 16 s)
 
-export const client: Handler = ({ node, offered, children, prevPathFail: f, readRatio, state, dt }) => {
+export const client: Handler = ({ node, offered, children, prevPathFail: f, prevPathStuck: s, readRatio, state, dt }) => {
   const retries = num(node.params.retries, 0)
   // retry_budget is 'unlimited' or a percentage like '20%' (the options in blocks/client.ts).
   const budget = parseFloat(String(node.params.retry_budget)) / 100 || Infinity
   const backoff = node.params.backoff === 'exponential'
 
   const retryRate: number[] = [] // retry rate per attempt k = 1..retries
-  for (let k = 1; k <= retries; k++) retryRate.push(offered * f ** k)
+  for (let k = 1; k <= retries; k++) retryRate.push(offered * failAll(f, s, k))
   const retriesWanted = retryRate.reduce((a, b) => a + b, 0)
   const allowed = retriesWanted > 0 ? Math.min(1, (budget * offered) / retriesWanted) : 1 // share of wanted retries the budget allows
 

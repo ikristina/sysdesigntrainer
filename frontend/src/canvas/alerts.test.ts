@@ -3,7 +3,7 @@ import type { PathMetrics, SimState } from '../sim/engine'
 import { alerts } from './alerts'
 
 const node = (id: string, blockType: string, params = {}) => ({ id, data: { blockType, params } })
-const m = (o: Partial<PathMetrics>) => ({ lambda: 100, mu: 1000, rho: 0.1, queue: 0, served: 100, dropped: 0, baseMs: 1, latencyMs: 1, pathMs: 1, pathFail: 0, ...o })
+const m = (o: Partial<PathMetrics>) => ({ lambda: 100, mu: 1000, rho: 0.1, queue: 0, served: 100, dropped: 0, baseMs: 1, latencyMs: 1, pathMs: 1, pathFail: 0, pathStuck: 0, ...o })
 const sim = (metrics: Record<string, PathMetrics>, offered = 100) =>
   ({ metrics, global: { offered, throughput: 0, errorPct: 0, p50Ms: 0, p99Ms: 0, costHr: 0, stalePct: 0, fanoutRps: 0 } }) as Pick<SimState, 'metrics' | 'global'>
 const levels = (a: ReturnType<typeof alerts>) => Object.fromEntries(a.map((x) => [x.label, x.level]))

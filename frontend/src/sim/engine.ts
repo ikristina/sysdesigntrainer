@@ -5,14 +5,16 @@
 import { registry } from '../blocks'
 import type { Design, SavedEdge } from '../design'
 import { handlers } from './handlers'
-import { CROSS_AZ_MS, CROSS_REGION_MS, NONE, num, total } from './handlers/common'
+import { CROSS_AZ_MS, CROSS_REGION_MS, failAll, NONE, num, total } from './handlers/common'
 import { TRAFFIC_DEFAULTS, type Fanout, type Flow, type HandlerOutput, type NodeMetrics, type NodeState, type SimNode, type Traffic } from './types'
 
 export { CROSS_AZ_MS, CROSS_REGION_MS }
 const SAMPLES_PER_TICK = 100
 const SAMPLE_WINDOW = 2000 // last 20 ticks = 2 s of sim time
 
-export type PathMetrics = NodeMetrics & { pathMs: number; pathFail: number }
+// pathFail: share of requests from here that fail end to end. pathStuck: the part of it that fails
+// on every retry too (a dead target); the rest (overload, timeouts) is retried as independent tries.
+export type PathMetrics = NodeMetrics & { pathMs: number; pathFail: number; pathStuck: number }
 export type GlobalMetrics = {
   offered: number     // rps users send (before retries)
   throughput: number  // rps users get answered
@@ -105,7 +107,7 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     const children = kids.get(id)!
     const r = handlers[behavior(node.type)]({
       node, inbound: inbound.get(id) ?? NONE, children: children.map((e) => cut.has(e.id) ? { ...nodes.get(e.target)!, killed: true } : nodes.get(e.target)!),
-      state: prev.nodes[id] ?? {}, prevPathFail: prev.metrics[id]?.pathFail ?? 0,
+      state: prev.nodes[id] ?? {}, prevPathFail: prev.metrics[id]?.pathFail ?? 0, prevPathStuck: prev.metrics[id]?.pathStuck ?? 0,
       childFail: children.map((e) => (cut.has(e.id) ? 1 : prev.metrics[e.target]?.pathFail ?? 0)),
       offered: sources.includes(id) ? share : 0, readRatio: traffic.readRatio, hotKey: traffic.hotKey ?? 0, dt,
     })
@@ -131,24 +133,30 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
   for (const id of [...order].reverse()) {
     const r = results.get(id)!, m = r.metrics, node = nodes.get(id)!
     const own = m.lambda > 0 ? Math.min(1, m.dropped / m.lambda) : node.killed ? 1 : 0
+    const ownStuck = node.killed ? own : m.lambda > 0 ? Math.min(own, (m.stuck ?? 0) / m.lambda) : 0
     const ls: Link[] = r.fanout === 'async' ? [] : kids.get(id)!.map((e, i) => ({
       target: e.target, edgeMs: edgeMs(id, e.target), cut: cut.has(e.id), sequentialCalls: sequentialCalls(e, traffic),
       w: m.served > 0 ? Math.min(1, total(routed.get(id)![i]) / m.served) : 0,
     }))
     links.set(id, ls)
-    let downMs = 0, downFail = 0, survive = 1
+    // Same combination for the stuck part, which only comes from dead targets (and cut edges).
+    let downMs = 0, downFail = 0, survive = 1, downStuck = 0, surviveStuck = 1
     for (const l of ls) {
-      const c = l.cut ? { pathMs: 0, pathFail: 1 } : metrics[l.target]
+      const c = l.cut ? { pathMs: 0, pathFail: 1, pathStuck: 1 } : metrics[l.target]
       const fail = 1 - (1 - c.pathFail) ** l.sequentialCalls
+      const stuck = 1 - (1 - c.pathStuck) ** l.sequentialCalls
       downMs += l.w * (c.pathMs + l.edgeMs) * l.sequentialCalls
       downFail += l.w * fail
       survive *= 1 - l.w * fail
+      downStuck += l.w * stuck
+      surviveStuck *= 1 - l.w * stuck
     }
-    if (r.fanout === 'all') downFail = 1 - survive
+    if (r.fanout === 'all') { downFail = 1 - survive; downStuck = 1 - surviveStuck }
     // A node gives up on downstream calls slower than its timeout (exponential tail estimate).
     const timeout = node.params.timeout_ms
     if (typeof timeout === 'number' && downMs > 0) downFail += (1 - downFail) * Math.exp(-timeout / downMs)
-    metrics[id] = { ...m, pathMs: m.latencyMs + downMs, pathFail: Math.min(1, own + (1 - own) * downFail) }
+    const pathFail = Math.min(1, own + (1 - own) * downFail)
+    metrics[id] = { ...m, pathMs: m.latencyMs + downMs, pathFail, pathStuck: Math.min(pathFail, ownStuck + (1 - ownStuck) * downStuck) }
   }
 
   // Sample end-to-end latencies for p50/p99.
@@ -180,9 +188,11 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     const src = results.get(id)!.source!
     offered += src.offered
     userReads += results.get(id)!.metrics.served * traffic.readRatio
-    // A failed request is retried (if the budget allows it) and fails for good only if every retry fails too.
-    const p = metrics[id].pathFail
-    failed += src.offered * p * ((1 - src.retryShare) + src.retryShare * p ** src.retries)
+    // A failed request is retried (if the budget allows it) and fails for good only if every retry fails too:
+    // always for the stuck part, as independent tries for the rest.
+    // Retries go out with the same read/write mix as new requests, so these shares hold per new request.
+    const { pathFail: p, pathStuck: s } = metrics[id]
+    failed += src.offered * ((1 - src.retryShare) * p + src.retryShare * failAll(p, s, src.retries + 1))
   }
   for (const id of sources) {
     const n = offered > 0 ? Math.round((SAMPLES_PER_TICK * results.get(id)!.source!.offered) / offered) : 0

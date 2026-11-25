@@ -190,7 +190,9 @@ describe('lessons match the simulator', () => {
       return s
     }
     expect(primaryGone(0).metrics.db.dropped / primaryGone(0).metrics.db.lambda).toBeCloseTo(1)
-    expect(primaryGone(1).metrics.db.dropped).toBeCloseTo(630, -1) // 600 writes/s + the client's retries of them
+    // Writes (5%) + misses: invalidate-on-write cuts the hit ratio to 0.9 × 0.95, so 14.5% of the 95% reads.
+    expect(primaryGone(0).global.errorPct).toBeCloseTo(18.8, 0)
+    expect(primaryGone(1).global.errorPct).toBeCloseTo(5, 0) // only the writes
     expect(passes(grown(1), growth)).toBe(false) // over budget
   })
 
@@ -412,7 +414,7 @@ describe('classic-design lessons match the simulator', () => {
     let s = initialSim()
     const full = withDefaults(streamed(24)), t = simTraffic(ingest.traffic)
     for (const [sec, killed] of [[10, []], [5, ['db']]] as [number, string[]][]) for (let i = 0; i < sec * 10; i++) s = step(full, s, { traffic: { ...t, multiplier: 1 }, killed })
-    expect(s.global.errorPct).toBeLessThan(0.1)
+    expect(s.global.errorPct).toBeCloseTo(2, 1) // only the dashboard reads (2%): every write goes into the log
     expect(s.metrics.s.queue).toBeGreaterThan(20000)
     expect(after(streamed(24), ingest, [[10, 1, []], [5, 1, ['db']], [40, 1, []]])).toBe(true)
     const incident = variant('metrics-ingest', 'incident')

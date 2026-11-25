@@ -97,7 +97,7 @@ Tick-based, 10 ticks/s sim time. Per node per tick:
 - Utilization `ρ = λ/μ`.
 - If `ρ < 1`: each replica is its own M/M/c queue with `c = round(μ_replica × base_latency)` servers, at least 1 (Little's law), each taking `s = c / μ_replica`: latency ≈ `base + ErlangC(c, cρ) · s / (c(1 - ρ))` (cap ρ at 0.99). Replicas behind a load balancer don't share one wait line.
 - If `ρ ≥ 1`: queue grows by `(λ - μ)·dt`, wait = `queue/μ`. When wait > timeout, overflow becomes errors.
-- Retries (client param) re-add a share of errors to λ, so failures can cascade. `retry_budget` caps retries at 10% / 20% of offered traffic; `backoff: exponential` spreads them with full jitter.
+- Retries (client param) re-add a share of errors to λ, so failures can cascade. `retry_budget` caps retries at 10% / 20% of offered traffic; `backoff: exponential` spreads them with full jitter. A failure from a dead target (killed block, cut edge, dead primary, no live backend) fails every retry too; overload and timeout failures are retried as independent tries.
 - Queues and streams are at least once: messages a consumer failed are redelivered (backlog grows instead of work being lost). On a queue, redeliveries count against `capacity_rps` before new sends.
 - A fan-out edge can be `sequential`: N calls in turn (latency × N), like an agent loop.
 - Request latency end-to-end = sum along the path. Track p50/p99 from a sampled distribution per node.

@@ -16,7 +16,7 @@
       ],
       "traffic": { "rps": 20000, "read_ratio": 0.02 },
       "success": { "p99_ms": 500, "error_pct": 0.1, "max_cost_hr": 8, "max_backlog": 20000 },
-      "twist": "The store is down for 30 s: kill_node on it, then restore_node. Intake should stay green while the backlog builds, then drain. Does yours?"
+      "twist": "The store is down for 30 s: kill_node on it, then restore_node. Intake should stay green while the backlog builds, then drain. Does yours? And what do dashboards show meanwhile?"
     },
     {
       "id": "incident",
@@ -40,5 +40,5 @@
     "Ingest: intake writes into a log, and consumers move the data into the store; match consumers to partitions. Incident: dashboards shouldn't each read 20 raw series. What could hold pre-computed answers, and where does the fan-out read edge go then?"
   ],
   "steps": ["requirements", "estimation", "api_and_data_model", "design", "load_test", "twist", "postmortem"],
-  "_notes": "Intake 25 services (rho 0.8, $2.50) + LB. Writing straight to wide-column (3 x 10k) passes steady (p99 ~38 ms, $3.73) but a store kill fails 100% of requests. Kafka ($0.63, 10k/partition) -> aggregator services (1k/s each) -> store: 24 partitions + 24 consumers: p99 ~41 ms, $6.76, and a store kill leaves intake green: batches pile up as lag (and get redelivered), then drain after the restore. 4 partitions with 24 consumers: only 4 read, backlog explodes. Incident (fan-out 20 on reads): no cache needs ~14-16 store replicas ($11.16-11.96). Cache 0.9 with the fan-out edge after it: store rho 0.87 on 3 replicas, p99 ~42 ms, $6.91. Aggregation that shrinks write volume isn't modeled; consumers forward every batch. Discuss rollups, downsampling and cardinality limits. Checked in frontend/src/lessons/content.test.ts."
+  "_notes": "Intake 25 services (rho 0.8, $2.50) + LB. Writing straight to wide-column (3 x 10k) passes steady (p99 ~38 ms, $3.73) but a store kill fails 100% of requests. Kafka ($0.63, 10k/partition) -> aggregator services (1k/s each) -> store: 24 partitions + 24 consumers: p99 ~41 ms, $6.76, and a store kill leaves intake green: batches pile up as lag (and get redelivered), then drain after the restore. Dashboard reads (2%) have nowhere to go while it's down, so errors read 2% and the error check is red until the restore: ask what dashboards should show (cached panels marked stale, or an error banner). 4 partitions with 24 consumers: only 4 read, backlog explodes. Incident (fan-out 20 on reads): no cache needs ~14-16 store replicas ($11.16-11.96). Cache 0.9 with the fan-out edge after it: store rho 0.87 on 3 replicas, p99 ~42 ms, $6.91. Aggregation that shrinks write volume isn't modeled; consumers forward every batch. Discuss rollups, downsampling and cardinality limits. Checked in frontend/src/lessons/content.test.ts."
 }

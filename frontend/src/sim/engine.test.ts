@@ -134,6 +134,15 @@ describe('simulator', () => {
     expect(go(0).global.errorPct).toBeCloseTo(100) // no replicas: same as killing it
   })
 
+  it('retries hide random failures, not a dead target', () => {
+    // Client (3 retries) -> service -> cache (hit 0.9) -> DB. Kill the DB: every miss fails on every retry.
+    const d = design([node('c', 'client', { retries: 3 }), node('s', 'service', { replicas: 4 }), node('k', 'cache', { hit_ratio: 0.9 }), node('db', 'sql_db')],
+      [['c', 's'], ['s', 'k'], ['k', 'db']])
+    const s = run(d, { rps: 1000, readRatio: 1, killed: ['db'] })
+    expect(s.metrics.c.pathStuck).toBeCloseTo(0.1)
+    expect(s.global.errorPct).toBeCloseTo(10)
+  })
+
   it('a killed node fails everything sent to it', () => {
     const s = run(simple({}, { retries: 0 }), { killed: ['s'] })
     expect(s.global.errorPct).toBeCloseTo(100)

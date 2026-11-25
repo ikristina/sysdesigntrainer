@@ -11,7 +11,10 @@ export const balancer: Handler = (input) => {
   r.fanout = 'one'
   r.out = input.children.map((c) => (c.killed ? NONE : { read: flow.read / alive, write: flow.write / alive }))
   // Children exist but all are dead: everything it served fails.
-  if (input.children.length > 0 && alive === 0) r.metrics.dropped += r.metrics.served
+  if (input.children.length > 0 && alive === 0) {
+    r.metrics.dropped += r.metrics.served
+    r.metrics.stuck = r.metrics.served
+  }
   return r
 }
 

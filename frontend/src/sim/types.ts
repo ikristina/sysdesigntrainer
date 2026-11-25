@@ -30,6 +30,7 @@ export type NodeMetrics = {
   queue: number      // requests (or messages) waiting
   served: number     // rps that left this node's own processing
   dropped: number    // rps failed here (overload, rate limit, killed)
+  stuck?: number     // part of `dropped` a retry won't fix (dead primary, no live backend); a killed block counts all of it
   baseMs: number     // base latency
   latencyMs: number  // this node's own latency right now (base + queueing)
   note?: string      // short status shown on the block, e.g. "lag 2.1 s"
@@ -46,6 +47,7 @@ export type HandlerInput = {
   children: SimNode[]               // downstream nodes, one per outgoing edge
   state: NodeState
   prevPathFail: number              // this node's end-to-end failure share last tick (clients use it for retries)
+  prevPathStuck: number             // the part of prevPathFail that fails every retry too (a dead target)
   childFail: number[]               // each child's end-to-end failure share last tick (queues redeliver what failed)
   offered: number                   // rps this node originates (only clients get a non-zero value)
   readRatio: number

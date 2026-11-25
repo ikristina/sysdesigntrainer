@@ -77,3 +77,10 @@ export const asFlow = (rate: number, mix: number): Flow => ({ read: rate * mix, 
 /** Note under a queue or stream: its backlog, and messages put back for redelivery. */
 export const backlogNote = (backlog: string | false, redelivered: number) =>
   [backlog, redelivered >= 1 && `↻ ${fmtCount(redelivered)}/s`].filter(Boolean).join(' · ') || undefined
+
+/** Share of requests that fail `k` tries in a row, when `stuck` of them fail every try and the rest
+ *  fail each try independently (so that `fail` of all requests fail a single try). */
+export function failAll(fail: number, stuck: number, k: number) {
+  const q = stuck < 1 ? Math.max(0, fail - stuck) / (1 - stuck) : 0
+  return stuck + (1 - stuck) * q ** k
+}
