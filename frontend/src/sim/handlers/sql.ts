@@ -2,7 +2,7 @@
 // The connection pool caps throughput at pool_size / base latency (Little's law).
 // Replication lag grows while the primary is busy and recovers when it isn't.
 // Primary down: writes fail fast, reads spread over the read replicas only (none = reads fail too).
-// ponytail: no automatic failover; restore_node stands for "a replica was promoted".
+// ponytail: no automatic failover. promote_replica fails over (read_replicas - 1, no writes lost); restore_node brings the old primary back.
 import type { Handler } from '../types'
 import { asFlow, DEFAULT_TIMEOUT_MS, latencyOf, mixOf, num, queueStep, total } from './common'
 

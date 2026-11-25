@@ -16,7 +16,7 @@
       "requirements": ["Traffic triples: 12k rps, 95% reads", "p99 < 300 ms", "errors < 0.1%", "cost < $3/hr"],
       "traffic": { "rps": 12000, "read_ratio": 0.95 },
       "success": { "p99_ms": 300, "error_pct": 0.1, "max_cost_hr": 3 },
-      "twist": "The database primary dies for a minute. Apply with kill_primary('db'), then restore_node('db') (stands for a replica being promoted)."
+      "twist": "The database primary dies for a minute. Apply with kill_primary('db'), then restore_node('db') (the old primary comes back)."
     }
   ],
   "starter_graph": "graphs/product-api.json",

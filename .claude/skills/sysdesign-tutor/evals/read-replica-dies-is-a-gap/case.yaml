@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: read-replica-dies-is-a-gap
+expected_outcome: |
+  Sees that kill_replica needs a replicas param and db only has read_replicas, so one read replica dying has no faithful tool. Doesn't fake it with kill_node or kill_replica on db, talks it through, logs a new gap with all four fields, says so in one line.
+context:
+  scaffold_script: place-files.sh
