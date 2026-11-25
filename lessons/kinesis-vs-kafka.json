@@ -3,7 +3,7 @@
   "title": "Clickstream: Kinesis vs Kafka",
   "mode": "compare",
   "brief": "An API publishes 5k click events/s into a stream with 12 partitions (shards); 12 loaders (500 events/s each) write them to the warehouse. Side A uses Kafka (3 MSK brokers), side B Kinesis. Decide which you'd run at today's traffic and at 4x.",
-  "starter_graph": "graphs/clickstream.json",
+  "starter_graph": "graphs/click-events.json",
   "swap": {
     "node": "events",
     "options": [
