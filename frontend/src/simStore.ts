@@ -4,11 +4,10 @@
 import { createContext, useContext } from 'react'
 import { create, useStore, type StoreApi } from 'zustand'
 import { toDesign } from './design'
-import { initialSim, step, type SimState } from './sim/engine'
+import { initialSim, step, TICK_S, type SimState } from './sim/engine'
 import { TRAFFIC_DEFAULTS } from './sim/types'
 import { useDesign } from './store'
 
-export const TICK_S = 0.1 // 10 ticks per second of sim time, run in real time
 const HISTORY_TICKS = 600 // 60 s for the p99 chart
 export const SPIKE = { multiplier: 3, seconds: 10 }
 

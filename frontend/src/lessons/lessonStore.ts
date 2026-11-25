@@ -2,7 +2,8 @@
 // success checks have held for 10 s at the variant's traffic. Progress is saved per lesson in
 // localStorage, and so is the lesson's design (a separate key from the sandbox design).
 import { create } from 'zustand'
-import { TICK_S, useSim } from '../simStore'
+import { TICK_S } from '../sim/engine'
+import { useSim } from '../simStore'
 import { load, save } from '../storage'
 import { useDesign } from '../store'
 import { checks, graph, lessons, simTraffic, type Lesson, type Requirements, type StepName } from './content'

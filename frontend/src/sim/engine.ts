@@ -9,6 +9,7 @@ import { handlers } from './handlers'
 import { CROSS_AZ_MS, CROSS_REGION_MS, failAll, NONE, num, total } from './handlers/common'
 import { TRAFFIC_DEFAULTS, type Fanout, type Flow, type HandlerOutput, type NodeMetrics, type NodeState, type SimNode, type Traffic } from './types'
 
+export const TICK_S = 0.1 // seconds of sim time per step; the app runs 10 steps per second in real time
 const SAMPLES_PER_TICK = 100
 const SAMPLE_WINDOW = 2000 // last 20 ticks = 2 s of sim time
 
@@ -54,7 +55,7 @@ const behavior = (type: string) => registry[type]?.simBehavior
 const CUT = { pathMs: 0, pathFail: 1, pathStuck: 1 } // what a sender sees across a cut edge
 type Link = { target: string; w: number; edgeMs: number; cut: boolean; sequentialCalls: number }
 
-export function step(design: Design, prev: SimState, { traffic, killed, partitioned = [], replicasDown = {}, primaryDown = [] }: SimInputs, dt = 0.1): SimState {
+export function step(design: Design, prev: SimState, { traffic, killed, partitioned = [], replicasDown = {}, primaryDown = [] }: SimInputs, dt = TICK_S): SimState {
   const byId = new Map(design.nodes.map((n) => [n.id, n]))
   const dead = new Set(killed)
   // Walk up the parent chain (block -> AZ -> region).

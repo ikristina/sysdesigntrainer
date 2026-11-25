@@ -5,10 +5,9 @@ import { registry } from '../blocks'
 import { fromDesign, toDesign, type Design } from '../design'
 import { fmtCount, fmtMs, fmtPct, fmtRps } from '../display'
 import { simTraffic, type Scenario } from '../lessons/content'
-import { initialSim, step, type SimState } from '../sim/engine'
+import { initialSim, step, TICK_S, type SimState } from '../sim/engine'
 import type { Traffic } from '../lessons/content'
 
-export const TICK_S = 0.1
 export type Sample = { t: number; p50: number; p99: number; thr: number; err: number; cost: number; backlog: number; hit?: number }
 export type Run = {
   design: Design // with default params filled in

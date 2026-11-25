@@ -6,7 +6,8 @@ import { registry } from '../blocks'
 import { loadLocal, SANDBOX_KEY, toDesign, type Design } from '../design'
 import { compareLessons, graph, type CompareLesson, type Scenario } from '../lessons/content'
 import { useSim, type SimView } from '../simStore'
-import { startRun, swapped, tickRun, TICK_S, type Run } from './run'
+import { TICK_S } from '../sim/engine'
+import { startRun, swapped, tickRun, type Run } from './run'
 
 export type Side = SimView & { label: string; source: Design; run: Run }
 
