@@ -33,9 +33,6 @@ type Sim = {
   pause: () => void
   reset: () => void
   tick: () => void
-  setRps: (rps: number) => void
-  setReadRatio: (r: number) => void
-  setHotKey: (h: number) => void
   setTraffic: (t: Partial<Pick<Sim, 'rps' | 'readRatio' | 'hotKey' | 'payloadKb' | 'followers' | 'following'>>) => void
   spike: (multiplier?: number, seconds?: number) => void
   setFlag: (list: 'killed' | 'partitioned' | 'primaryDown', id: string, on: boolean) => void
@@ -80,9 +77,6 @@ export const useSim = create<Sim>((set, get) => ({
     return { sim, history: [...s.history, sim.global.p99Ms].slice(-HISTORY_TICKS) }
   }),
 
-  setRps: (rps) => set({ rps }),
-  setReadRatio: (readRatio) => set({ readRatio }),
-  setHotKey: (hotKey) => set({ hotKey }),
   setTraffic: (t) => set(t),
   spike: (multiplier = SPIKE.multiplier, seconds = SPIKE.seconds) =>
     set((s) => ({ spikeUntil: s.sim.t + seconds, spikeMultiplier: multiplier })),

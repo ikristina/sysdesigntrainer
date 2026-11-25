@@ -12,8 +12,7 @@ export const usePlayer = create<Player>(() => ({ explainer: null, index: 0, scen
 function show(e: Explainer, index: number, scene: Scene, reset: boolean) {
   const sim = useSim.getState()
   useDesign.getState().open(null, scene.design) // null = never autosave explainer graphs
-  sim.setRps(scene.rps)
-  sim.setReadRatio(scene.readRatio)
+  sim.setTraffic({ rps: scene.rps, readRatio: scene.readRatio })
   useSim.setState({ ...NO_FAULTS, killed: scene.killed })
   sim.setHighlight(scene.highlight)
   if (reset) sim.reset()

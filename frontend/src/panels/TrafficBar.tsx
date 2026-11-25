@@ -7,7 +7,7 @@ import { useDesign } from '../store'
 const toRps = (x: number) => Number((10 ** x).toPrecision(2))
 
 export function TrafficBar() {
-  const { running, rps, readRatio, hotKey, payloadKb, followers, following, play, pause, reset, setRps, setReadRatio, setHotKey, setTraffic, spike, setFlag } = useSim()
+  const { running, rps, readRatio, hotKey, payloadKb, followers, following, play, pause, reset, setTraffic, spike, setFlag } = useSim()
   const spiking = useSim((s) => s.sim.t < s.spikeUntil)
   const { killed, partitioned } = useSim()
   const selected = useDesign((s) => s.nodes.find((n) => n.selected))
@@ -17,12 +17,12 @@ export function TrafficBar() {
     <div className="traffic">
       <label className="traffic__ctl">Traffic
         <input type="range" min={1} max={6} step={0.01} value={Math.log10(rps)}
-          aria-label="Requests per second" onChange={(e) => setRps(toRps(Number(e.target.value)))} />
+          aria-label="Requests per second" onChange={(e) => setTraffic({ rps: toRps(Number(e.target.value)) })} />
         <b className="traffic__val">{fmtCount(rps)} rps</b>
       </label>
       <label className="traffic__ctl">Read / write
         <input type="range" min={0} max={100} step={1} value={read}
-          aria-label="Read percentage" onChange={(e) => setReadRatio(Number(e.target.value) / 100)} />
+          aria-label="Read percentage" onChange={(e) => setTraffic({ readRatio: Number(e.target.value) / 100 })} />
         <b className="traffic__val">{read} / {100 - read}</b>
       </label>
       {/* Native <details>: a click-to-open panel with no JS state. */}
@@ -31,7 +31,7 @@ export function TrafficBar() {
         <div className="traffic__pop sk">
           <label className="traffic__ctl" title="Share of all requests that go to one single key (a celebrity, a flash-sale item)">Hot key
             <input type="range" min={0} max={100} step={1} value={Math.round(hotKey * 100)}
-              aria-label="Hot key percentage" onChange={(e) => setHotKey(Number(e.target.value) / 100)} />
+              aria-label="Hot key percentage" onChange={(e) => setTraffic({ hotKey: Number(e.target.value) / 100 })} />
             <b className="traffic__val">{Math.round(hotKey * 100)}%</b>
           </label>
           <Num label="Payload KB" title="Response size per read. Only per-GB prices use it (CloudFront)." value={payloadKb} max={100_000}

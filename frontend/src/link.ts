@@ -30,9 +30,9 @@ const sim = () => useSim.getState()
 const commands: Record<string, (a: Args) => void> = {
   run: (a) => (a.on ? sim().play() : sim().pause()),
   set_traffic: (a) => {
-    if (typeof a.rps === 'number') sim().setRps(a.rps)
-    if (typeof a.read_ratio === 'number') sim().setReadRatio(a.read_ratio)
-    if (typeof a.hot_key === 'number') sim().setHotKey(a.hot_key)
+    if (typeof a.rps === 'number') sim().setTraffic({ rps: a.rps })
+    if (typeof a.read_ratio === 'number') sim().setTraffic({ readRatio: a.read_ratio })
+    if (typeof a.hot_key === 'number') sim().setTraffic({ hotKey: a.hot_key })
     if (typeof a.payload_kb === 'number') sim().setTraffic({ payloadKb: a.payload_kb })
     if (typeof a.followers === 'number') sim().setTraffic({ followers: a.followers })
     if (typeof a.following === 'number') sim().setTraffic({ following: a.following })
