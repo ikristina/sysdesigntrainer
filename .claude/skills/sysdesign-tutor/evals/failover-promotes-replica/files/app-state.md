@@ -17,7 +17,7 @@
  "twist": "A celebrity posts a short link: traffic x5 for 60 s. Apply with spike(5, 60).",
  "twist_applied": true,
  "checks": "writes failing (errors 1%)",
- "faults": "custom twist applied 20 s ago: kill_primary('db'). Kristina has explained what broke."
+ "faults": "custom twist applied 20 s ago: kill_primary('db'). The user has explained what broke."
 }
 ```
 

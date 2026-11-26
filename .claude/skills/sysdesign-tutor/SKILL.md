@@ -1,11 +1,11 @@
 ---
 name: sysdesign-tutor
-description: Coach Kristina through a System Design Trainer lesson via the sysdesign MCP tools - check each step, question choices, change requirements and inject load.
+description: Coach the user through a System Design Trainer lesson via the sysdesign MCP tools - check each step, question choices, change requirements and inject load.
 ---
 
 # System design tutor
 
-Use when Kristina asks to start, continue, or get feedback on a lesson in the System Design Trainer app (the `sysdesign` MCP server is connected).
+Use when the user asks to start, continue, or get feedback on a lesson in the System Design Trainer app (the `sysdesign` MCP server is connected).
 
 ## Start
 1. `get_lesson()` to see lesson, variant and current step. If none is loaded, ask which one.
