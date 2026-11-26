@@ -11,7 +11,7 @@ Full spec: `docs/SPEC.md`. Read it before starting any phase.
 Visual style: `docs/STYLE.md` ("cute sketchbook": pastel category fills, plum ink, Shantell Sans, gauges, alert lights). Its mockups are `docs/mockups/StyleCute.dc.html` (scene under load) and `docs/mockups/Products.dc.html` (product blocks). Every color and font is a token in `frontend/src/tokens.css`; components use `var(--token)`, never hex values. The older mockups (`Main`, `Breaking`, `Compare`) still show the screen layout and panel structure, not the look. The `.dc.html` files are design-tool sources: read them for values and structure, don't copy the markup. They won't run standalone.
 
 ## Stack
-- Backend: Python 3.12+, FastAPI, official `mcp` Python SDK (FastMCP), uv for deps
+- Backend: Python 3.12+, FastAPI, official `mcp` Python SDK 2.x (`MCPServer`), uv for deps
 - Frontend: React + TypeScript + Vite, `@xyflow/react` (React Flow), rough.js for hand-drawn style, Zustand for state
 - Terminal: ttyd running `claude`, embedded via iframe
 - Simulator: TypeScript, runs in the browser. Backend never simulates.
