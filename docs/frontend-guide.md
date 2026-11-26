@@ -232,7 +232,7 @@ Drag either end of an edge (grab it just outside the block, or click the edge fi
 3. Each `ParamField` keeps the raw text you type in `useState`. On every keystroke it runs `validateParam`. If the value is valid it calls `store.setParam` and the block's label updates (e.g. `×3`); if not, the red message shows and the store keeps the last good value.
 
 **...copy and paste**
-Select blocks (Shift-drag a box for several) and press Cmd/Ctrl+C, then Cmd/Ctrl+V. `Canvas.tsx` listens for the keys (not while typing in a field); `store.ts` keeps a snapshot and `cloneSubgraph` in `design.ts` (pure, tested) makes the copies: new ids, params and labels kept, everything inside a copied region/AZ comes along, and so do edges between copied blocks. Each paste lands 30 px further along and is selected, so you can drag it straight away.
+Select blocks (Shift-drag a box for several) and press Cmd/Ctrl+C, then Cmd/Ctrl+V. Cmd/Ctrl+D duplicates the selection in one go and leaves the clipboard alone. `Canvas.tsx` listens for the keys (not while typing in a field); `store.ts` keeps a snapshot and `cloneSubgraph` in `design.ts` (pure, tested) makes the copies: new ids, params and labels kept, everything inside a copied region/AZ comes along, and so do edges between copied blocks. Each paste lands 30 px further along and is selected, so you can drag it straight away.
 
 **...delete something**
 Select it and press Backspace (React Flow's default). Deleting a region also deletes what's inside it.

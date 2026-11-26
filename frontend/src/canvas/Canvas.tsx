@@ -24,8 +24,9 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
   const addBlock = useDesign((s) => s.addBlock)
   const copy = useDesign((s) => s.copy)
   const paste = useDesign((s) => s.paste)
+  const duplicate = useDesign((s) => s.duplicate)
 
-  // Cmd/Ctrl+C / V copy and paste blocks, except while typing in a field.
+  // Cmd/Ctrl+C / V copy and paste blocks, Cmd/Ctrl+D duplicates them, except while typing in a field.
   useEffect(() => {
     if (readOnly) return
     const onKey = (e: KeyboardEvent) => {
@@ -33,10 +34,11 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
       if (!(e.metaKey || e.ctrlKey) || t.closest('input, textarea, select, [contenteditable="true"]')) return
       if (e.key === 'c' && !window.getSelection()?.toString()) copy()
       else if (e.key === 'v') { e.preventDefault(); paste() }
+      else if (e.key === 'd') { e.preventDefault(); duplicate() } // not the browser's bookmark shortcut
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [readOnly, copy, paste])
+  }, [readOnly, copy, paste, duplicate])
   // Zoom to fit only if the page opened with an autosaved design, not when you drop the first block.
   const [fitOnOpen] = useState(() => nodes.length > 0)
   const { screenToFlowPosition, getIntersectingNodes, getInternalNode, changeParent } = useReactFlow<FlowNode>()

@@ -21,6 +21,7 @@ type State = {
   setEdgeLabel: (id: string, label: string) => void // the user's own text on an edge; '' removes it
   copy: () => void  // remember the selected nodes (Cmd/Ctrl+C)
   paste: () => void // add copies of them, selected, each paste a bit further along (Cmd/Ctrl+V)
+  duplicate: () => void // copy + paste the selection in one go, leaving the clipboard alone (Cmd/Ctrl+D)
   loadDesign: (json: unknown) => void // throws on invalid input
   // Switch to the design saved under `key` (or `initial` if nothing is saved there yet).
   open: (key: string | null, initial?: unknown) => void
@@ -86,6 +87,13 @@ export const useDesign = create<State>((set, get) => ({
     const nodes = c.nodes.map((n) => (n.parentId && !live.has(n.parentId) && !c.nodes.some((m) => m.id === n.parentId)
       ? { ...n, parentId: undefined, selected: true } : { ...n, selected: true }))
     set((s) => ({ nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...nodes], edges: [...s.edges, ...c.edges] }))
+  },
+
+  duplicate: () => {
+    const { nodes, edges } = get()
+    const c = cloneSubgraph(nodes, edges, nodes.filter((n) => n.selected).map((n) => n.id), newId)
+    if (!c.nodes.length) return
+    set((s) => ({ nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...c.nodes.map((n) => ({ ...n, selected: true }))], edges: [...s.edges, ...c.edges] }))
   },
 
   loadDesign: (json) => set(fromDesign(json)),
