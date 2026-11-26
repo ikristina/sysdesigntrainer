@@ -4,7 +4,7 @@
 import {
   Background, BackgroundVariant, ConnectionMode, Controls, ReactFlow, useReactFlow, type XYPosition,
 } from '@xyflow/react'
-import { useCallback, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useState, type DragEvent } from 'react'
 import { isContainer, type FlowNode } from '../design'
 import { useDesign } from '../store'
 import { BLOCK_H, BLOCK_W } from './BlockNode'
@@ -22,6 +22,21 @@ export function Canvas({ readOnly = false }: { readOnly?: boolean }) {
   const onConnect = useDesign((s) => s.onConnect)
   const onReconnect = useDesign((s) => s.onReconnect)
   const addBlock = useDesign((s) => s.addBlock)
+  const copy = useDesign((s) => s.copy)
+  const paste = useDesign((s) => s.paste)
+
+  // Cmd/Ctrl+C / V copy and paste blocks, except while typing in a field.
+  useEffect(() => {
+    if (readOnly) return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (!(e.metaKey || e.ctrlKey) || t.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (e.key === 'c' && !window.getSelection()?.toString()) copy()
+      else if (e.key === 'v') { e.preventDefault(); paste() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [readOnly, copy, paste])
   // Zoom to fit only if the page opened with an autosaved design, not when you drop the first block.
   const [fitOnOpen] = useState(() => nodes.length > 0)
   const { screenToFlowPosition, getIntersectingNodes, getInternalNode, changeParent } = useReactFlow<FlowNode>()

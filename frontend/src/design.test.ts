@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canLink, fromDesign, toDesign, type Design } from './design'
+import { canLink, cloneSubgraph, fromDesign, toDesign, type Design } from './design'
 
 const design: Design = {
   version: 1,
@@ -71,5 +71,33 @@ describe('save/load', () => {
     expect(() => fromDesign({})).toThrow(/Not a design/)
     expect(() => fromDesign({ ...design, nodes: [{ ...design.nodes[0], type: 'mainframe' }] })).toThrow(/Unknown block type/)
     expect(() => fromDesign({ ...design, edges: [{ id: 'x', source: 'api', target: 'nope' }] })).toThrow(/missing node/)
+  })
+})
+
+describe('cloneSubgraph', () => {
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f']
+  const fresh = () => { let i = 0; return () => `new${ids[i++]}` }
+  const src = fromDesign({
+    version: 1,
+    nodes: [
+      { id: 'r', type: 'region', position: { x: 0, y: 0 }, size: { w: 500, h: 300 }, params: {} },
+      { id: 'svc', type: 'service', position: { x: 10, y: 20 }, parentId: 'r', params: { replicas: 3 }, label: 'writes' },
+      { id: 'db', type: 'sql_db', position: { x: 300, y: 0 }, params: {} },
+    ],
+    edges: [{ id: 'e1', source: 'svc', target: 'db', carries: 'write', label: 'POST' }],
+  })
+
+  it('copies one block with its params and label, shifted, keeping its parent', () => {
+    const c = cloneSubgraph(src.nodes, src.edges, ['svc'], fresh())
+    expect(c.nodes).toHaveLength(1)
+    expect(c.nodes[0]).toMatchObject({ id: 'newa', parentId: 'r', position: { x: 40, y: 50 }, data: { params: { replicas: 3 }, label: 'writes' } })
+    expect(c.edges).toEqual([]) // db wasn't copied
+  })
+
+  it('copies a region with what is inside it, and the edges between the copies', () => {
+    const c = cloneSubgraph(src.nodes, src.edges, ['r', 'db'], fresh())
+    expect(c.nodes.map((n) => [n.id, n.parentId])).toEqual([['newa', undefined], ['newb', 'newa'], ['newc', undefined]])
+    expect(c.nodes[1].position).toEqual({ x: 10, y: 20 }) // relative to the copied region: not shifted twice
+    expect(c.edges).toMatchObject([{ source: 'newb', target: 'newc', data: { carries: 'write' }, label: 'POST' }])
   })
 })

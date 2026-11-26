@@ -100,11 +100,35 @@ export function fromDesign(input: unknown): { nodes: FlowNode[]; edges: Edge[] }
   }
   return {
     nodes: d.nodes.map(makeNode),
-    edges: d.edges.map((e) => ({
-      id: e.id, source: e.source, target: e.target, type: 'rough', data: routeOf(e),
-      sourceHandle: e.sourceHandle ?? DEFAULT_OUT, targetHandle: e.targetHandle ?? DEFAULT_IN,
-      ...(e.label && { label: e.label }),
-    })),
+    edges: d.edges.map(makeEdge),
+  }
+}
+
+const makeEdge = (e: SavedEdge): Edge => ({
+  id: e.id, source: e.source, target: e.target, type: 'rough', data: routeOf(e),
+  sourceHandle: e.sourceHandle ?? DEFAULT_OUT, targetHandle: e.targetHandle ?? DEFAULT_IN,
+  ...(e.label && { label: e.label }),
+})
+
+/** Copy-paste: copies of the `ids` nodes (plus everything inside a copied region/AZ) and the edges
+ *  between them, with new ids from `newId`. Top-level copies move by `offset` and keep their parent. */
+export function cloneSubgraph(nodes: FlowNode[], edges: Edge[], ids: string[], newId: (type: string) => string, offset = 30) {
+  const picked = new Set(ids)
+  for (let grew = true; grew;) {
+    grew = false
+    for (const n of nodes) if (n.parentId && picked.has(n.parentId) && !picked.has(n.id)) { picked.add(n.id); grew = true }
+  }
+  const d = toDesign(nodes.filter((n) => picked.has(n.id)), edges.filter((e) => picked.has(e.source) && picked.has(e.target)))
+  const id = new Map(d.nodes.map((n) => [n.id, newId(n.type)]))
+  return {
+    nodes: d.nodes.map((n) => {
+      const inside = !!n.parentId && id.has(n.parentId)
+      return makeNode({
+        ...n, id: id.get(n.id)!, parentId: inside ? id.get(n.parentId!) : n.parentId,
+        position: inside ? n.position : { x: n.position.x + offset, y: n.position.y + offset },
+      })
+    }),
+    edges: d.edges.map((e) => makeEdge({ ...e, id: `${id.get(e.source)}-${id.get(e.target)}`, source: id.get(e.source)!, target: id.get(e.target)! })),
   }
 }
 

@@ -3,7 +3,7 @@
 import { addEdge, reconnectEdge, type Connection, type Edge, type EdgeChangeset, type NodeChangeset } from '@xyflow/react'
 import { create } from 'zustand'
 import type { ParamValue } from './blocks/types'
-import { canLink, type EdgeRoute, type FlowNode, fromDesign, loadLocal, makeNode, SANDBOX_KEY, saveLocal, toDesign, isContainer } from './design'
+import { canLink, cloneSubgraph, type EdgeRoute, type FlowNode, fromDesign, loadLocal, makeNode, SANDBOX_KEY, saveLocal, toDesign, isContainer } from './design'
 
 type State = {
   nodes: FlowNode[]
@@ -19,6 +19,8 @@ type State = {
   setLabel: (id: string, label: string) => void // the user's own text on a block; '' removes it
   setRoute: (id: string, route: EdgeRoute) => void // what an edge carries and whether it fans out
   setEdgeLabel: (id: string, label: string) => void // the user's own text on an edge; '' removes it
+  copy: () => void  // remember the selected nodes (Cmd/Ctrl+C)
+  paste: () => void // add copies of them, selected, each paste a bit further along (Cmd/Ctrl+V)
   loadDesign: (json: unknown) => void // throws on invalid input
   // Switch to the design saved under `key` (or `initial` if nothing is saved there yet).
   open: (key: string | null, initial?: unknown) => void
@@ -33,7 +35,10 @@ const newId = (type: string) => `${type}_${Math.random().toString(36).slice(2, 6
 
 const saved = loadLocal(SANDBOX_KEY)
 
-export const useDesign = create<State>((set) => ({
+// What Cmd/Ctrl+C copied: a snapshot, so editing or deleting the originals doesn't change what pastes.
+let clipboard: { nodes: FlowNode[]; edges: Edge[]; ids: string[]; pastes: number } | null = null
+
+export const useDesign = create<State>((set, get) => ({
   nodes: saved?.nodes ?? [],
   edges: saved?.edges ?? [],
   storageKey: SANDBOX_KEY,
@@ -66,6 +71,22 @@ export const useDesign = create<State>((set) => ({
 
   setEdgeLabel: (id, label) =>
     set((s) => ({ edges: s.edges.map((e) => (e.id === id ? { ...e, label: label || undefined } : e)) })),
+
+  copy: () => {
+    const { nodes, edges } = get()
+    const ids = nodes.filter((n) => n.selected).map((n) => n.id)
+    if (ids.length) clipboard = { nodes, edges, ids, pastes: 0 }
+  },
+
+  paste: () => {
+    if (!clipboard) return
+    const live = new Set(get().nodes.map((n) => n.id))
+    const c = cloneSubgraph(clipboard.nodes, clipboard.edges, clipboard.ids, newId, 30 * ++clipboard.pastes)
+    // A copy whose parent region/AZ was deleted since the copy goes to the top level (same x/y, now from the canvas origin).
+    const nodes = c.nodes.map((n) => (n.parentId && !live.has(n.parentId) && !c.nodes.some((m) => m.id === n.parentId)
+      ? { ...n, parentId: undefined, selected: true } : { ...n, selected: true }))
+    set((s) => ({ nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...nodes], edges: [...s.edges, ...c.edges] }))
+  },
 
   loadDesign: (json) => set(fromDesign(json)),
 
