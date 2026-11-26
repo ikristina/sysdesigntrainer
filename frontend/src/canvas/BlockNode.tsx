@@ -71,6 +71,7 @@ export function BlockNode({ id, data }: NodeProps<FlowNode>) {
         </div>
       ) : hasPresets(def.type) && <span className="generic-tag">generic</span>}
       <div className="block-node__label">{def.label}</div>
+      {data.label && <div className="block-node__tag">{data.label}</div>}
       {/* One line under the label: size, then live status ("×3 · hit 72%"), so two-line labels still fit. */}
       {(replicas !== undefined || stats) && (
         <div className="block-node__sub">

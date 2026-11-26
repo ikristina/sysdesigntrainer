@@ -24,6 +24,13 @@ describe('save/load', () => {
     expect(trip(back)).toEqual(back)
   })
 
+  it('keeps a block label and rejects a non-text one', () => {
+    const labelled = { ...design, nodes: design.nodes.map((n, i) => (i === 0 ? { ...n, label: 'writes only' } : n)) }
+    expect(trip(labelled).nodes[0].label).toBe('writes only')
+    expect(trip(design).nodes[0]).not.toHaveProperty('label')
+    expect(() => fromDesign({ ...design, nodes: [{ ...design.nodes[0], label: 5 }] })).toThrow(/label/)
+  })
+
   it('keeps edge routes (carries, fanout) and rejects unknown values', () => {
     const routed = { ...design, edges: [{ id: 'e1', source: 'api', target: 'db', carries: 'write', fanout: 'write' }] }
     expect(trip(routed).edges).toEqual(routed.edges)

@@ -16,6 +16,7 @@ type State = {
   onReconnect: (old: Edge, c: Connection) => void // an edge's end dragged to another handle; keeps its data
   addBlock: (type: string, position: { x: number; y: number }, parentId?: string) => void
   setParam: (id: string, key: string, value: ParamValue) => void
+  setLabel: (id: string, label: string) => void // the user's own text on a block; '' removes it
   setRoute: (id: string, route: EdgeRoute) => void // what an edge carries and whether it fans out
   loadDesign: (json: unknown) => void // throws on invalid input
   // Switch to the design saved under `key` (or `initial` if nothing is saved there yet).
@@ -55,6 +56,9 @@ export const useDesign = create<State>((set) => ({
       nodes: s.nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, params: { ...n.data.params, [key]: value } } } : n),
     })),
+
+  setLabel: (id, label) =>
+    set((s) => ({ nodes: s.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: label || undefined } } : n)) })),
 
   setRoute: (id, route) =>
     set((s) => ({ edges: s.edges.map((e) => (e.id === id ? { ...e, data: { ...e.data, ...route } } : e)) })),

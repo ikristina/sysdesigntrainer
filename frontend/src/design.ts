@@ -5,7 +5,7 @@ import type { Connection, Edge, Node } from '@xyflow/react'
 import { defaultParams, registry } from './blocks'
 import type { ParamValue } from './blocks/types'
 
-type BlockData = { blockType: string; params: Record<string, ParamValue> }
+type BlockData = { blockType: string; params: Record<string, ParamValue>; label?: string }
 // 'block' = normal box, 'container' = region/AZ that other nodes sit inside.
 export type FlowNode = Node<BlockData, 'block' | 'container'>
 
@@ -16,6 +16,7 @@ export type SavedNode = {
   parentId?: string
   size?: { w: number; h: number }      // containers only
   params: Record<string, ParamValue>
+  label?: string                       // the user's own text on the block
 }
 /** What crosses an edge. Absent fields = reads and writes, no fan-out (the default). */
 export type EdgeRoute = {
@@ -46,6 +47,7 @@ export function toDesign(nodes: FlowNode[], edges: Edge[]): Design {
     nodes: nodes.map((n) => {
       const s: SavedNode = { id: n.id, type: n.data.blockType, position: n.position, params: n.data.params }
       if (n.parentId) s.parentId = n.parentId
+      if (n.data.label) s.label = n.data.label
       if (n.type === 'container') {
         s.size = { w: n.width ?? n.measured?.width ?? 0, h: n.height ?? n.measured?.height ?? 0 }
       }
@@ -66,7 +68,7 @@ export function makeNode(s: SavedNode): FlowNode {
     id: s.id,
     type: isContainer(s.type) ? 'container' : 'block',
     position: s.position,
-    data: { blockType: s.type, params: { ...defaultParams(s.type), ...s.params } },
+    data: { blockType: s.type, params: { ...defaultParams(s.type), ...s.params }, ...(s.label && { label: s.label }) },
   }
   if (s.parentId) n.parentId = s.parentId
   if (s.size) { n.width = s.size.w; n.height = s.size.h }
@@ -83,6 +85,7 @@ export function fromDesign(input: unknown): { nodes: FlowNode[]; edges: Edge[] }
   for (const n of d.nodes) {
     if (!registry[n.type]) throw new Error(`Unknown block type "${n.type}" on node ${n.id}`)
     if (n.parentId && !ids.has(n.parentId)) throw new Error(`Node ${n.id} has missing parent ${n.parentId}`)
+    if (n.label !== undefined && typeof n.label !== 'string') throw new Error(`Node ${n.id}: label must be text`)
   }
   for (const e of d.edges) {
     if (!ids.has(e.source) || !ids.has(e.target)) throw new Error(`Edge ${e.id} points at a missing node`)

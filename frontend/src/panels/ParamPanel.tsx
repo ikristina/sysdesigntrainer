@@ -13,6 +13,7 @@ export function ParamPanel() {
   const node = useDesign((s) => s.nodes.find((n) => n.selected))
   const edge = useDesign((s) => s.edges.find((e) => e.selected))
   const setParam = useDesign((s) => s.setParam)
+  const setLabel = useDesign((s) => s.setLabel)
 
   if (!node && edge) return <EdgePanel edge={edge} />
   if (!node) {
@@ -26,6 +27,13 @@ export function ParamPanel() {
         <div className="inspector__title">{def.label}</div>
         <div className="muted">{node.id} · {priceOf(def)}</div>
       </div>
+      {node.type === 'block' && (
+        <label className="field">
+          <span>Label</span>
+          <input type="text" value={node.data.label ?? ''} placeholder="e.g. writes only" maxLength={40}
+            onChange={(e) => setLabel(node.id, e.target.value)} />
+        </label>
+      )}
       {def.product && <ProductInfo def={def} />}
       {def.params.map((p) => (
         // `key` includes the node id so inputs reset when you select a different node.
