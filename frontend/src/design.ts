@@ -7,7 +7,7 @@ import type { ParamValue } from './blocks/types'
 
 type BlockData = { blockType: string; params: Record<string, ParamValue>; label?: string }
 // 'block' = normal box, 'container' = region/AZ that other nodes sit inside.
-export type FlowNode = Node<BlockData, 'block' | 'container'>
+export type FlowNode = Node<BlockData, 'block' | 'container' | 'note'>
 
 export type SavedNode = {
   id: string
@@ -16,7 +16,7 @@ export type SavedNode = {
   parentId?: string
   size?: { w: number; h: number }      // containers only
   params: Record<string, ParamValue>
-  label?: string                       // the user's own text on the block
+  label?: string                       // the user's own text on the block; a note's whole text
 }
 /** What crosses an edge. Absent fields = reads and writes, no fan-out (the default). */
 export type EdgeRoute = {
@@ -29,7 +29,7 @@ export type Side = 't' | 'r' | 'b' | 'l'
 export const SIDES: Side[] = ['t', 'r', 'b', 'l']
 const DEFAULT_OUT: Side = 'r'
 const DEFAULT_IN: Side = 'l'
-export type SavedEdge = { id: string; source: string; target: string; sourceHandle?: Side; targetHandle?: Side } & EdgeRoute
+export type SavedEdge = { id: string; source: string; target: string; sourceHandle?: Side; targetHandle?: Side; label?: string } & EdgeRoute
 export type Design = {
   version: 1
   nodes: SavedNode[]
@@ -59,6 +59,7 @@ export function toDesign(nodes: FlowNode[], edges: Edge[]): Design {
       ...(e.sourceHandle && e.sourceHandle !== DEFAULT_OUT && { sourceHandle: e.sourceHandle as Side }),
       ...(e.targetHandle && e.targetHandle !== DEFAULT_IN && { targetHandle: e.targetHandle as Side }),
       ...routeOf(e.data as EdgeRoute),
+      ...(typeof e.label === 'string' && e.label && { label: e.label }),
     })),
   }
 }
@@ -66,7 +67,7 @@ export function toDesign(nodes: FlowNode[], edges: Edge[]): Design {
 export function makeNode(s: SavedNode): FlowNode {
   const n: FlowNode = {
     id: s.id,
-    type: isContainer(s.type) ? 'container' : 'block',
+    type: isContainer(s.type) ? 'container' : s.type === 'note' ? 'note' : 'block',
     position: s.position,
     data: { blockType: s.type, params: { ...defaultParams(s.type), ...s.params }, ...(s.label && { label: s.label }) },
   }
@@ -94,6 +95,7 @@ export function fromDesign(input: unknown): { nodes: FlowNode[]; edges: Edge[] }
     for (const h of [e.sourceHandle, e.targetHandle]) {
       if (h !== undefined && !SIDES.includes(h)) throw new Error(`Edge ${e.id}: handle must be one of ${SIDES.join(', ')}`)
     }
+    if (e.label !== undefined && typeof e.label !== 'string') throw new Error(`Edge ${e.id}: label must be text`)
     if (e.sequential !== undefined && typeof e.sequential !== 'boolean') throw new Error(`Edge ${e.id}: sequential must be true or false`)
   }
   return {
@@ -101,6 +103,7 @@ export function fromDesign(input: unknown): { nodes: FlowNode[]; edges: Edge[] }
     edges: d.edges.map((e) => ({
       id: e.id, source: e.source, target: e.target, type: 'rough', data: routeOf(e),
       sourceHandle: e.sourceHandle ?? DEFAULT_OUT, targetHandle: e.targetHandle ?? DEFAULT_IN,
+      ...(e.label && { label: e.label }),
     })),
   }
 }

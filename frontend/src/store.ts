@@ -18,6 +18,7 @@ type State = {
   setParam: (id: string, key: string, value: ParamValue) => void
   setLabel: (id: string, label: string) => void // the user's own text on a block; '' removes it
   setRoute: (id: string, route: EdgeRoute) => void // what an edge carries and whether it fans out
+  setEdgeLabel: (id: string, label: string) => void // the user's own text on an edge; '' removes it
   loadDesign: (json: unknown) => void // throws on invalid input
   // Switch to the design saved under `key` (or `initial` if nothing is saved there yet).
   open: (key: string | null, initial?: unknown) => void
@@ -62,6 +63,9 @@ export const useDesign = create<State>((set) => ({
 
   setRoute: (id, route) =>
     set((s) => ({ edges: s.edges.map((e) => (e.id === id ? { ...e, data: { ...e.data, ...route } } : e)) })),
+
+  setEdgeLabel: (id, label) =>
+    set((s) => ({ edges: s.edges.map((e) => (e.id === id ? { ...e, label: label || undefined } : e)) })),
 
   loadDesign: (json) => set(fromDesign(json)),
 

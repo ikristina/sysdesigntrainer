@@ -27,10 +27,11 @@ export function ParamPanel() {
         <div className="inspector__title">{def.label}</div>
         <div className="muted">{node.id} · {priceOf(def)}</div>
       </div>
-      {node.type === 'block' && (
+      {node.type !== 'container' && (
         <label className="field">
-          <span>Label</span>
-          <input type="text" value={node.data.label ?? ''} placeholder="e.g. writes only" maxLength={40}
+          <span>{node.type === 'note' ? 'Text' : 'Label'}</span>
+          <input type="text" value={node.data.label ?? ''} placeholder={node.type === 'note' ? 'e.g. 6k writes/s > one primary' : 'e.g. writes only'}
+            maxLength={node.type === 'note' ? 200 : 40} autoFocus={node.type === 'note'}
             onChange={(e) => setLabel(node.id, e.target.value)} />
         </label>
       )}
@@ -113,6 +114,7 @@ function ParamField({ def, value, onCommit }: { def: ParamDef; value: ParamValue
 // A selected connection: which requests take it, and whether it fans out.
 function EdgePanel({ edge }: { edge: Edge }) {
   const setRoute = useDesign((s) => s.setRoute)
+  const setEdgeLabel = useDesign((s) => s.setEdgeLabel)
   const r = (edge.data ?? {}) as EdgeRoute
   return (
     <section className="stack" aria-label="Selected connection">
@@ -121,6 +123,11 @@ function EdgePanel({ edge }: { edge: Edge }) {
         <div className="inspector__title">Connection</div>
         <div className="muted">{edge.source} → {edge.target}</div>
       </div>
+      <label className="field">
+        <span>Label</span>
+        <input type="text" value={typeof edge.label === 'string' ? edge.label : ''} placeholder="e.g. async, via queue" maxLength={40}
+          onChange={(e) => setEdgeLabel(edge.id, e.target.value)} />
+      </label>
       <label className="field">
         <span className="field__row"><span>Carries</span></span>
         <select className="sk" value={r.carries ?? ''} onChange={(e) => setRoute(edge.id, { carries: (e.target.value || undefined) as EdgeRoute['carries'] })}>

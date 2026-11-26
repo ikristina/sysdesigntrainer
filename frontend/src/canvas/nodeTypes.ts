@@ -2,7 +2,8 @@
 // Shared by the main canvas and the compare view's two canvases.
 import { BlockNode } from './BlockNode'
 import { ContainerNode } from './ContainerNode'
+import { NoteNode } from './NoteNode'
 import { RoughEdge } from './RoughEdge'
 
-export const nodeTypes = { block: BlockNode, container: ContainerNode }
+export const nodeTypes = { block: BlockNode, container: ContainerNode, note: NoteNode }
 export const edgeTypes = { rough: RoughEdge }

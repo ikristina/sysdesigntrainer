@@ -2,7 +2,7 @@
 // the param panel and (Phase 2) the simulator all read these definitions.
 
 export type Category =
-  | 'edge' | 'traffic' | 'compute' | 'data' | 'cache' | 'async' | 'ai' | 'grouping'
+  | 'edge' | 'traffic' | 'compute' | 'data' | 'cache' | 'async' | 'ai' | 'grouping' | 'note'
 
 export type ParamValue = number | string
 

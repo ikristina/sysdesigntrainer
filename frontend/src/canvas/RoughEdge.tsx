@@ -5,6 +5,7 @@
 // turns coral, line and dots, and coral dots fall off its end.
 // An edge cut by a partitioned region gets a red ✕ in the middle. A routed edge shows a tag:
 // 'reads' / 'writes' if it carries only one kind, '× followers' / '× following' if it fans out.
+// The user's own label (set in the Selected panel) sits under the middle.
 import { BaseEdge, getBezierPath, Position, useNodesData, type EdgeProps } from '@xyflow/react'
 import { useMemo } from 'react'
 import { registry, toneOf } from '../blocks'
@@ -59,6 +60,7 @@ export function RoughEdge(p: EdgeProps) {
       ))}
       {isCut && <text x={midX} y={midY} className="edge-cut">✕</text>}
       {tag && <text x={midX} y={midY - 10} textAnchor="middle" className="edge-tag">{tag}</text>}
+      {typeof p.label === 'string' && p.label && <text x={midX} y={midY + 16} textAnchor="middle" className="edge-label">{p.label}</text>}
       {/* Invisible wide path so the edge is easy to click/select. */}
       <BaseEdge id={p.id} path={d} style={{ stroke: 'transparent' }} interactionWidth={16} />
     </>

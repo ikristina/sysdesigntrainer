@@ -126,6 +126,7 @@ button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 @keyframes dash { to { stroke-dashoffset: -48; } }
 .edge-cut { fill: var(--coral); font: 700 18px var(--font); text-anchor: middle; dominant-baseline: central; }
 .edge-tag { font: 600 11px var(--font); fill: var(--ink-muted); paint-order: stroke; stroke: var(--paper); stroke-width: 4px; }
+.edge-label { font: 12px var(--font); fill: var(--ink); paint-order: stroke; stroke: var(--paper); stroke-width: 4px; }
 .block-node--lit { outline: 3px solid var(--violet); outline-offset: 5px; border-radius: 6px; animation: lit 1.4s ease-in-out infinite; }
 @keyframes lit { 50% { outline-color: transparent; } }
 .edge-drop { fill: var(--coral); animation: fall 1.2s ease-in infinite; }
@@ -203,6 +204,9 @@ button.pip:hover { outline: 1.5px solid var(--ink); outline-offset: 1px; }
 .sticker--badge .mark--badge { position: relative; border: 0; padding: 0; margin: 0; color: var(--ink); font-size: 8px; letter-spacing: -0.3px; }
 .generic-tag { position: absolute; left: 10px; top: -9px; padding: 0 6px; font-size: 11px; font-weight: 600; color: var(--ink-muted); background: var(--panel); border: 1px solid var(--line-faint); border-radius: 6px; transform: rotate(-4deg); pointer-events: none; }
 .palette__items--products { margin-top: 6px; }
+/* Free text on the canvas (blocks/note.ts). */
+.note-node { max-width: 260px; padding: 4px 6px; font-size: 14px; color: var(--ink); white-space: pre-wrap; }
+.note-node--empty { color: var(--ink-faint); font-style: italic; }
 /* The user's own label: a tag hanging under the block. */
 .block-node__tag { position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); max-width: 180px; padding: 1px 8px; font-size: 12px; color: var(--ink); background: var(--panel); border: 1px solid var(--line-faint); border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .palette__items--products:empty { display: none; }

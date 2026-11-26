@@ -300,6 +300,8 @@ This is our own format, not React Flow's internal one. Lessons, explainers and t
 - `position` is relative to `parentId` when one is set.
 - `size` appears only on regions and AZs.
 - A block may have `"label"`: the user's own text, set in the Selected panel and shown as a tag under the block. Left out when empty. Regions and AZs use their `name` param instead. The sim ignores it; `get_design` passes it to Claude.
+- A `"note"` node is free text on the canvas (`blocks/note.ts`, `canvas/NoteNode.tsx`): its text is its `label`, it has no connection dots and no sim handler, so it never carries traffic.
+- An edge may have `"label"`: the user's own text, drawn under the middle of the curve. In the store it's React Flow's edge `label`.
 - An edge may say which side it leaves and enters: `"sourceHandle"` / `"targetHandle"`, each `"t" | "r" | "b" | "l"`. Left out means `"r"` (leaves on the right) and `"l"` (enters on the left), which is how every edge looked before blocks had four dots, so old saves, lesson `starter_graph`s and explainer graphs load unchanged. `toDesign` leaves the defaults out again. The sim ignores both fields.
 - An edge may carry `"carries": "read" | "write"` (only that kind of request takes it) and `"fanout": "write" | "read"` (each request becomes N calls, see section 7). Both are left out when not set. In the store they live in the React Flow edge's `data`.
 - On load, params missing from the file are filled from the registry defaults, so old saves keep working when a block gains a param.

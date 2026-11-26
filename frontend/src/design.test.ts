@@ -31,6 +31,15 @@ describe('save/load', () => {
     expect(() => fromDesign({ ...design, nodes: [{ ...design.nodes[0], label: 5 }] })).toThrow(/label/)
   })
 
+  it('keeps a text note and an edge label', () => {
+    const d = { ...design, nodes: [...design.nodes, { id: 'n1', type: 'note', position: { x: 0, y: 0 }, params: {}, label: 'hot key here' }],
+      edges: design.edges.map((e, i) => (i === 0 ? { ...e, label: 'async' } : e)) }
+    expect(fromDesign(d).nodes.at(-1)!.type).toBe('note')
+    expect(trip(d).nodes.at(-1)).toEqual(d.nodes.at(-1))
+    expect(trip(d).edges[0].label).toBe('async')
+    expect(() => fromDesign({ ...design, edges: [{ ...design.edges[0], label: 5 }] })).toThrow(/label/)
+  })
+
   it('keeps edge routes (carries, fanout) and rejects unknown values', () => {
     const routed = { ...design, edges: [{ id: 'e1', source: 'api', target: 'db', carries: 'write', fanout: 'write' }] }
     expect(trip(routed).edges).toEqual(routed.edges)

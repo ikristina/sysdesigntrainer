@@ -23,12 +23,13 @@ import { llm } from './llm'
 import { embedding } from './embedding'
 import { region } from './region'
 import { az } from './az'
+import { note } from './note'
 import { presets } from './presets'
 
 export const blocks: BlockDef[] = [
   client, dns, cdn, load_balancer, api_gateway, service, worker, fn,
   sql_db, kv, wide_column, graph_db, search, vector_db, blob,
-  cache, queue, stream, llm, embedding, region, az,
+  cache, queue, stream, llm, embedding, region, az, note,
   ...presets,
 ]
 
@@ -44,6 +45,7 @@ export const categories: { id: Category; label: string }[] = [
   { id: 'async', label: 'Async' },
   { id: 'ai', label: 'AI' },
   { id: 'grouping', label: 'Groups' },
+  { id: 'note', label: 'Notes' },
 ]
 
 /** Generic blocks that products are presets of (cache, sql_db, queue...): these get a "generic" tag. */
@@ -59,7 +61,7 @@ export function toneOf(def: BlockDef): Tone | null {
   const byCategory: Partial<Record<Category, Tone>> = {
     edge: 'traffic', traffic: 'traffic', compute: 'compute', cache: 'cache', async: 'async', data: 'nosql', ai: 'ai',
   }
-  return byCategory[def.category] ?? null // regions and AZs have no fill
+  return byCategory[def.category] ?? null // regions, AZs and text have no fill
 }
 
 export function defaultParams(type: string): Record<string, ParamValue> {
