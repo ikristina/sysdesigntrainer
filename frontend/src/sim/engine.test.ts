@@ -116,6 +116,18 @@ describe('simulator', () => {
     expect(s.global.errorPct).toBeCloseTo(0)
   })
 
+  it('gateway splits reads and writes by share over the edges that carry them', () => {
+    const d = design([node('c', 'client', { retries: 0 }), node('gw', 'api_gateway'), node('api', 'service'), node('q', 'kafka')],
+      [['c', 'gw'], ['gw', 'api'], ['gw', 'q']])
+    d.edges[2] = { ...d.edges[2], carries: 'write', share: 90 }
+    const s = run(d, { readRatio: 0.4 }) // 400 reads, 600 writes
+    expect(s.metrics.api.lambda).toBeCloseTo(400 + 60) // every read, 10% of writes
+    expect(s.metrics.q.lambda).toBeCloseTo(540)
+    expect(s.global.errorPct).toBeCloseTo(0)
+    d.edges.splice(1, 1) // only the writes edge left: reads have nowhere to go and fail
+    expect(run(d, { readRatio: 0.4 }).global.errorPct).toBeCloseTo(40)
+  })
+
   it('dead replicas shrink μ; all dead = killed', () => {
     const d = simple({ replicas: 4, capacity_rps: 100 }, { retries: 0 })
     const go = (n: number) => { let s = initialSim(); for (let i = 0; i < 50; i++) s = step(d, s, { traffic: { rps: 350, readRatio: 0.9, multiplier: 1 }, killed: [], replicasDown: { s: n } }); return s }

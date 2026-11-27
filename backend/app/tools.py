@@ -72,7 +72,8 @@ mcp = MCPServer(
 @mcp.tool()
 def get_design() -> dict[str, Any]:
     """The user's design: nodes (id, type, params, parentId = the region/AZ it sits in, label = the user's own
-    text on it) and edges (label = the user's text on the connection). A node of type "note" is free text on
+    text on it) and edges (label = the user's text on the connection; carries = "read"/"write" only; share = % of the
+    requests a load balancer or gateway sends down it, edges without one split the rest). A node of type "note" is free text on
     the canvas: its label is the text; it has no connections and the simulator ignores it."""
     return link.snapshot()["design"]
 

@@ -112,7 +112,7 @@ export function step(design: Design, prev: SimState, { traffic, killed, partitio
     const node = nodes.get(id)!
     const children = kids.get(id)!
     const r = handlers[behavior(node.type)]({
-      node, inbound: inbound.get(id) ?? NONE, children: children.map((e) => cut.has(e.id) ? { ...nodes.get(e.target)!, killed: true } : nodes.get(e.target)!),
+      node, inbound: inbound.get(id) ?? NONE, routes: children, children: children.map((e) => cut.has(e.id) ? { ...nodes.get(e.target)!, killed: true } : nodes.get(e.target)!),
       state: prev.nodes[id] ?? {}, prevPathFail: prev.metrics[id]?.pathFail ?? 0, prevPathStuck: prev.metrics[id]?.pathStuck ?? 0,
       childFail: children.map((e) => (cut.has(e.id) ? 1 : prev.metrics[e.target]?.pathFail ?? 0)),
       offered: sources.includes(id) ? share : 0, readRatio: traffic.readRatio, hotKey: traffic.hotKey ?? 0, dt,

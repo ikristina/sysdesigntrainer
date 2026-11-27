@@ -1,5 +1,6 @@
 // Simulator types. The simulator is plain TypeScript (no React): state in, state out.
 import type { ParamValue } from '../blocks/types'
+import type { EdgeRoute } from '../design'
 
 /** Requests per second, split into reads and writes. */
 export type Flow = { read: number; write: number }
@@ -45,6 +46,7 @@ export type HandlerInput = {
   node: SimNode
   inbound: Flow
   children: SimNode[]               // downstream nodes, one per outgoing edge
+  routes?: EdgeRoute[]              // each outgoing edge's carries / share (balancers split by them)
   state: NodeState
   prevPathFail: number              // this node's end-to-end failure share last tick (clients use it for retries)
   prevPathStuck: number             // the part of prevPathFail that fails every retry too (a dead target)

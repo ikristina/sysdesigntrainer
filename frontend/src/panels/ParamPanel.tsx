@@ -116,6 +116,9 @@ function EdgePanel({ edge }: { edge: Edge }) {
   const setRoute = useDesign((s) => s.setRoute)
   const setEdgeLabel = useDesign((s) => s.setEdgeLabel)
   const r = (edge.data ?? {}) as EdgeRoute
+  // Share only means something out of a block that picks one child per request.
+  const sourceType = useDesign((s) => s.nodes.find((n) => n.id === edge.source)?.type)
+  const splits = ['balancer', 'gateway'].includes(registry[sourceType ?? '']?.simBehavior ?? '')
   return (
     <section className="stack" aria-label="Selected connection">
       <div>
@@ -136,6 +139,13 @@ function EdgePanel({ edge }: { edge: Edge }) {
           <option value="write">writes only</option>
         </select>
       </label>
+      {splits && (
+        <label className="field">
+          <span className="field__row"><span>Share %</span></span>
+          <input type="number" min={0} max={100} value={r.share ?? ''} placeholder="even split of what's left"
+            onChange={(e) => setRoute(edge.id, { share: e.target.value === '' ? undefined : Math.max(0, Number(e.target.value)) })} />
+        </label>
+      )}
       <label className="field">
         <span className="field__row"><span>Fan-out</span></span>
         <select className="sk" value={r.fanout ?? ''} onChange={(e) => setRoute(edge.id, { fanout: (e.target.value || undefined) as EdgeRoute['fanout'] })}>

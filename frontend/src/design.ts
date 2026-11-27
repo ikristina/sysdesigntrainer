@@ -23,6 +23,7 @@ export type EdgeRoute = {
   carries?: 'read' | 'write'  // only reads or only writes take this edge
   fanout?: 'write' | 'read'   // each write is sent `followers` times / each read fetches `following` times
   sequential?: boolean        // with fanout: the N calls run one after another (latency × N), e.g. an agent's LLM loop
+  share?: number              // out of a load balancer or gateway: % of the requests this edge can carry; edges without one split the rest
 }
 /** Which side of a block an edge leaves (`sourceHandle`) or enters (`targetHandle`). Absent = 'r' / 'l'. */
 export type Side = 't' | 'r' | 'b' | 'l'
@@ -36,7 +37,7 @@ export type Design = {
   edges: SavedEdge[]
 }
 const routeOf = (r: EdgeRoute | undefined): EdgeRoute => ({
-  ...(r?.carries && { carries: r.carries }), ...(r?.fanout && { fanout: r.fanout }), ...(r?.fanout && r.sequential && { sequential: true }),
+  ...(r?.carries && { carries: r.carries }), ...(r?.fanout && { fanout: r.fanout }), ...(r?.fanout && r.sequential && { sequential: true }), ...(r?.share !== undefined && { share: r.share }),
 })
 
 export const isContainer = (type: string) => registry[type]?.category === 'grouping'
@@ -96,6 +97,7 @@ export function fromDesign(input: unknown): { nodes: FlowNode[]; edges: Edge[] }
       if (h !== undefined && !SIDES.includes(h)) throw new Error(`Edge ${e.id}: handle must be one of ${SIDES.join(', ')}`)
     }
     if (e.label !== undefined && typeof e.label !== 'string') throw new Error(`Edge ${e.id}: label must be text`)
+    if (e.share !== undefined && !(typeof e.share === 'number' && e.share >= 0)) throw new Error(`Edge ${e.id}: share must be a number ≥ 0`)
     if (e.sequential !== undefined && typeof e.sequential !== 'boolean') throw new Error(`Edge ${e.id}: sequential must be true or false`)
   }
   return {
