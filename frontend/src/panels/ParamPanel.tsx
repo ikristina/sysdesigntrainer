@@ -117,7 +117,7 @@ function EdgePanel({ edge }: { edge: Edge }) {
   const setEdgeLabel = useDesign((s) => s.setEdgeLabel)
   const r = (edge.data ?? {}) as EdgeRoute
   // Share only means something out of a block that picks one child per request.
-  const sourceType = useDesign((s) => s.nodes.find((n) => n.id === edge.source)?.type)
+  const sourceType = useDesign((s) => s.nodes.find((n) => n.id === edge.source)?.data.blockType)
   const splits = ['balancer', 'gateway'].includes(registry[sourceType ?? '']?.simBehavior ?? '')
   return (
     <section className="stack" aria-label="Selected connection">
