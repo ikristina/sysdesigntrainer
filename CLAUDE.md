@@ -66,3 +66,4 @@ When the user gets something wrong or is clearly unsure, add 1-3 questions on th
 ## Working style
 - Work phase by phase (see SPEC). Stop at the end of each phase, show how to run it, and wait.
 - Commit at each working checkpoint with a short message.
+- When a commit adds or changes something a user can see or do, add a line to `CHANGELOG.md` under today's date (newest first, plain words, no internal refactors).

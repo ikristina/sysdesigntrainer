@@ -4,7 +4,7 @@ A local web app for learning system design hands-on. You drag components (servic
 
 ![A multi-region design under 6.3k rps: the services are fine, Postgres is saturated and requests fail](docs/screenshot.png)
 
-**Status:** Phases 1 (canvas), 2 (simulator), 3 (Claude link), 4 (lessons and explainers) and 5 (product presets and compare) are done. See `docs/SPEC.md` for the plan.
+**Status:** Phases 1 (canvas), 2 (simulator), 3 (Claude link), 4 (lessons and explainers) and 5 (product presets and compare) are done. See `docs/SPEC.md` for the plan. **What's new:** [CHANGELOG.md](CHANGELOG.md).
 
 ## What you need
 
