@@ -14,6 +14,7 @@ A local web app for learning system design hands-on. You drag components (servic
 | uv | any recent | backend | `brew install uv` |
 | Python | 3.12+ | backend (uv installs it if missing) | `uv python install 3.12` |
 | ttyd | any recent | Claude terminal panel (Phase 3+) | `brew install ttyd` |
+| tmux | any recent | keeps Claude running across page reloads (not on macOS by default) | `brew install tmux` |
 | Claude Code | latest | Claude coaching (Phase 3+), on a Pro/Max plan | https://claude.com/claude-code |
 | Chrome / Firefox / Safari | recent | using the app | |
 
@@ -23,9 +24,11 @@ Check what you have:
 node -v      # v22.12 or higher
 npm -v
 uv --version
+ttyd --version
+tmux -V
 ```
 
-The sandbox (the canvas and simulator) needs **only Node**. The backend, ttyd and Claude Code are for Claude coaching.
+The sandbox (the canvas and simulator) needs **only Node**. The backend, ttyd, tmux and Claude Code are for Claude coaching.
 
 ## Setup (once)
 
