@@ -2,7 +2,7 @@
 
 A local web app for learning system design hands-on. You drag components (services, databases, caches, queues...) onto a canvas, connect them, run simulated load, and watch the design break. Then you fix it. Claude coaches you from a terminal under the canvas and talks to the app over MCP.
 
-![A multi-region design under 6.3k rps: the services are fine, Postgres is saturated and requests fail](docs/screenshot.png)
+![Claude in the terminal under the canvas: it ran a ×3 spike, read the live metrics and explains why the API gateway rejects 30.7% of requests](docs/screenshot-claude.png)
 
 **Status:** Phases 1 (canvas), 2 (simulator), 3 (Claude link), 4 (lessons and explainers) and 5 (product presets and compare) are done. See `docs/SPEC.md` for the plan. **What's new:** [CHANGELOG.md](CHANGELOG.md).
 
@@ -47,6 +47,8 @@ cd frontend && npm run dev
 ```
 
 Open http://localhost:5173.
+
+![A multi-region design under 6.3k rps: the services are fine, Postgres is saturated and requests fail](docs/screenshot.png)
 
 - **Add blocks:** drag tiles from the left panel onto the canvas.
 - **Connect:** drag from a block's right dot to another block's left dot.
