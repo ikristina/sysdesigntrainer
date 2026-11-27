@@ -31,7 +31,7 @@ export function ParamPanel() {
         <label className="field">
           <span>{node.type === 'note' ? 'Text' : 'Label'}</span>
           <input type="text" value={node.data.label ?? ''} placeholder={node.type === 'note' ? 'e.g. 6k writes/s > one primary' : 'e.g. writes only'}
-            maxLength={node.type === 'note' ? 200 : 40} autoFocus={node.type === 'note'}
+            maxLength={node.type === 'note' ? 200 : 40}
             onChange={(e) => setLabel(node.id, e.target.value)} />
         </label>
       )}
