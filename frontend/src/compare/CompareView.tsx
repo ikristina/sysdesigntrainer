@@ -75,7 +75,12 @@ export function ComparePanel() {
       </label>
       {l && (
         <>
-          {l.hints.slice(0, st.hints).map((h, i) => <p key={i} className="lesson__hint">Hint {i + 1}: {h}</p>)}
+          {st.hints > 0 && (
+            <details open key={st.hints} className="stack">
+              <summary>Hints ({st.hints})</summary>
+              {l.hints.slice(0, st.hints).map((h, i) => <p key={i} className="lesson__hint">Hint {i + 1}: {h}</p>)}
+            </details>
+          )}
           {st.hints < l.hints.length && <button className="btn sk" onClick={() => showHint(st.hints + 1)}>Show hint {st.hints + 1} of {l.hints.length}</button>}
           {(l.explainers ?? []).map((id) => <a key={id} href={`#/explainer/${id}`}>Watch: {explainers.find((e) => e.id === id)?.title}</a>)}
         </>

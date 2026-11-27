@@ -48,7 +48,13 @@ export function LessonPanel() {
       </div>
 
       <div className="stack">
-        {lesson.hints.slice(0, progress.hints).map((h, i) => <p key={i} className="lesson__hint">Hint {i + 1}: {h}</p>)}
+        {/* Collapsible; the key reopens it when a new hint is shown (by the button or by Claude). */}
+        {progress.hints > 0 && (
+          <details open key={progress.hints} className="stack">
+            <summary>Hints ({progress.hints})</summary>
+            {lesson.hints.slice(0, progress.hints).map((h, i) => <p key={i} className="lesson__hint">Hint {i + 1}: {h}</p>)}
+          </details>
+        )}
         {progress.hints < lesson.hints.length && (
           <button className="btn sk" onClick={() => showHint(progress.hints + 1)}>Show hint {progress.hints + 1} of {lesson.hints.length}</button>
         )}
