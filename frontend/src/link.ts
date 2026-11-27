@@ -20,8 +20,10 @@ const SEND_EVERY_MS = 1000
 const RETRY_MS = 3000
 
 export const TTYD_URL = `http://${location.hostname}:7681`
-/** Is ttyd running? A no-cors fetch can't read the page, but it only fails if nothing answers. */
-export const ttydUp = () => fetch(TTYD_URL, { mode: 'no-cors' }).then(() => true, () => false)
+/** Is ttyd running? A no-cors fetch can't read the page, but it only fails if nothing answers.
+ *  The timeout covers a ttyd that holds the port but never replies (e.g. suspended with Ctrl+Z). */
+export const ttydUp = () =>
+  fetch(TTYD_URL, { mode: 'no-cors', signal: AbortSignal.timeout(3000) }).then(() => true, () => false)
 
 export const useLink = create(() => ({ connected: false }))
 

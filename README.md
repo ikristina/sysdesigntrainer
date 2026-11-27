@@ -62,7 +62,13 @@ Open http://localhost:5173.
 
 ### With Claude
 
-Three terminals, plus the frontend above:
+One command starts the backend, frontend and Claude terminal and opens the app (Ctrl+C stops all three):
+
+```bash
+./start.sh
+```
+
+Or by hand, in separate terminals, plus the frontend above:
 
 ```bash
 # 1. backend: mirrors the app's state and serves Claude's MCP tools on :8000
