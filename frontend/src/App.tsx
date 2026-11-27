@@ -41,6 +41,8 @@ export default function App() {
   const step = usePlayer((s) => s.index)
   // New mode or explainer step = new graph: frame it. React Flow queues fitView until the nodes are measured.
   useEffect(() => { fitView({ padding: '10%', duration: 300 }) }, [mode, step, fitView])
+  // The terminal opens after the first fit (once ttyd answers) and covers the bottom: refit to the space left.
+  useEffect(() => { if (terminal) fitView({ padding: '10%', duration: 300 }) }, [terminal, fitView])
 
   // Download the current design as a .json file.
   const exportFile = () => {

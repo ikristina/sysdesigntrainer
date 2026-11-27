@@ -9,6 +9,7 @@ What's new in System Design Trainer, newest first. Full detail: `git log`.
 - **One command to start everything:** `./start.sh` runs the backend, frontend and Claude terminal and opens the app. Ctrl+C stops all three.
 - A selected text note now gets the same lilac ring as a selected block.
 - **Hide hints:** click **Hints (n)** to fold them away. A new hint, from the button or from Claude, opens them again.
+- **Fix:** after a reload, the terminal no longer hides the bottom of the design: the canvas refits when the terminal opens.
 - The terminal panel stops waiting after 3 s when ttyd is stuck and shows how to start it.
 
 ## 2026-11-26
