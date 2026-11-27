@@ -7,6 +7,7 @@ What's new in System Design Trainer, newest first. Full detail: `git log`.
 - **Split traffic at a gateway or load balancer.** Click a connection out of one and set **Share %**: e.g. API 10, Kafka (writes only) 90 sends every read and 10% of writes to the API, 90% of writes to Kafka. Connections without a share split what's left evenly.
 - **Fix:** a gateway or load balancer with *reads only* / *writes only* connections used to drop half the traffic without counting it as errors. Requests no connection carries now show up as errors.
 - **One command to start everything:** `./start.sh` runs the backend, frontend and Claude terminal and opens the app. Ctrl+C stops all three.
+- A selected text note now gets the same lilac ring as a selected block.
 - **Hide hints:** click **Hints (n)** to fold them away. A new hint, from the button or from Claude, opens them again.
 - The terminal panel stops waiting after 3 s when ttyd is stuck and shows how to start it.
 
